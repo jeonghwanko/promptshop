@@ -120,6 +120,10 @@ The building spec is short text. With a Haiku-class model one building costs abo
 
 - Stage 2, fourth version (after "the world map is not it; imagine a social game: build a city with friends, ten slots, invite friends, islands joined by bridges, ships for trade"): `isles.html`. Ten island slots, join a free slot, build on your own island, half bridges per owner, residents cross finished bridges and spend in neighbours' shops. Ships and harbours are next.
 
+- Stage 2, fifth version (after "customers come by boat, pay, and the money buys buildings and supplies; furniture starts see-through and each piece bought upgrades the shop"): boats to a pier per island, stock and restock, ghost furniture that raises queue room, price and speed.
+
+- Stage 2, sixth version (after research on building sims: what you build barely changed the simulation, and the map is too small to see what happens inside): `inside.html`. **Each building runs its own simulation inside its cross-section.** Customers queue at counters, ride the lift, sit at tables and pay at the table when they finish; a guest who orders and finds no seat leaves without paying. Stoves bring cooks and speed up orders, plants and rugs bring tips, toilets get visits. Tapping a see-through fixture buys it, so the owner sets up each building by filling its floors. User decision: build the game this way. Next: open this view from a shop on the islands, use its throughput on the map, and generalise the guest route by zone roles for all 52 types.
+
 ## Decisions (2026-11-26)
 
 1. **Tall buildings in the town view** are compressed above 8 floors. A band on the facade marks the hidden floors, and the label shows the real count.

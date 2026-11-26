@@ -1,6 +1,7 @@
 // A small simulation that runs inside one building's cross-section.
 // Fixtures the owner has bought do work: counters take orders, stoves speed them up, tables and sofas give seats,
-// toilets serve, plants and rugs make seated guests tip. Customers walk between them in world units on each floor,
+// toilets serve, plants and rugs make seated guests tip. Guests pay at the table when they finish (take-away shops: at the counter),
+// so a guest who orders and finds no seat walks out without paying. Customers walk between them in world units on each floor,
 // ride the lift between floors, queue at counters and give up when the line or the room is full.
 // No DOM here: the page projects people with the section's camera and draws them.
 
@@ -79,7 +80,7 @@ export class InsideSim {
     this.t += dt; this.next -= dt;
     if (this.next <= 0) { this.next = this.every * (.7 + this.rnd() * .6); this.spawn(); }
     for (const c of this.counters) {
-      if (c.busy) { c.left -= dt; if (c.left <= 0) { const p = this.people.find(q => q.id === c.busy); c.busy = null; if (p) { this.stats.coins += PRICE; this.events.push({ kind: 'coin', f: c.fi, x: c.x, z: c.z, n: PRICE }); p.state = 'served'; p.mood = ''; this.afterCounter(p); } } }
+      if (c.busy) { c.left -= dt; if (c.left <= 0) { const p = this.people.find(q => q.id === c.busy); c.busy = null; if (p) { if (!this.seats.length) this.pay(PRICE, c.fi, c.x, c.z); p.state = 'served'; p.mood = ''; this.afterCounter(p); } } }
       if (!c.busy && c.q.length) { const p = this.people.find(q => q.id === c.q[0]); if (p && !p.moves.length && Math.hypot(p.x - c.x, p.z - (c.z + .55)) < .2) { c.q.shift(); c.busy = p.id; c.left = this.serviceTime; p.state = 'order'; } }
     }
     for (const p of this.people) {
@@ -96,7 +97,7 @@ export class InsideSim {
         case 'toSeat': p.state = 'sit'; p.wait = 10 + this.rnd() * 6; if (this.decor.get(p.f)) { p.mood = 'heart'; } break;
         case 'sit': if ((p.wait -= dt) <= 0) {
           const tip = this.decor.get(p.f) ? Math.min(3, this.decor.get(p.f)) : 0;
-          if (tip) { this.stats.coins += tip; this.events.push({ kind: 'coin', f: p.f, x: p.x, z: p.z, n: tip, tip: true }); }
+          this.pay(PRICE + tip, p.f, p.x, p.z, tip > 0);   // the bill is paid at the table, with a tip if the floor is decorated
           p.seat.who = null; p.seat = null; this.stats.served++;
           const t = this.toilets.find(t => !t.who);
           if (t && this.rnd() < .35) { t.who = p.id; p.wc = t; p.state = 'wc'; p.wait = 3; p.mood = ''; this.route(p, t.fi, t.x, t.z + .45); } else this.leave(p, 'ok');
@@ -107,8 +108,9 @@ export class InsideSim {
     }
     this.people = this.people.filter(p => p.state !== 'gone');
   }
+  pay(n, f, x, z, tip) { this.stats.coins += n; this.events.push({ kind: 'coin', f, x, z, n, tip }); }
   toCounter(p) {
-    if (!this.counters.length) { this.stats.coins += PRICE; return this.afterCounter(p); }
+    if (!this.counters.length) return this.afterCounter(p);
     const c = this.counters.reduce((a, b) => (b.q.length + (b.busy ? 1 : 0) < a.q.length + (a.busy ? 1 : 0) ? b : a));
     if (c.q.length >= 7) { this.stats.lostLine++; this.events.push({ kind: 'lost', f: 0, x: p.x, z: p.z, why: '줄이 길어' }); return this.leave(p, 'angry'); }
     c.q.push(p.id); p.counter = c; p.state = 'queue'; this.route(p, c.fi, c.x, c.z + .55 + (c.q.length - 1) * .32);
