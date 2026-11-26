@@ -85,6 +85,8 @@ Output ONLY JSON Lines, one JSON object per line, no other text, no code fences,
 
 Make it recognisable at a glance. Rules that help:
 - Landmarks need their silhouette: lighthouse = main shape "round" with taper and bands + hero "lamp"; windmill = "round" with taper + hero "sails"; castle = "crenel": true + round towers (mass shape "round", roof "cone"); stadium or ballpark = main shape "bowl"; UFO or spaceship = main shape "saucer"; mosque = roof "dome" + a tall "round" mass with roof "onion" as minaret; market = hero "stall_row".
+- Materials named in the description win over any style default: stone/돌 = wall "stone", wood/나무/통나무 = "wood_boards", brick/벽돌 = "brick", glass/유리 = "glass" or rhythm "curtain", concrete/콘크리트 = "concrete", marble/대리석 = "marble". Put them in the "main" line.
+- Art gallery or museum of modern art = white walls (plaster or concrete), few big windows or "curtain", hero "sculpture"; a house or villa with a pool = hero "outdoor_pool"; fish-shaped bread (붕어빵) = icon "fish".
 - Small shops need one loud cue: pharmacy = hero "green_cross", post office = hero "postbox", boxing or martial arts gym = hero "giant_glove" and an inside zone "ring", street-food stall = hero "food_cart", anything underground = ground "stairs_down".
 - Words about age and mood change the materials: old, retro, traditional = brick, wood or stone, warm "night": true lights, punched or arched windows; modern, new, minimal = style "modern_glass" or white concrete, rhythm "curtain" or "bands"; luxurious = more floors, a canopy, gold accent; cute or kids = bright accent, rounded props.
 - Pick the inside zones for the actual activity (a boxing gym has "ring", a ballpark has "diamond" and "stands", a library has "stacks" and "reading").

@@ -19,7 +19,7 @@ const ALIAS = {
   coffee: 'cafe', coffee_shop: 'cafe', teahouse: 'cafe', tea_house: 'cafe', pub: 'bar', diner: 'restaurant', noodle: 'restaurant', ramen: 'restaurant', inn: 'guesthouse', hostel: 'guesthouse',
   arcade: 'pc_bang', gaming: 'pc_bang', school_building: 'school', college: 'university', hospital_building: 'hospital', shrine: 'temple', pagoda: 'temple', cathedral: 'church', chapel: 'church',
   arena: 'stadium', gymnasium: 'gym', pool: 'swimming_pool', theatre: 'theater', movie_theater: 'cinema', museum_hall: 'museum', art_gallery: 'gallery', storehouse: 'warehouse', plant: 'factory', farm: 'barn',
-  coffee: 'cup', tea: 'cup', bread: 'bread', hamburger: 'burger', medicine: 'pill', hospital_cross: 'cross', bed_icon: 'bed',
+  fish: 'fish', bungeoppang: 'fish', coffee: 'cup', tea: 'cup', bread: 'bread', hamburger: 'burger', medicine: 'pill', hospital_cross: 'cross', bed_icon: 'bed',
   lobby: 'lobby', bedroom: 'guest_rooms', rooms: 'guest_rooms', classroom: 'classroom', office_space: 'offices', dining_room: 'dining', cafe_zone: 'seating', storage: 'stockroom',
 };
 /** The closest name in `list`, or null when nothing is close. */

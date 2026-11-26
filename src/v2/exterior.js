@@ -298,6 +298,16 @@ export function buildExterior(spec, section) {
       case 'siren': box(.3, .12, .14, glow('#e23b3b'), fx - .15, top, main.z); box(.3, .12, .14, glow('#2e86ab'), fx + .15, top, main.z); break;
       case 'postbox': { const red = mat('#d6332a'); box(.42, .8, .36, red, fx + mw / 2 - .2, 0, fz + .6); box(.46, .06, .4, mat('#a82820'), fx + mw / 2 - .2, .8, fz + .6); box(.26, .04, .02, mat('#2b2b2b'), fx + mw / 2 - .2, .6, fz + .79);
         box(mw * .9, .14, .04, red, fx, gy - .05, fz + .07); break; }
+      case 'sculpture': { // abstract sculptures on plinths in front of a gallery
+        for (const [k, dx] of [[0, -.5], [1, .5]]) { box(.5, .3, .5, mat('#f4f1ea'), fx + dx * mw * .5, 0, fz + 1.0); const c = mat(k ? accent : '#2b2b2b');
+          if (k) { const t = new THREE.Mesh(new THREE.TorusGeometry(.32, .09, 8, 16), c); t.position.set(fx + dx * mw * .5, .72, fz + 1.0); t.rotation.y = .6; add(t); }
+          else { const b2 = box(.22, .9, .22, c, fx + dx * mw * .5, .3, fz + 1.0); b2.rotation.y = .5; b2.rotation.z = .25; } }
+        break; }
+      case 'outdoor_pool': { // a pool with loungers beside the house
+        const px = fx + mw / 2 + 1.1, pz = fz - md * .35;
+        box(1.7, .1, 2.2, mat('#e8eef2'), px, 0, pz); box(1.45, .12, 1.95, mat('#4fb3d9', { emissive: 0x0a3040 }), px, .01, pz);
+        for (const dz of [-.6, .1]) { const l = box(.35, .08, .8, mat('#f4f1ea'), px + 1.15, .2, pz + dz); l.rotation.x = -.15; }
+        const pr = new THREE.Mesh(new THREE.ConeGeometry(.45, .2, 8), mat(accent)); pr.position.set(px + 1.15, 1.2, pz + .9); add(pr); cyl(.02, .02, 1.1, mat('#dddddd'), px + 1.15, 0, pz + .9, 4); break; }
       case 'giant_glove': { const g = ball(.42, mat(accent === '#e2432f' ? accent : '#d6332a'), fx - mw * .2, roofY + .55, main.z); g.scale.set(1.15, 1, .9); ball(.18, mat('#d6332a'), fx - mw * .2 + .36, roofY + .55, main.z + .18); box(.5, .28, .42, mat('#f4f1ea'), fx - mw * .2 - .05, roofY + .02, main.z); break; }
       case 'stall_row': { const n = Math.max(3, Math.round(mw / .8)); for (let k = 0; k < n; k++) { const x = fx - mw / 2 + (k + .5) * mw / n, z = fz + 1.0, c = k % 2 ? accent : '#e2432f';
         box(.6, .45, .4, mat('#a8703e'), x, 0, z); for (let j = 0; j < 3; j++) ball(.08, mat(['#e2432f', '#e3b448', '#5b8a6a'][j]), x - .15 + j * .15, .52, z);

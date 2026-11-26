@@ -111,7 +111,7 @@ The building spec is short text. With a Haiku-class model one building costs abo
 
 - 1.1 spec v2, 1.2 catalogue (52 types, 5 styles), 1.3 exterior kit: first version done.
 - 1.4 stacked cross-section: done.
-- 1.5 quality loop: checker, follow-up and evaluation page done; the first evaluation run is next.
+- 1.5 quality loop: done. First run: 60/60 built without errors, no repairs or follow-ups needed, 44/60 judged "what I asked for" (73%). Every failure had the right type but the wrong look. After adding landmark silhouettes, loud cues for small shops and activity zones, the 16 failures were re-run: 10 now pass, so the combined result is 54/60 (90%, target 80%). The remaining misses (stone library, modern gallery, villa with a pool, market hall, post office) got a materials rule, a sculpture, an outdoor pool and a fish icon.
 
 ## Decisions (2026-11-26)
 

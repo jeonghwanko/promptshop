@@ -15,9 +15,9 @@ export const GROUNDS = ['stairs_down', 'shopfront', 'arcade', 'portico', 'canopy
 export const RHYTHMS = ['punched', 'bands', 'grid', 'curtain', 'lattice', 'arched', 'none'];
 export const MASS_SHAPES = ['box', 'round', 'canopy', 'bowl', 'saucer'];
 export const SIDES = ['main', 'left', 'right', 'back', 'front', 'top'];
-export const HEROES = ['none', 'giant_glove', 'stall_row', 'food_cart', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
+export const HEROES = ['none', 'sculpture', 'outdoor_pool', 'giant_glove', 'stall_row', 'food_cart', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
   'postbox', 'slide', 'banners', 'marquee_lights', 'dumbbell', 'floodlights', 'giant_pin', 'chimney_stack', 'weathervane', 'mailbox', 'water_tank', 'chimney', 'spire', 'minaret', 'lamp', 'sails'];
-export const ICONS = ['fork', 'cup', 'bread', 'glass', 'burger', 'noodle', 'cart', 'bag', 'pill', 'news', 'pc', 'bed', 'flag', 'badge', 'fire', 'mail', 'book', 'star', 'cap', 'cross',
+export const ICONS = ['fish', 'fork', 'cup', 'bread', 'glass', 'burger', 'noodle', 'cart', 'bag', 'pill', 'news', 'pc', 'bed', 'flag', 'badge', 'fire', 'mail', 'book', 'star', 'cap', 'cross',
   'column', 'frame', 'mask', 'film', 'music', 'dumbbell', 'wave', 'ball', 'train', 'bus', 'fuel', 'car', 'gear', 'box', 'wrench', 'wheat', 'house', 'tree', 'cross_r', 'lotus', 'moon', 'clock', 'crown'];
 export const PROPS = ['plant', 'bench', 'stool', 'lantern', 'flag', 'crate', 'barrel', 'bike', 'aboard', 'parasol', 'bollard', 'tree', 'vending', 'car', 'cat'];
 export const MAX_SHOWN_LEVELS = 8;
