@@ -13,7 +13,6 @@ import { ISLES_SEED } from '../../examples/isles-seed.js';
 import { drawLand, countryAt, placeLabel } from '../v2/geo.js';
 import { InsideView, startingFixtures } from '../v2/insideview.js';
 import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCaps, LV_MAX, upgradeCost, starsOf, starBonus } from '../v2/inside.js';
-import { FlowView } from '../v2/flowview.js';
 import { applyTheme } from '../ui/theme.js';
 import { pixelIcons, iconCanvas, iconEl, EMOJI } from '../ui/icons.js';
 import { voxelEl, setVoxelPalette } from '../ui/voxelui.js';
@@ -26,7 +25,7 @@ const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag)
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
 const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
-const COST = { S: 10, M: 25, L: 60 }, BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 5 };
+const BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 5 };
 const BASE_COIN = { S: 2, M: 3, L: 5 };
 // widening my island: one ring of land a step, more buildings allowed
 const LAND_COST = [80, 200, 450, 900], LAND_LEVEL = [0, 1, 2, 3], PLOTS_PER_LAND = 3;
@@ -829,19 +828,10 @@ function showHome(msg) {
     landCard(), msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃'), el('div', { class: 'nb' }, bridgeCards().filter(x => x.tagName === 'SPAN')), ...bridgeCards().filter(x => x.tagName !== 'SPAN'), inviteCard());
 }
-function boatCard() {
-  const bp = boatPlan(mySlot);
-  if (!bp.shops) return el('div', { class: 'card' }, el('span', {}, '가게가 생기면 배가 와요'));
-  return el('div', { class: 'card' }, el('span', {}, `배 ${bp.every}초마다 · 한 번에 ${bp.people}명`, el('div', { class: 'note' }, `가게 ${bp.shops}채 · 가구 ${bp.fx}개 — 가구 하나마다 배가 1초 빨리 오고, 3개마다 한 명 더 태워 와요`)));
-}
 async function join(s) {
   if (owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');
   myDoc = { slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0 } };
   docs.set(me, myDoc); rebuild(); await save(true); closePanel(); scrollToSlot(s); guide();
-}
-async function unlock(s) {
-  if (myDoc.wallet.coins < PRICE[s]) return showHome(`${s} 크기는 ${PRICE[s]} 동전이 필요해요. 지금 ${myDoc.wallet.coins}개.`);
-  myDoc.wallet.coins -= PRICE[s]; myDoc.wallet.unlocked = [...myDoc.wallet.unlocked, s]; size = s; await save(true); showHome();
 }
 async function halfBridge(n) {
   if (myDoc.wallet.coins < BRIDGE) return showHome(`다리 반쪽에는 ${BRIDGE} 동전이 필요해요.`);
@@ -874,24 +864,6 @@ function showBuilding(key) {
       me && (mineP || isOwner) ? el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거') : null));
 }
 // running my shop: stock, and the way inside where the furniture is set up
-function manage(p) {
-  const n = normalize(p.b.input), role = roleOf(n.type, n.levels), r = ratesOf(p), owned = ownedOf(p).size, total = fxTotal(p), mineP = p.owner === me;
-  const out = [];
-  if (role.serves) { const si = starsInfo(p), nx = si.checks.find(c => !c.ok);
-    out.push(el('div', { class: 'card' }, el('span', {}, el('b', { class: 'stars' }, starText(si.stars)), el('div', { class: 'note' }, si.stars >= 3 ? `👑 VIP 손님이 와요 · 한 명 +${starBonus(si.stars)}동전` : '★3부터 VIP 손님이 와요 · 값도 올라요')),
-      el('div', { class: 'checks' }, si.checks.map(c => el('span', { class: c.ok ? 'ok' : '' }, (c.ok ? '✓ ' : '○ ') + c.label))))); }
-  if (mineP) out.push(el('button', { class: 'ghost', on: { click: () => startMove(p.key) } }, '↔ 옮기기'));
-  if (mineP && owned >= total) out.push(el('div', { class: 'card alert' }, el('span', {}, '가구를 다 채웠어요!', el('div', { class: 'note' }, '한 줄로 한 층을 올리면 새 자리가 생겨요')),
-    el('button', { class: 'gold', on: { click: () => startExtend(p.key) } }, `🏗️ 증축 · 🎫1`)));
-  out.push(el('div', { class: 'card' }, el('span', {}, `가구 ${owned}/${total}`, role.serves ? el('div', { class: 'note' }, `자리 ${r.seats} · 주문 창구 ${r.counters} · 조리 ${r.cooks} · 꾸밈 ${r.decor} — ${r.slow === 'seat' ? '자리가' : '주문이'} 막혀요`) : null),
-    el('button', { class: mineP ? 'gold' : '', id: mineP ? 'go-inside' : null, on: { click: () => openInside(p.key) } }, mineP ? '가게 안으로' : '안 구경하기')));
-  if (role.serves && mineP) {
-    const mp = myDoc.plots[p.key], stock = mp.stock ?? START_STOCK, buy = el('button', { class: 'gold', on: { click: async () => { myDoc.wallet.coins -= RESTOCK.coins; mp.stock = stock + RESTOCK.units; rebuild(); await save(true); showBuilding(p.key); } } }, `재료 ${RESTOCK.units}개 사기 · ${RESTOCK.coins}`);
-    buy.disabled = myDoc.wallet.coins < RESTOCK.coins;
-    out.push(el('div', { class: 'card' + (stock === 0 ? ' alert' : '') }, el('span', {}, `재료 ${stock}개`, el('div', { class: 'note' }, stock === 0 && myDoc.wallet.coins < RESTOCK.coins ? `동전이 ${RESTOCK.coins}개 모이면 자동으로 채워요` : `2개 이하가 되면 자동으로 ${RESTOCK.units}개 채워요 · ${RESTOCK.coins}동전`)), buy));
-  }
-  return out;
-}
 
 // ---------- inside a building: its own simulation, guests come from the map's queue ----------
 // ---------- a shop opens where it stands: the camera comes close, the roof lifts, the inside is there ----------
@@ -911,69 +883,36 @@ function openShop(key) {
     const st = $('shopstage'); st.style.left = ((innerWidth - 270) / 2 + 6) + 'px'; st.style.top = (innerHeight / 2) + 'px';   // the cut-away takes the middle of the screen; the building behind it lifts away
     $('shopwrap').style.setProperty('--sx', st.style.left); $('shopwrap').style.setProperty('--sy', st.style.top);
     zoomShop = { key, t: 0, dir: 1 };
-    openInside(key, { inPlace: true });
+    openInside(key);
   });
 }
 $('shopwrap').addEventListener('click', (e) => { if (e.target === $('shopwrap')) closeInside(); });
-$('shopmore').onclick = () => { const k = watching?.key; closeInside(); if (k) showBuilding(k); };
-function openInside(key, { inPlace = false } = {}) {
+function openInside(key) {   // the cut-away in place, over the zoomed map (openShop moves the camera first)
   setTimeout(() => tutEvent('inside'), 0);
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   const mineP = p.owner === me && !!myDoc?.plots[key], owned = ownedOf(p), n = normalize(p.b.input);
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
-    maxWidth: inPlace ? innerWidth - 380 : Math.min(innerWidth - 60, 1100), tags: inPlace, maxHeight: inPlace ? innerHeight - 70 : Infinity, maxZoom: inPlace ? 4 : 3,
+    maxWidth: innerWidth - 380, tags: true, maxHeight: innerHeight - 70, maxZoom: 4,
     onThud: () => { const st = $('shopstage'); st.classList.remove('thud'); void st.offsetWidth; st.classList.add('thud'); },
     levels: levelsOf(p),
     upgrade: (i, kind, cost, L) => { if (!mineP || myDoc.wallet.coins < cost) return false;
-      const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), { ...levelsOf(p), [i]: L }), role = FIX_ROLE(kind);
-      myDoc.wallet.coins -= cost; levelsOf(p)[i] = L; dirty = true; rebuild(); save(true); view.sim.price = ratesOf(p).price;
-      const node = role === 'seat' ? 2 : role === 'decor' ? 3 : 1, sup = watching?.supply ?? Infinity, dg = Math.min(b.gpm, sup) - Math.min(a.gpm, sup);
-      setTimeout(() => flow.pop(node, dg > .05 ? `+${dg.toFixed(1)}명/분` : b.price > a.price ? `+${b.price - a.price}동전` : `Lv${L}`), 50); flow.preview(''); return true; },
-    onHover: (i, mode) => {   // what one more fixture (or one more level) would change, before it is paid for
-      if (i < 0) return flow.preview('');
-      if (mode === 'up') { const f = fixturesOf(p)[i], L = levelsOf(p)[i] ?? 1, name = FIX_INFO[f.kind]?.[0] ?? f.kind; if (L >= LV_MAX) return flow.preview(`${name}: 최고 레벨이에요`);
-        const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), { ...levelsOf(p), [i]: L + 1 });
-        const sup = watching?.supply ?? Infinity, ea = Math.min(a.gpm, sup), eb = Math.min(b.gpm, sup), dc = eb * b.price - ea * a.price;
-        return flow.preview(eb - ea > .05 ? `⬆ ${name} Lv${L + 1}: 받는 손님 ${ea.toFixed(1)} → ${eb.toFixed(1)}명/분 · 수입 +${Math.round(dc)}동전/분 · ${upgradeCost(f.kind, L)}동전` : b.price > a.price ? `⬆ ${name} Lv${L + 1}: 손님 한 명이 ${a.price} → ${b.price}동전 · ${upgradeCost(f.kind, L)}동전` : `⬆ ${name} Lv${L + 1}: 지금 막힌 곳이 아니라 당장은 그대로예요 · ${upgradeCost(f.kind, L)}동전`); }
-      const f = fixturesOf(p)[i], name = FIX_INFO[f.kind]?.[0] ?? f.kind, base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p), levelsOf(p));
-      const sup = watching?.supply ?? Infinity, ea = Math.min(a.gpm, sup), eb = Math.min(b.gpm, sup), dg = eb - ea, dc = eb * b.price - ea * a.price;
-      flow.preview(dg > .05 ? `＋ ${name}: 받는 손님 ${ea.toFixed(1)} → ${eb.toFixed(1)}명/분 · 수입 +${Math.round(dc)}동전/분` : b.price > a.price ? `＋ ${name}: 손님 한 명이 ${a.price} → ${b.price}동전을 내요 · 수입 +${Math.round(dc)}동전/분`
-        : b.gpm - a.gpm > .05 ? `＋ ${name}: 더 받을 수 있게 되지만, 지금은 오는 손님이 모자라요 (배가 1초 빨리 와요)` : `＋ ${name}: 지금 막힌 곳이 아니라 당장은 그대로예요 (배가 1초 빨리 와요)`);
-      tutInEvent('hover');
-    },
+      myDoc.wallet.coins -= cost; levelsOf(p)[i] = L; dirty = true; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
     coins: mineP ? () => myDoc.wallet.coins : undefined,
     buy: (i, kind, cost) => { if (myDoc.wallet.coins < cost) return false;
-      { const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p), levelsOf(p)), role = FIX_ROLE(kind);
-        const node = role === 'seat' ? 2 : role === 'decor' ? 3 : 1, sup = watching?.supply ?? Infinity, dg = Math.min(b.gpm, sup) - Math.min(a.gpm, sup); setTimeout(() => flow.pop(node, dg > .05 ? `+${dg.toFixed(1)}명/분` : b.price > a.price ? `+${b.price - a.price}동전` : '+1'), 50); flow.preview(''); }
       setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); myDoc.wallet.coins -= cost; const mp = myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
   });
   view.sim.setHelpers(helpersOf(p), levelsOf(p));
-  const flow = new FlowView(); if (!inPlace) $('iflow').replaceChildren(flow.el);
-  watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0, inPlace };
+  watching = { key, view, mine: mineP, earned: 0, ins: [], outs: [], losts: [], lost0: 0, inPlace: true };
   if (mineP && myDoc.wallet.tutIn === undefined) myDoc.wallet.tutIn = 0;   // the first time inside a shop of mine: the inside guide
-  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop'); $('shopmore').hidden = true; watching.actKey = ''; view.onFloorChange = () => placeActs(); placeActs(); rebuild(); guide(); return; }   // the first time inside, the guide's inside steps start here
-  $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
-  if (roleOf(n.type, n.levels).serves) $('iname').append(' ', el('span', { class: 'stars' }, starText(starsInfo(p).stars)));
-  $('ihint').textContent = mineP ? '반투명 가구의 노란 + 를 누르면 들여요. 배 손님이 문에 줄을 서고, 앉아서 먹고, 테이블에서 돈을 내요.' : `${nameOf(p.owner)}의 가게예요. 구경만 할 수 있어요.`;
-  $('istage').replaceChildren(view.el); $('inside').hidden = false;
-  setTimeout(guide, 50);
-  rebuild();
+  $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop'); watching.actKey = ''; view.onFloorChange = () => placeActs(); placeActs(); rebuild(); guide();   // the first time inside, the guide's inside steps start here
 }
-function closeInside(quiet) {
+function closeInside(quiet) {   // the roof settles back, the camera steps away
   if (!watching) return;
-  if (watching.inPlace) {   // the roof settles back, the camera steps away
     const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
     if (w.mine && left) { myDoc.wallet.coins += left * w.view.sim.price; dirty = true; }
     watching = null; $('shopwrap').hidden = true; document.body.classList.remove('inshop'); $('shopstage').replaceChildren(); map.style.transform = ''; if (zoomShop) zoomShop.dir = -1; if (camBefore) { const c = camBefore; camBefore = null; if (c.zoom !== zoom) { map.style.transition = 'none'; requestAnimationFrame(() => requestAnimationFrame(() => { map.style.transition = ''; })); } zoom = c.zoom; applyZoom(); $('mapbox').scrollTo({ left: c.left, top: c.top }); } rebuild(); guide(); return;
-  }
-  // guests still inside pay as they would have
-  const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
-  if (w.mine && left) { myDoc.wallet.coins += left * w.view.sim.price; dirty = true; }
-  watching = null; $('inside').hidden = true; $('istage').replaceChildren(); rebuild(); guide();
-  if (current?.key) showBuilding(current.key);
 }
-$('iclose').onclick = closeInside; $('inside').addEventListener('click', (e) => { if (e.target === $('inside')) closeInside(); });
 addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });   // closes the in-place shop too
 // the one thing that unblocks the red step, as a button under the diagram
 // ---------- the few big buttons beside an opened shop: the next piece, the best level-up, a helper, one more floor, move, close ----------
@@ -1014,32 +953,6 @@ function renderActs(w, p) {
     return b; }), el('button', { class: 'act close', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, '✕ 닫기'));
   placeActs();
 }
-function fixAction(w, p, fc) {
-  const slow = w.flow.data.slow;
-  if (!w.mine) return w.flow.action(null);
-  if (slow === 0) {   // the shop has room: what is missing is guests
-    const can = $('boat').classList.contains('callable'), wl = G();
-    if (can) return w.flow.action({ title: '가게는 여유 있어요 · 손님이 더 와야 해요', button: '📣 배 부르기', onClick: () => $('boat').click() });
-    if (wl.permits > 0) return w.flow.action({ title: '가게는 여유 있어요 · 손님이 더 와야 해요', button: '🎫 섬에 가게 하나 더 짓기', onClick: () => { closeInside(); openCards(); }, note: '가게가 늘면 배가 더 자주, 더 많이 와요' });
-    return w.flow.action({ title: '가게는 여유 있어요 · 손님이 더 와야 해요', note: `가게가 늘면 배가 더 많이 와요 · 다음 🎫까지 손님 ${wl.nextAt - wl.served}명 · 배 부르기 대기 중` }); }
-  const fx = fixturesOf(p), up = nextUp(fx, ownedOf(p), undefined, p.b.input.order), track = slow === 1 ? 'order' : 'seat', i = up[track];
-  if (i !== undefined) { const f = fx[i], c = costOf(f.kind), name = FIX_INFO[f.kind]?.[0] ?? f.kind;
-    return w.flow.action({ title: slow === 1 ? '주문이 밀려요' : '자리가 모자라요', button: `＋ ${name} 들이기 · ${c}동전`, disabled: myDoc.wallet.coins < c, onClick: () => { if (w.view.buyIndex(i)) { w.view.onHover?.(-1); } }, note: myDoc.wallet.coins < c ? `동전 ${c - myDoc.wallet.coins}개 더 필요해요` : '' }); }
-  const ext = { button2: `🏗️ 증축 · 🎫${G().permits}`, disabled2: G().permits <= 0, onClick2: () => { closeInside(); startExtend(p.key); } };
-  { // the track is full: the level-up that frees the red step most per coin
-    const base = BASE_COIN[p.size] ?? 1, lv = levelsOf(p), a = flowCaps(fx, ownedOf(p), base, helpersOf(p), lv), roles = slow === 1 ? ['serve', 'cook'] : ['seat'];
-    let best = null; for (const j of ownedOf(p)) { const f = fx[j], L = lv[j] ?? 1; if (L >= LV_MAX || !roles.includes(FIX_ROLE(f.kind))) continue;
-      const b = flowCaps(fx, ownedOf(p), base, helpersOf(p), { ...lv, [j]: L + 1 }), cost = upgradeCost(f.kind, L), v = (b.gpm - a.gpm) / cost; if (v > 0 && (!best || v > best.v)) best = { j, f, L, cost, v, d: b.gpm - a.gpm }; }
-    if (best) { const name = FIX_INFO[best.f.kind]?.[0] ?? best.f.kind;
-      return w.flow.action({ title: slow === 1 ? '주문이 밀려요' : '자리가 모자라요', button: `⬆ ${name} Lv${best.L + 1} · ${best.cost}동전`, disabled: myDoc.wallet.coins < best.cost, onClick: () => w.view.upgradeIndex(best.j), ...ext,
-        note: `받는 손님 +${best.d.toFixed(1)}명/분 · 가구를 누르면 직접 올릴 수도 있어요` }); } }
-  if (slow === 1) { const h = helpersOf(p), c = helperCost(h);
-    if (h >= HELPER_MAX) return w.flow.action({ title: '주문이 밀려요', ...ext, button: null, note: '알바도 다 뽑았어요 — 한 층 올려 주방을 넓혀 보세요' });
-    return w.flow.action({ title: '주문이 밀려요', ...ext, button: `🧑‍🍳 알바 고용 · ${c}동전`, disabled: myDoc.wallet.coins < c, note: `가구는 다 채웠어요 · 알바가 서면 주문이 빨라져요 (${h}/${HELPER_MAX})`,
-      onClick: () => { if (myDoc.wallet.coins < c) return; const a = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h, levelsOf(p)), b = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h + 1, levelsOf(p));
-        myDoc.wallet.coins -= c; myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); w.flow.pop(1, `+${(b.order - a.order).toFixed(1)}명/분`); toast('🧑‍🍳 알바가 왔어요!', 1500); } }); }
-  return w.flow.action({ title: '자리가 모자라요', button: ext.button2, disabled: ext.disabled2, onClick: ext.onClick2, note: G().permits > 0 ? '한 줄로 한 층을 올리면 새 자리가 생겨요' : `🎫가 있어야 증축해요 · 다음까지 손님 ${G().nextAt - G().served}명` });
-}
 let istatT = 0;
 function stepInside(dt) {
   if (!watching) return;
@@ -1053,32 +966,16 @@ function stepInside(dt) {
     const p0 = allPlots().find(x => x.key === w.key);
     if (p0) { const fc = flowCaps(fixturesOf(p0), ownedOf(p0), BASE_COIN[p0.size] ?? 1, helpersOf(p0), levelsOf(p0)), isim = w.view.sim, used = isim.seats.filter(x => x.who).length;
       const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, door = sim.shops.get(w.key)?.queue.length ?? 0;
-      w.flow.set({ nodes: [
-        { icon: '🚪', label: '들어옴', sub: '배 손님', cap: w.supply, state: `문 앞 줄 ${door}` },
-        { icon: '🧾', label: '주문·조리', sub: `창구 ${fc.counters} · 조리 ${fc.cooks}`, cap: fc.order, state: `기다림 ${q}` },
-        { icon: '🪑', label: fc.seats ? '자리' : '포장', sub: fc.seats ? `자리 ${fc.seats}` : '앉지 않음', cap: fc.seat, state: fc.seats ? `${used}/${fc.seats} 앉음` : '' },
-        { icon: '💰', label: '계산', sub: `한 명 ${fc.price}동전`, state: '' }],
-        slow: w.supply < Math.min(fc.order, fc.seat) ? 0 : fc.slow === 'seat' ? 2 : 1, inRate: per(w.ins), outRate: per(w.outs), lostRate: per(w.losts), coinRate: per(w.outs) * fc.price });
-      fixAction(w, p0, fc); if (w.inPlace) renderActs(w, p0);
-      { const slow = w.flow.data.slow, fx = fixturesOf(p0), roles = slow === 2 ? ['seat'] : slow === 1 ? ['serve', 'cook'] : [];
+      // the slow step: guests (0), ordering (1) or seats (2); its owned fixtures steam when guests pile up there
+      const slow = w.supply < Math.min(fc.order, fc.seat) ? 0 : fc.slow === 'seat' ? 2 : 1; w.slow = slow;
+      if (w.inPlace) renderActs(w, p0);
+      { const fx = fixturesOf(p0), roles = slow === 2 ? ['seat'] : slow === 1 ? ['serve', 'cook'] : [];
         w.view.blocked = new Set([...ownedOf(p0)].filter(j => roles.includes(FIX_ROLE(fx[j].kind)) && (q >= 2 || w.losts.length))); }
-      w.flow.frame(dt); } }
+    } }
   for (const e of paid) { watching.earned += e.n; if (watching.mine) { earned.push([performance.now(), e.n]); myDoc.wallet.coins += e.n; dirty = true; } }
   if ((istatT += dt) < .3) return; istatT = 0;
-  const door = sim.shops.get(watching.key)?.queue.length ?? 0, isim = watching.view.sim, p = allPlots().find(x => x.key === watching.key), r = p ? ratesOf(p) : null;
-  const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, seats = isim.seats.length, used = isim.seats.filter(x => x.who).length;
-  const cell = (label, v, bad) => `<div class="${bad ? 'bad' : ''}"><span>${label}</span><br><b>${v}</b></div>`;
-  if (watching.mine && r) {   // what to do next: the fixtures that would raise income the most blink
-    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order, helpersOf(p), levelsOf(p));
-    watching.view.suggest = new Set(k);
-    const names = k.map(x => FIX_INFO[x]?.[0] ?? x).slice(0, 3).join('·'), t = (nextBoat.get(p.slot) ?? 0) - performance.now() / 1000;
-    const up = nextUp(fixturesOf(p), ownedOf(p), undefined, p.b.input.order), fx = fixturesOf(p);
-    const turn = Object.entries(up).map(([tr, i]) => `${TRACKS[tr]}: ${FIX_INFO[fx[i].kind]?.[0] ?? fx[i].kind}`).join(' · ');
-    $('ihint').textContent = (turn ? `다음 차례 — ${turn}.${names ? ` 깜빡이는 ${names}이(가) 수입을 가장 많이 올려요.` : ''}` : '가구를 다 채웠어요.') + (t > 0 ? ` · 다음 배 ${Math.ceil(t)}초` : '');
-  }
-  $('istats').innerHTML = cell('문 앞 줄', door) + cell('안에서 기다림', q, q >= 5) + cell('자리', `${used}/${seats}`, seats && used === seats)
-    + cell('놓친 손님 (줄·자리)', `${isim.stats.lostLine} · ${isim.stats.lostSeat}`, isim.stats.lostLine + isim.stats.lostSeat > 0) + cell('지금 번 돈', watching.earned)
-    + (r ? cell('막히는 곳', r.slow === 'seat' ? '자리' : '주문') : '');
+  const p = allPlots().find(x => x.key === watching.key);
+  if (watching.mine && p) watching.view.suggest = new Set(bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order, helpersOf(p), levelsOf(p)));   // what raises income most: its price tag bobs
 }
 async function demolish(p) {
   if (p.owner === me) { const ps = { ...myDoc.plots }; delete ps[p.key]; myDoc.plots = ps; rebuild(); await save(true); return showHome(); }
