@@ -51,6 +51,21 @@ function sums(fixtures, owned, lv = {}) {
     if (BROWSE.has(f.kind)) browse += k; });
   return { counters, ncounters, cooks, seatsW, seats, decor, browse };
 }
+// ---------- the shop's stars: a checklist anyone can read ----------
+/** ★1 for being open, and one more for each condition met. */
+export function starsOf(fixtures, owned, lv = {}) {
+  let decor = 0, decorPts = 0, levels = 0, n = 0;
+  fixtures.forEach((f, i) => { if (!owned.has(i)) return; n++; levels += lv[i] ?? 1; if (DECOR.has(f.kind)) { decor++; decorPts += lv[i] ?? 1; } });
+  const checks = [
+    { label: '꾸밈 2개', ok: decor >= 2 },
+    { label: '가구 다 채움', ok: n >= fixtures.length && fixtures.length > 0 },
+    { label: '꾸밈 점수 6', ok: decorPts >= 6, note: '꾸밈 가구 레벨의 합' },
+    { label: '평균 Lv2', ok: n > 0 && levels / n >= 2 },
+  ];
+  return { stars: 1 + checks.filter(c => c.ok).length, checks };
+}
+export const starBonus = (stars) => Math.floor((stars - 1) / 2);   // ★3: +1 a guest, ★5: +2
+
 /**
  * The same setup seen from the map, where a shop is a door with a queue: how often it can take the next guest,
  * how long its queue may grow and what a guest pays. Bottleneck of ordering (counters and cooks) and of seats.
@@ -61,7 +76,8 @@ export function shopRates(fixtures, owned, baseCoin = 3, helpers = 0, lv = {}) {
   const order = counters ? counters / st : seats ? 1 / st : .3 + browse * .08;
   const seat = seats ? seatsW / 13 : Infinity;
   const rate = Math.min(order, seat);
-  return { interval: Math.max(.5, 1 / rate), cap: 3 + 2 * ncounters + Math.floor(seats / 4), price: baseCoin + Math.min(4, Math.floor(decor * .75)) + Math.floor(browse / 2), seats, counters: ncounters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
+  const stars = starsOf(fixtures, owned, lv).stars;
+  return { stars, interval: Math.max(.5, 1 / rate), cap: 3 + 2 * ncounters + Math.floor(seats / 4), price: baseCoin + Math.min(4, Math.floor(decor * .75)) + Math.floor(browse / 2) + starBonus(stars), seats, counters: ncounters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
 }
 
 // ---------- the order fixtures come in ----------

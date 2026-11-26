@@ -20,6 +20,7 @@
   .coins { font:400 24px var(--f-disp); color:#b07a12; font-variant-numeric:tabular-nums; } .coins i { font-style:normal; display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--gold); color:#6a4500; font:900 13px var(--f-ui); box-shadow:inset 0 -2px 0 #9a6f14; }
   .boatline.callable { cursor:pointer; background:#fff3cf; box-shadow:0 3px 0 #9a6f14; animation:nudge 1.6s infinite; } .callb { margin-left:6px; color:#b0560e; } .callw { color:var(--dim); }
   .fixbtn { padding:7px 14px; animation:nudge 1.6s infinite; } .fixbtn:disabled { animation:none; }
+  .stars { color:#c98f1c; font-size:18px; letter-spacing:1px; } .checks { display:flex; flex-wrap:wrap; gap:4px; } .checks span { font-size:12px; background:#efe6d4; color:var(--dim); border-radius:999px; padding:1px 8px; } .checks span.ok { background:#dcefd8; color:#2f6b3a; font-weight:700; }
   .rate { font-size:13px; color:var(--accent); font-weight:700; } .boatline { font-size:13px; }
   .wants { display:flex; gap:6px; flex-wrap:wrap; max-width:min(560px, 60vw); }
   .want { display:flex; align-items:center; gap:5px; background:rgba(251,246,236,.92); border-radius:999px; padding:2px 10px 2px 4px; font-size:12px; }
@@ -149,7 +150,7 @@ import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson, typesFor } from './src/v
 import { ISLES_SEED } from './examples/isles-seed.js';
 import { drawLand, countryAt, placeLabel } from './src/v2/geo.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
-import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCaps, LV_MAX, upgradeCost } from './src/v2/inside.js';
+import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCaps, LV_MAX, upgradeCost, starsOf, starBonus } from './src/v2/inside.js';
 import { FlowView } from './src/v2/flowview.js';
 
 const $ = (id) => document.getElementById(id);
@@ -236,6 +237,9 @@ function ownedOf(p) {
 const helpersOf = (p) => (p.owner === me && myDoc?.plots[p.key] ? myDoc.plots[p.key].helpers : p.helpers) ?? 0;
 const levelsOf = (p) => (p.owner === me && myDoc?.plots[p.key] ? (myDoc.plots[p.key].lv ??= {}) : p.lv) ?? {};
 const HELPER_MAX = 4, helperCost = (n) => 30 * 2 ** n;
+const starsInfo = (p) => starsOf(fixturesOf(p), ownedOf(p), levelsOf(p));
+const starText = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
+const vipBonus = (stars) => 6 * stars;
 const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, helpersOf(p), levelsOf(p));
 function allPlots() { const out = []; for (const [s, uid] of owners) { const d = docs.get(uid); for (const [key, p] of Object.entries(d?.plots ?? {})) out.push({ ...p, key, owner: uid, slot: s }); } return out; }
 async function save(force) {
@@ -274,8 +278,10 @@ function frame(t) {
     if (e.kind === 'empty') { pops.push({ key: e.lot, text: '재료 없음', mine, bad: true, t: 0 }); continue; }
     if (e.kind === 'enter') {   // the guest walks into the shop we are looking inside, and pays at the table there
       if (mine) { countGuest(); const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
-      if (watching?.key === e.lot) { watching.view.sim.spawn(); watching.ins.push(performance.now()); } continue;
+      if (mine && e.vip) { const p = allPlots().find(q => q.key === e.lot), b = vipBonus(p ? starsInfo(p).stars : 3); myDoc.wallet.coins += b; earned.push([performance.now(), b]); pops.push({ key: e.lot, text: `👑 VIP +${b}`, mine, t: 0 }); }
+      if (watching?.key === e.lot) { watching.view.sim.spawn(); const ps = watching.view.sim.people; if (e.vip && ps.length) ps[ps.length - 1].vip = true; watching.ins.push(performance.now()); } continue;
     }
+    if (mine && e.vip) { const p = allPlots().find(q => q.key === e.lot), b = vipBonus(p ? starsInfo(p).stars : 3); myDoc.wallet.coins += b; earned.push([performance.now(), b]); pops.push({ key: e.lot, text: `👑 VIP +${b}`, mine, t: -.4 }); }
     if (mine) { tutEvent('coin'); countGuest(); earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
@@ -304,6 +310,11 @@ function frame(t) {
   }
   g.font = '900 12px "Noto Sans KR", sans-serif';
   for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, tp[0], y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, tp[0], y); g.globalAlpha = 1; }
+  // the stars of every shop, small and gold, over its roof
+  g.font = '900 11px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
+  for (const p of all) { if (!p.b || !tops[p.key] || !roleOf(normalize(p.b.input).type).serves) continue; const n = starsInfo(p).stars, [x, y] = tops[p.key], t = '★'.repeat(n);
+    g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(t, x, y - 14); g.fillStyle = n >= 3 ? '#ffd23a' : '#f3e6c4'; g.fillText(t, x, y - 14); }
+  g.font = '900 12px "Noto Sans KR", sans-serif';
   // my shops running low on stock show a red mark
   for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
   drawn = items; lastTops = tops;
@@ -410,6 +421,20 @@ setInterval(() => {
   if (watching?.key === best.p.key) { watching.view.owned.add(best.i); watching.view.sim.setOwned(watching.view.owned); watching.view.redraw(); watching.view.sim.price = ratesOf(best.p).price; }
   rebuild(); save(true); if (current?.key === best.p.key && !watching) showBuilding(best.p.key);
 }, 3000);
+// VIP guests: a shop with ★3 or more brings one now and then, wearing a crown; they tip 6 coins a star
+const nextVip = new Map();
+setInterval(() => {
+  if (!myDoc || !mySlot) return; const t = performance.now() / 1000;
+  for (const p of allPlots()) {
+    if (p.owner !== me || !p.b) continue; const role = roleOf(normalize(p.b.input).type, normalize(p.b.input).levels); if (!role.serves) continue;
+    const st = starsInfo(p).stars; if (st < 3) { nextVip.delete(p.key); continue; }
+    if (!nextVip.has(p.key)) nextVip.set(p.key, t + 20);
+    if (t < nextVip.get(p.key)) continue;
+    nextVip.set(p.key, t + 70 - 10 * st);
+    const d = dockOf(mySlot); sim.spawn(d.road, 0, role.serves, d.road, true);
+    toast(`👑 VIP 손님이 ${normalize(p.b.input).name || '가게'}에 와요!`, 2200);
+  }
+}, 1000);
 // supplies refill themselves: a shop at 2 or fewer buys the next batch when the wallet allows
 setInterval(() => {
   if (!myDoc) return; let any = false;
@@ -696,6 +721,9 @@ function showBuilding(key) {
 function manage(p) {
   const n = normalize(p.b.input), role = roleOf(n.type, n.levels), r = ratesOf(p), owned = ownedOf(p).size, total = fxTotal(p), mineP = p.owner === me;
   const out = [];
+  if (role.serves) { const si = starsInfo(p), nx = si.checks.find(c => !c.ok);
+    out.push(el('div', { class: 'card' }, el('span', {}, el('b', { class: 'stars' }, starText(si.stars)), el('div', { class: 'note' }, si.stars >= 3 ? `👑 VIP 손님이 와요 · 한 명 +${starBonus(si.stars)}동전` : '★3부터 VIP 손님이 와요 · 값도 올라요')),
+      el('div', { class: 'checks' }, si.checks.map(c => el('span', { class: c.ok ? 'ok' : '' }, (c.ok ? '✓ ' : '○ ') + c.label))))); }
   if (mineP && owned >= total) out.push(el('div', { class: 'card alert' }, el('span', {}, '가구를 다 채웠어요!', el('div', { class: 'note' }, '한 줄로 한 층을 올리면 새 자리가 생겨요')),
     el('button', { class: 'gold', on: { click: () => startExtend(p.key) } }, `🏗️ 증축 · 🎫1`)));
   out.push(el('div', { class: 'card' }, el('span', {}, `가구 ${owned}/${total}`, role.serves ? el('div', { class: 'note' }, `자리 ${r.seats} · 주문 창구 ${r.counters} · 조리 ${r.cooks} · 꾸밈 ${r.decor} — ${r.slow === 'seat' ? '자리가' : '주문이'} 막혀요`) : null),
@@ -744,6 +772,7 @@ function openInside(key) {
   const flow = new FlowView(); $('iflow').replaceChildren(flow.el);
   watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0 };
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
+  if (roleOf(n.type, n.levels).serves) $('iname').append(' ', el('span', { class: 'stars' }, starText(starsInfo(p).stars)));
   $('ihint').textContent = mineP ? '반투명 가구의 노란 + 를 누르면 들여요. 배 손님이 문에 줄을 서고, 앉아서 먹고, 테이블에서 돈을 내요.' : `${nameOf(p.owner)}의 가게예요. 구경만 할 수 있어요.`;
   $('istage').replaceChildren(view.el); $('inside').hidden = false;
   if (mineP && myDoc.wallet.tutIn === undefined) myDoc.wallet.tutIn = 0;

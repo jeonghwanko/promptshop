@@ -87,10 +87,10 @@ export class TownSim {
     for (const s of shops.values()) if (s.fresh && s.serves) for (const p of this.people) if (p.need === s.serves && !p.target) this.route(p);
   }
   serves(need) { for (const s of this.shops.values()) if (s.serves === need) return true; return false; }
-  spawn(at, delay = 0, need = null, dock = null) {
+  spawn(at, delay = 0, need = null, dock = null, vip = false) {
     if (!this.roads.length) return;
     const [x, z] = at ?? this.roads[Math.floor(this.rnd() * this.roads.length)];
-    this.people.push({ dock, x: x + .5, z: z + .5, path: [], need, since: this.t, target: null, wait: delay, t: this.rnd() * 10, shirt: Math.floor(this.rnd() * 8), side: (this.rnd() - .5) * .5, speed: .8 + this.rnd() * .5, mood: 0, giveUp: 0 });
+    this.people.push({ dock, x: x + .5, z: z + .5, path: [], need, since: this.t, target: null, wait: delay, t: this.rnd() * 10, shirt: Math.floor(this.rnd() * 8), vip, side: (this.rnd() - .5) * .5, speed: .8 + this.rnd() * .5, mood: 0, giveUp: 0 });
   }
   /** Go to the nearest building that serves this person's want and has room; nothing is hidden: no room → they give up. */
   route(p) {
@@ -150,7 +150,7 @@ export class TownSim {
         if (s.stock <= 0) { p.need = null; p.mood = 2; this.events.push({ kind: 'empty', lot: s.id, owner: s.owner, t: this.t }); continue; }
         s.stock--; s.served++; p.mood = 1;
         // a shop someone is looking inside: the guest walks in there and pays at the table instead
-        this.events.push(s.watched ? { kind: 'enter', lot: s.id, owner: s.owner, used: 1, t: this.t } : { kind: 'coin', lot: s.id, owner: s.owner, coins: s.price, used: 1, t: this.t });
+        this.events.push(s.watched ? { kind: 'enter', lot: s.id, owner: s.owner, used: 1, t: this.t, vip: !!p.vip } : { kind: 'coin', lot: s.id, owner: s.owner, coins: s.price, used: 1, t: this.t, vip: !!p.vip }); p.vip = false;
         // a visitor sometimes wants one more thing before going home
         p.need = p.dock && this.rnd() < .3 ? NEED_KEYS[Math.floor(this.rnd() * NEED_KEYS.length)] : null; p.since = this.t; p.tried = false;
       }
@@ -181,6 +181,7 @@ export function drawPerson(g, pr, p) {
   g.fillStyle = '#3b3f52'; g.fillRect(x - 1, y - 3, 1, 3); g.fillRect(x + 1, y - 3, 1, 3);
   g.fillStyle = SHIRTS[p.shirt]; g.fillRect(x - 1, y - 7 - bob, 3, 4);
   g.fillStyle = '#f1c9a0'; g.fillRect(x - 1, y - 9 - bob, 3, 2);
+  if (p.vip) { g.fillStyle = '#ffd23a'; g.fillRect(x - 2, y - 11 - bob, 5, 2); g.fillRect(x - 2, y - 13 - bob, 1, 2); g.fillRect(x, y - 13 - bob, 1, 2); g.fillRect(x + 2, y - 13 - bob, 1, 2); }
   if (p.need && !p.inQueue) {           // speech bubble with what they want
     const bx = x - 5, by = y - 22 - bob;
     g.fillStyle = '#ffffff'; g.fillRect(bx, by, 11, 10); g.fillRect(bx + 4, by + 10, 2, 2);

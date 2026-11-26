@@ -164,6 +164,7 @@ function person(g, x, y, p, staff) {
   if (staff) { g.fillStyle = staff === 'cook' ? '#e2432f' : '#2e5d8a'; g.fillRect(x - 2, by - 6 - bob, 5, 2); }
   g.fillStyle = '#f1c9a0'; g.fillRect(x - 2, by - 10 - bob, 4, 4);
   g.fillStyle = staff === 'cook' ? '#ffffff' : '#4a3424'; g.fillRect(x - 2, by - (staff === 'cook' ? 13 : 11) - bob, 4, staff === 'cook' ? 3 : 1);
+  if (p.vip) { g.fillStyle = '#ffd23a'; g.fillRect(x - 2, by - 12 - bob, 5, 2); g.fillRect(x - 2, by - 14 - bob, 1, 2); g.fillRect(x, by - 14 - bob, 1, 2); g.fillRect(x + 2, by - 14 - bob, 1, 2); }
   if (!staff && p.mood && p.mood !== 'ok') bubble(g, x, by - 14 - bob, p.mood);
 }
 function bubble(g, x, y, mood) {
