@@ -36,8 +36,8 @@ export class InsideView {
    * @param opts.every  seconds between walk-ins (Infinity: the caller calls sim.spawn())
    * @param opts.maxWidth  CSS pixels available
    */
-  constructor(input, owned, { coins, buy, every = 2.1, seed = 3, maxWidth = 900, price } = {}) {
-    this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
+  constructor(input, owned, { coins, buy, every = 2.1, seed = 3, maxWidth = 900, price, onHover } = {}) {
+    this.onHover = onHover; this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
     this.el = document.createElement('div'); Object.assign(this.el.style, { position: 'relative', maxWidth: '100%' });
     this.floats = []; this.hot = -1;
     this.top = document.createElement('canvas'); Object.assign(this.top.style, { position: 'absolute', left: 0, top: 0, imageRendering: 'pixelated', cursor: coins ? 'pointer' : 'default' });
@@ -46,7 +46,7 @@ export class InsideView {
     this.sim = new InsideSim(this.view.plan, this.fx, owned, { seed, every, price });
     if (coins) {
       this.top.addEventListener('mousemove', (e) => this.hover(e));
-      this.top.addEventListener('mouseleave', () => { tip().style.display = 'none'; this.hot = -1; });
+      this.top.addEventListener('mouseleave', () => { tip().style.display = 'none'; if (this.hot >= 0) this.onHover?.(-1); this.hot = -1; });
       this.top.addEventListener('click', (e) => this.tryBuy(e));
     }
   }
@@ -71,10 +71,16 @@ export class InsideView {
     this.fx.forEach((f, i) => { if (!can.has(i)) return; const [x, y] = this.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
     return best;
   }
+  /** Screen point of a fixture that can be bought now, preferring the suggested ones (for the guide's arrow). */
+  ghostPoint() {
+    const can = [...this.buyable()], i = can.find(j => this.suggest?.has(this.fx[j].kind)) ?? can[0]; if (i === undefined) return null;
+    const f = this.fx[i], [x, y] = this.view.project(f.x, f.y + .55, f.z), r = this.top.getBoundingClientRect();
+    return [r.left + x * this.zoom, r.top + y * this.zoom - 6];
+  }
   /** Fixtures that can be bought now: the next of each track. */
   buyable() { return new Set(Object.values(nextUp(this.fx, this.owned, undefined, this.input.order))); }
   hover(e) {
-    const i = this.ghostAt(e), t = tip(); this.hot = i;
+    const i = this.ghostAt(e), t = tip(); if (i !== this.hot) this.onHover?.(i); this.hot = i;
     if (i < 0) { t.style.display = 'none'; return; }
     const f = this.fx[i], [name, what] = FIX_INFO[f.kind] ?? [f.kind, '꾸밈'], c = costOf(f.kind);
     t.textContent = `${name} · ${what} · ${c}동전${this.coins() < c ? ' (모자람)' : ''}`;

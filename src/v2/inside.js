@@ -78,6 +78,17 @@ export function nextUp(fixtures, owned, door, order) {
   return out;
 }
 
+/** What each step of the flow can take, in guests per minute on the map's scale, for the diagram. */
+export function flowCaps(fixtures, owned, baseCoin = 3) {
+  const own = fixtures.filter((_, i) => owned.has(i));
+  const counters = own.filter(f => f.kind === 'counter').length, cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
+  const seats = own.reduce((t, f) => t + (SEATS[f.kind]?.length ?? 0), 0), browse = own.filter(f => BROWSE.has(f.kind)).length;
+  const st = 4.2 / (1 + .7 * cooks), k = 60 / .46;
+  const order = (counters ? counters / st : seats ? 1 / st : .3 + browse * .08) * k, seat = seats ? seats / 13 * k : Infinity;
+  const r = shopRates(fixtures, owned, baseCoin);
+  return { order, seat, gpm: Math.min(order, seat), price: r.price, counters, cooks: Math.round(cooks * 10) / 10, seats, browse, slow: seat < order ? 'seat' : 'order' };
+}
+
 /** Unbought fixtures that would raise income (price per guest ÷ seconds per guest) the most, by kind. */
 export function bestNext(fixtures, owned, baseCoin = 3, order) {
   const rev = (set) => { const r = shopRates(fixtures, set, baseCoin); return r.price / r.interval; }, now = rev(owned);
