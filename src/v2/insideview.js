@@ -57,15 +57,23 @@ export class InsideView {
     const v = renderView(this.input, 'section', { owned: this.owned, floor: this.floor });
     this.view = v; this.fx = v.fixtures;
     const W = v.canvas.width, H = v.canvas.height, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 4) / 4);   // whole steps when there is room, quarter steps for tall buildings
-    this.zoom = z; this.top.width = W; this.top.height = H;
+    // the zoom and the box are fixed at the first drawing: changing floor or buying must not resize the view (it jumps and shakes)
+    const zz = this.lockZ ?? (this.lockZ = z); this.zoom = zz; this.top.width = W; this.top.height = H;
+    { const z = zz;
     for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = 'pixelated'; c.style.display = 'block'; }
     { const d = Math.min(3, devicePixelRatio || 1); this.ts = z * d; this.txt.width = Math.round(W * this.ts); this.txt.height = Math.round(H * this.ts); this.txt.style.width = W * z + 'px'; this.txt.style.height = H * z + 'px'; }
-    this.el.replaceChildren(v.canvas, this.top, this.txt);
-    Object.assign(this.el.style, { width: W * z + 'px', height: H * z + 'px' });
+    // the picture sits in an inner layer placed so the floor's centre stays on the same spot whichever floor is shown
+    const fy = v.plan?.floors?.[this.floor]?.y ?? 0, [axp, ayp] = v.project(0, fy, 0);
+    if (!this.box) this.box = { w: W * z, h: H * z, ax: axp * z, ay: ayp * z };
+    const pic = document.createElement('div'); Object.assign(pic.style, { position: 'absolute', left: (this.box.ax - axp * z) + 'px', top: (this.box.ay - ayp * z) + 'px', width: W * z + 'px', height: H * z + 'px' });
+    for (const c of [v.canvas, this.top, this.txt]) { c.style.position = c === v.canvas ? 'static' : 'absolute'; if (c !== v.canvas) { c.style.left = '0'; c.style.top = '0'; } }
+    pic.append(v.canvas, this.top, this.txt); this.el.replaceChildren(pic); this.pic = pic;
+    Object.assign(this.el.style, { width: this.box.w + 'px', height: this.box.h + 'px' });
     for (const l of v.labels) {
       const e = document.createElement('div'); e.textContent = l.text;
       Object.assign(e.style, { position: 'absolute', left: (l.x * z + 4) + 'px', top: l.y * z + 'px', transform: 'translate(0,-50%)', background: '#2e241a', color: '#fbf6ea', padding: '0 6px', borderRadius: '5px', font: '12px system-ui, "Noto Sans KR", sans-serif', pointerEvents: 'none', whiteSpace: 'nowrap' });
-      this.el.append(e);
+      pic.append(e);
+    }
     }
     this.floorTabs();
   }

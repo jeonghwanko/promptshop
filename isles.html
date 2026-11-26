@@ -434,12 +434,19 @@ const pr = islesProjection(), map = $('map'); map.width = pr.width; map.height =
 // native pixels by default (crisp), scrolled to my island; "전체 보기" fits the whole archipelago
 let zoom = 1;   // map pixels per canvas pixel; whole steps above 1 keep the pixels even
 const zoomSteps = () => { const lo = Math.min(1, Math.max(innerWidth / pr.width, innerHeight / pr.height) * .9); return [...new Set([lo, .5, .75, 1, 2, 3].filter(z => z >= lo - 1e-6))].sort((a, b) => a - b); };
-function setZoom(z) {   // keep the point in the middle of the screen where it is
-  const box = $('mapbox'), cx = (box.scrollLeft + box.clientWidth / 2 - map.offsetLeft) / zoom, cy = (box.scrollTop + box.clientHeight / 2 - map.offsetTop) / zoom;
-  zoom = z; applyZoom(); box.scrollTo({ left: map.offsetLeft + cx * zoom - box.clientWidth / 2, top: map.offsetTop + cy * zoom - box.clientHeight / 2 });
+function setZoom(z, at) {   // keep the point under `at` (screen x, y; default the middle of the screen) where it is
+  const box = $('mapbox'), [sx, sy] = at ?? [box.clientWidth / 2, box.clientHeight / 2], cx = (box.scrollLeft + sx - map.offsetLeft) / zoom, cy = (box.scrollTop + sy - map.offsetTop) / zoom;
+  zoom = z; applyZoom(); box.scrollTo({ left: map.offsetLeft + cx * zoom - sx, top: map.offsetTop + cy * zoom - sy });
 }
 const applyZoom = () => { map.style.width = pr.width * zoom + 'px'; const st = zoomSteps(); $('zin').disabled = zoom >= st[st.length - 1]; $('zout').disabled = zoom <= st[0] + 1e-6; };
-const zoomBy = (d) => { const st = zoomSteps(), i = st.findIndex(z => Math.abs(z - zoom) < 1e-6); setZoom(st[Math.max(0, Math.min(st.length - 1, (i < 0 ? st.indexOf(1) : i) + d))]); };
+const zoomBy = (d, at) => { const st = zoomSteps(), i = st.findIndex(z => Math.abs(z - zoom) < 1e-6), n = st[Math.max(0, Math.min(st.length - 1, (i < 0 ? st.indexOf(1) : i) + d))]; if (n !== zoom) setZoom(n, at); };
+// the wheel zooms the map around the pointer, one step per notch (a burst of wheel events counts once)
+let wheelAt = 0, wheelSum = 0;
+$('mapbox').addEventListener('wheel', (e) => {
+  e.preventDefault(); if (watching?.inPlace || zoomShop) return;
+  wheelSum += e.deltaY; const t = performance.now(); if (t - wheelAt < 140 || Math.abs(wheelSum) < 30) return;
+  wheelAt = t; const d = wheelSum < 0 ? 1 : -1; wheelSum = 0; zoomBy(d, [e.clientX, e.clientY]);
+}, { passive: false });
 /** The first view: the biggest whole step at which my island (with room for its land to grow) still fits in most of the screen. */
 function startZoom(slot) {
   const [cx, cz] = centerOf(slot), r = Math.sqrt(landSize(slot) / Math.PI) + 1, xs = [[-r, -r], [r, -r], [-r, r], [r, r]].map(([dx, dz]) => pr.P(cx + dx, cz + dz));
@@ -1084,8 +1091,9 @@ addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); }); 
 // the one thing that unblocks the red step, as a button under the diagram
 // ---------- the few big buttons beside an opened shop: the next piece, the best level-up, a helper, one more floor, move, close ----------
 function placeActs() {   // to the right of the cut-away, level with its middle
-  const st = $('shopstage').getBoundingClientRect(), a = $('shopacts');
-  a.style.left = Math.min(innerWidth - 240, st.right + 16) + 'px'; a.style.top = Math.max(150, Math.min(innerHeight - 160, st.top + st.height / 2)) + 'px';
+  // from the stage's own place and size, not its on-screen box: that one moves while the stage shakes
+  const s0 = $('shopstage'), a = $('shopacts'), cx = parseFloat(s0.style.left) || innerWidth / 2, cy = parseFloat(s0.style.top) || innerHeight / 2;
+  a.style.left = Math.min(innerWidth - 240, cx + s0.offsetWidth / 2 + 16) + 'px'; a.style.top = Math.max(150, Math.min(innerHeight - 160, cy)) + 'px';
 }
 function shopActions(w, p) {
   const fx = fixturesOf(p), own = ownedOf(p), base = BASE_COIN[p.size] ?? 1, lv = levelsOf(p), h = helpersOf(p), coins = myDoc.wallet.coins, out = [];
