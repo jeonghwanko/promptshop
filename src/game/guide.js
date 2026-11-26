@@ -2,7 +2,7 @@
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
 import { centerOf, placePlot, PLOT } from '../v2/isles.js';
 import { $, el } from './ui.js';
-import { S, me, pr, nextBoat } from './state.js';
+import { S, me, pr, nextBoat, canWrite } from './state.js';
 import { allPlots, takenSet } from './model.js';
 import { save } from './persist.js';
 import { toScreen } from './camera.js';
@@ -27,7 +27,7 @@ const TUT_IN = [
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
-const setStep = (field, n) => { S.myDoc.wallet[field] = n; S.dirty = true; save(true); guide(); };
+const setStep = (field, n) => { if (!canWrite()) return; S.myDoc.wallet[field] = n; S.dirty = true; save(true); guide(); };
 export function tutInEvent(name) { if (inTutOn() && TUT_IN[inStep()].on === name) setStep('tutIn', inStep() + 1); }
 const tutStep = () => S.myDoc?.wallet?.tut ?? 99;
 export const tutOn = () => !!S.mySlot && tutStep() < TUT.length;

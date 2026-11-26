@@ -21,6 +21,8 @@ export const hooks = {
   plotChanged: (key) => {},
   /** Another tab took my island over: this one only watches now. */
   yielded: () => {},
+  /** This tab holds my island now (after waiting for another tab). */
+  live: () => {},
 };
 
 export const nameOf = (uid) => uid?.startsWith('seed') ? (S.docs.get(uid)?.name ?? '예시 친구') : uid === me ? '나' : (S.names[uid] || '친구');

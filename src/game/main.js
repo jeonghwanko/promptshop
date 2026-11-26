@@ -7,7 +7,7 @@ import { centerOf } from '../v2/isles.js';
 import { el } from './ui.js';
 import { S, db, me, sim } from './state.js';
 import { hooks, allPlots, ratesOf, servesOf } from './model.js';
-import { initPersist } from './persist.js';
+import { initPersist, WRITER } from './persist.js';
 import { initCamera, startZoom, applyZoom, scrollToSlot, toScreen } from './camera.js';
 import { drawMap } from './mapview.js';
 import { initHud, toast, celebrate } from './hud.js';
@@ -31,10 +31,11 @@ hooks.celebrate = celebrate;
 hooks.guiding = (inside) => tutOn() || (inside && inTutOn());
 hooks.happened = tutEvent;
 hooks.yielded = () => {   // another tab plays this island now: this one stops and offers to take it back
-  closeInside(); setBuildMode(false); cancelMove(); closePanel();
+  closeInside(); setBuildMode(false); cancelMove(); closePanel(); S.fest = null; document.getElementById('festp').hidden = true; document.getElementById('cards').hidden = true;
   if (document.querySelector('.handoff')) return;
   document.body.append(el('div', { class: 'handoff' }, el('div', {}, el('b', {}, '다른 창에서 플레이 중'), el('button', { class: 'gold', on: { click: () => location.reload() } }, '여기서 하기'))));
 };
+hooks.live = () => { const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // a shop of mine opened while waiting: open it again as mine
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };
 hooks.rebuilt = () => {
   if (!S.scrolled) { S.scrolled = true; S.zoom = startZoom(S.mySlot || 1); applyZoom(); setTimeout(() => scrollToSlot(S.mySlot || 1), 50); }
@@ -73,7 +74,7 @@ window.__isles = {
   site: (x, z, sz, on) => { if (on) S.building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { dustSite({ x, z, size: sz }); S.building = null; } },
   get watching() { return S.watching; }, get myDoc() { return S.myDoc; }, get zoom() { return S.zoom; },
   startMove, tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: cancelMove,
-  openShop, close: closeInside, extend: startExtend, centerOf, S,
+  openShop, close: closeInside, extend: startExtend, centerOf, S, writer: WRITER,
 };
 // ?world=1 opens the world map at once; ?open=<plot key> opens a building's inside at once (for checks)
 if (q.get('world')) setTimeout(openWorld, 600);

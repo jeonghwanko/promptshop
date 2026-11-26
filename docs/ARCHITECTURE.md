@@ -30,14 +30,19 @@ Each layer may use the layers below it, never the ones above.
 - Screen modules import each other's functions directly. They do nothing when they load: listeners and timers start in their `init…()`, which only `main.js` calls. So the order in which the modules load does not matter.
 - `model.js`, `persist.js`, `economy.js` and the layers under them never import a screen other than the HUD. When they need one (a celebration, the first view after loading, the guide, a panel to refresh), they call `hooks` in `model.js`, which `main.js` fills.
 - A function that runs after an `await` reads `S` again and checks again what it checked before (a permit, the plot limit, that the building is still there): a newer copy can arrive from another tab, and the player can do other things while Claude writes.
-- One tab writes an island at a time (`src/game/lease.js`). A new tab claims the island by writing `term` (one more) and `by` (its mark). The tab that held it saves once more with `ack`, closes what it had open, and only watches (one button takes the island back by reloading). The new tab waits up to 5 s for that answer, then plays. The tab that plays never takes the stored copy of its own island, so nothing it earned is lost. Saves write only the island fields with `update`, and claims only `term` and `by`, so neither undoes the other.
+- One tab writes an island at a time (`src/game/lease.js`, a pure `step()`; `src/game/persist.js` acts on it).
+  - A new tab claims the island by writing `term` (one more) and `by` (its mark). If the holder let go (it writes `by: null` as its page closes) or has not saved for 15 s (`hb`), the new tab plays at once. Otherwise it waits up to 5 s for the holder's answer.
+  - The holder closes what it had open, then answers with `ack` and its whole island, and only watches. One button takes the island back by reloading.
+  - Two tabs that claim the same term: the lower mark keeps it, and both work that out alike.
+  - The tab that plays never takes the stored copy of its own island. If another tab's save shows up in the store (`wb`, a tab that woke up and saved before it saw the claim), the player saves its own copy again.
+  - Saves write only the island fields with `update` (plus `wb` and `hb`); claims write only `term` and `by`. The holder saves at least every 8 s.
 - Only the playing tab changes my island: check `canWrite()` before spending or earning.
-- A board owner removes someone else's building by a mark in the board's `_mod` doc; the owner's own playing tab removes it and saves. Writing someone else's doc directly would be undone by their next save.
+- A board owner removes someone else's building by a mark in the board's `_mod` doc, keyed by the building's `b.at` (it stays when the building moves); the owner's own playing tab removes it and saves. Marks are not pruned yet. Writing someone else's doc directly would be undone by their next save.
 - Saved data never changes shape silently: a change of meaning gets a version on the plot (`lay`) and a step in `migrate.js`.
 
 ## Checks
 
 - `node scripts/check-isles.mjs` (with `node scripts/dev.mjs 5300` running): copies the dev island to a throwaway board and drives the main paths in headless Chrome: guide, shop, buying, floors, zoom, long press, moving a building, festival, panel, cards, world map, a refused board name, widening land, furniture coming in by itself. Every line must say PASS.
-- `node scripts/check-tabs.mjs`: several tabs on one island — handing over unsaved changes, the watcher writing nothing, a closed tab, two tabs at once, a removal that sticks.
-- `node scripts/check-lease.mjs`: the one-writer rule as a table, without a browser.
+- `node scripts/check-tabs.mjs`: several tabs on one island — a stale holder, the answer and handing over unsaved changes, the watcher writing nothing, an old copy written over, a closed tab, a shop opened while waiting, two tabs at once, a removal that sticks.
+- `node scripts/check-lease.mjs`: the one-writer rule as a table and same-term races, without a browser.
 - `tests/render-hash.html`: a hash of every building, cut-away and voxel button. Use it before and after a change to the renderer that should change no pixel.

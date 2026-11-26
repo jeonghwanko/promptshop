@@ -91,7 +91,7 @@ export function stepFest(dt) {
     const left = fest.people.filter(p => !p.festServed && !p.gone && p.mood !== 2).length;
     if (!left || t - fest.landed > FEST.window) {   // the result: how many got served, as stars; three stars add half the tips again
       const st = festStars(fest.served, fest.total), bonus = festBonus(st, fest.tips);
-      if (bonus) { earn(bonus); S.dirty = true; }
+      if (bonus && canWrite()) { earn(bonus); S.dirty = true; }
       celebrate(`${'★'.repeat(st)}${'☆'.repeat(3 - st)} 축제 ${fest.served}/${fest.total}`, `팁 +${fest.tips + bonus}동전${bonus ? ' (★3 보너스 포함)' : ''}${fest.total - fest.served ? ` · ${fest.total - fest.served}명 돌아감` : ''}`);
       fest.state = 'leave'; fest.left = t;
     }
