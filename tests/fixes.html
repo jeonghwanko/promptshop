@@ -1,0 +1,30 @@
+<!doctype html><meta charset="utf-8"><style>body{background:#e8dcc4;margin:0}</style><pre id="dump" hidden></pre>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import { renderView } from '../src/v2/render.js';
+const cases = [
+  ['항구의 하얀 등대', { type: 'lighthouse', levels: 6 }],
+  ['네덜란드 풍차', { type: 'windmill', levels: 4 }],
+  ['탑이 있는 중세 성', { type: 'castle', levels: 3 }],
+  ['야구장', { type: 'stadium', levels: 2 }],
+  ['돔 지붕의 재래시장', { type: 'market_hall', roof: { shape: 'dome' } }],
+  ['미나렛이 있는 모스크', { type: 'mosque' }],
+  ['작은 마을 우체국', { type: 'post_office' }],
+  ['시골 읍내 약국', { type: 'pharmacy' }],
+  ['우주선 모양 카페', { type: 'cafe', shape: 'saucer', size: [2.6, 2.6], wall: { material: 'metal_sheet', color: '#c8ccd2' }, accent: '#4fe3ff', hero: 'none' }],
+  ['재즈가 흐르는 지하 바', { type: 'bar', ground: 'stairs_down', night: true, accent: '#e3b448' }],
+  ['복싱 체육관', { type: 'gym', hero: 'giant_glove', accent: '#d6332a', floors: [{ range: [1, 1], zones: ['ring', 'weights', 'lockers'] }] }],
+  ['붕어빵 노점', { type: 'kiosk', hero: 'food_cart', accent: '#c23b2b' }],
+];
+const cw = 420, ch = 400, cols = 3, sheet = document.createElement('canvas'); sheet.width = cw * cols * 2 / 1.5; sheet.height = ch * Math.ceil(cases.length / cols);
+const g = sheet.getContext('2d'); g.fillStyle = '#e8dcc4'; g.fillRect(0, 0, sheet.width, sheet.height); g.imageSmoothingEnabled = false;
+const tw = sheet.width / cols;
+cases.forEach(([label, input], k) => {
+  const x = (k % cols) * tw, y = Math.floor(k / cols) * ch;
+  const a = renderView(input, 'ext').canvas, s = renderView(input, 'section').canvas;
+  const fit = (c, bx, bw) => { const sc = Math.min(1, bw / c.width, (ch - 30) / c.height); g.drawImage(c, bx, y + ch - 26 - c.height * sc, c.width * sc, c.height * sc); };
+  fit(a, x, tw * .55); fit(s, x + tw * .55, tw * .45);
+  g.fillStyle = '#2e241a'; g.font = '15px "Noto Sans CJK KR"'; g.fillText(label, x + 8, y + ch - 8);
+});
+document.getElementById('dump').textContent = sheet.toDataURL();
+</script>

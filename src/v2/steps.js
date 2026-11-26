@@ -23,12 +23,12 @@ export function applyStep(b, step) {
   const i = b.input;
   switch (s) {
     case 'main':
-      Object.assign(i, pick(step, ['wall', 'roof', 'ground', 'rhythm', 'balconies', 'shape']));
+      Object.assign(i, pick(step, ['wall', 'roof', 'ground', 'rhythm', 'balconies', 'shape', 'taper', 'crenel', 'bands']));
       return { view: 'ext', key: 'mass:main' };
     case 'mass': {
       i.masses = i.masses ?? [];
       if (i.masses.length >= 4) return null;
-      i.masses.push({ ...pick(step, ['shape', 'at', 'size', 'levels', 'roof', 'wall', 'rhythm', 'ground', 'balconies']), id: 'm' + i.masses.length });
+      i.masses.push({ ...pick(step, ['shape', 'at', 'size', 'levels', 'roof', 'wall', 'rhythm', 'ground', 'balconies', 'taper', 'crenel', 'bands']), id: 'm' + i.masses.length });
       return { view: 'ext', key: 'mass:m' + (i.masses.length - 1) };
     }
     case 'sign': i.sign = pick(step, ['icon', 'place', 'bg', 'fg']); return { view: 'ext', key: 'sign' };
@@ -71,7 +71,7 @@ Styles: ${STYLE_LIST}. Leave "style" out to use the type's own look.
 Output ONLY JSON Lines, one JSON object per line, no other text, no code fences, in this order. Each line is built on screen the moment it arrives:
 
 1. {"step":"building","type":"<type>","style":"<style>","name":"<name, max 10 chars, same language as the description>","levels":<floors, 1-60, the real count; tall buildings are drawn shortened>,"scale":"S|M|L|XL","size":[w,d] (optional, tiles, w 0.9-6, d 0.9-5),"accent":"#rrggbb","night":<bool>,"note":"..."}
-2. Optional {"step":"main", override the main block: "wall":{"material":"${list(WALL_MATERIALS)}","color":"#rrggbb"},"roof":{"shape":"${list(ROOF_SHAPES)}","material":"${list(ROOF_MATERIALS)}","color":"#rrggbb","pitch":0.15-1.4,"overhang":0-0.6,"eave":"straight|curl"},"ground":"${list(GROUNDS)}","rhythm":"${list(RHYTHMS)}","balconies":<bool>,"note":"..."}
+2. Optional {"step":"main", override the main block: "shape":"${list(MASS_SHAPES)}","taper":<0.4-1, round towers narrow toward the top>,"crenel":<bool, battlements>,"bands":"#rrggbb" (stripes on a round tower), "wall":{"material":"${list(WALL_MATERIALS)}","color":"#rrggbb"},"roof":{"shape":"${list(ROOF_SHAPES)}","material":"${list(ROOF_MATERIALS)}","color":"#rrggbb","pitch":0.15-1.4,"overhang":0-0.6,"eave":"straight|curl"},"ground":"${list(GROUNDS)}","rhythm":"${list(RHYTHMS)}","balconies":<bool>,"note":"..."}
 3. 0-4 lines {"step":"mass","shape":"${list(MASS_SHAPES)}","at":"left|right|back|front|top","size":[w,d],"levels":<n>,"roof":{...},"wall":{...},"rhythm":"...","note":"..."} for wings, towers, a tower on top, a canopy. Writing any mass line replaces the type's default extra blocks.
 4. {"step":"sign","icon":"${list(ICONS)}","place":"front|roof|blade|pole","bg":"#rrggbb","fg":"#rrggbb","note":"..."}
 5. {"step":"hero","hero":"${list(HEROES)}","note":"..."}  one oversized prop that tells what this building is.
@@ -82,6 +82,12 @@ Output ONLY JSON Lines, one JSON object per line, no other text, no code fences,
    Zones (each already comes with its recognisable furniture): ${ZONE_NAMES.join(' ')}
 8. Optional 0-6 lines {"step":"fixture","floor":<index of the floor line, 0-based>,"zone":"<a zone on that floor>","kind":"<fixture>","pattern":"back|left|rows|center|corner|front|cells","count":<n>,"color":"#rrggbb","note":"..."} to add something special.
    Fixtures: ${FIXTURE_NAMES.join(' ')}
+
+Make it recognisable at a glance. Rules that help:
+- Landmarks need their silhouette: lighthouse = main shape "round" with taper and bands + hero "lamp"; windmill = "round" with taper + hero "sails"; castle = "crenel": true + round towers (mass shape "round", roof "cone"); stadium or ballpark = main shape "bowl"; UFO or spaceship = main shape "saucer"; mosque = roof "dome" + a tall "round" mass with roof "onion" as minaret; market = hero "stall_row".
+- Small shops need one loud cue: pharmacy = hero "green_cross", post office = hero "postbox", boxing or martial arts gym = hero "giant_glove" and an inside zone "ring", street-food stall = hero "food_cart", anything underground = ground "stairs_down".
+- Words about age and mood change the materials: old, retro, traditional = brick, wood or stone, warm "night": true lights, punched or arched windows; modern, new, minimal = style "modern_glass" or white concrete, rhythm "curtain" or "bands"; luxurious = more floors, a canopy, gold accent; cute or kids = bright accent, rounded props.
+- Pick the inside zones for the actual activity (a boxing gym has "ring", a ballpark has "diamond" and "stands", a library has "stacks" and "reading").
 
 Write every "note" in the same language as the description, under 20 characters, saying what that line builds.`;
 }

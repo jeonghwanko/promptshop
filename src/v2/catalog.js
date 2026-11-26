@@ -36,7 +36,7 @@ export const TYPES = {
   supermarket:       T('retail', 'L', [1, 1], 'shopfront', 'flat', 'pylon_sign', 'cart', ['canopy:front'], ['aisles', 'checkout', 'stockroom']),
   boutique:          T('retail', 'S', [1, 2], 'shopfront', 'mansard', 'mannequin', 'bag', [], ['sales', 'fitting']),
   pharmacy:          T('retail', 'S', [1, 2], 'shopfront', 'flat', 'green_cross', 'pill', [], ['sales', 'counter']),
-  market_hall:       T('retail', 'XL', [1, 1], 'arcade', 'round', 'clock', 'cart', [], ['stalls']),
+  market_hall:       T('retail', 'XL', [1, 1], 'arcade', 'round', 'stall_row', 'cart', [], ['stalls']),
   kiosk:             T('retail', 'S', [1, 1], 'counter', 'pyramidal', 'none', 'news', [], ['counter']),
   pc_bang:           T('leisure', 'M', [2, 3], 'plain', 'flat', 'neon_arrow', 'pc', [], ['seating', 'counter']),
   // hospitality
@@ -65,7 +65,7 @@ export const TYPES = {
   // sport & leisure
   gym:               T('sport', 'M', [1, 3], 'shopfront', 'flat', 'dumbbell', 'dumbbell', [], ['reception', 'cardio', 'weights', 'lockers']),
   swimming_pool:     T('sport', 'L', [1, 1], 'curtain', 'round', 'none', 'wave', [], ['pool', 'lockers']),
-  stadium:           T('sport', 'XL', [2, 3], 'arcade', 'flat', 'floodlights', 'ball', [], ['field', 'stands']),
+  stadium:           T('sport', 'XL', [2, 3], 'arcade', 'flat', 'none', 'ball', [], ['diamond', 'stands']),
   bowling_alley:     T('sport', 'L', [1, 1], 'marquee', 'flat', 'giant_pin', 'ball', [], ['lanes', 'counter']),
   // transport
   train_station:     T('transport', 'XL', [1, 2], 'arcade', 'round', 'clock', 'train', ['canopy:back'], ['concourse', 'tickets', 'platforms']),
@@ -90,9 +90,9 @@ export const TYPES = {
   mosque:            T('religious', 'L', [1, 1], 'arcade', 'dome', 'minaret', 'moon', ['spire:right'], ['prayer_hall']),
   // landmarks
   clock_tower:       T('landmark', 'S', [5, 8], 'plain', 'pyramidal', 'clock', 'clock', [], []),
-  lighthouse:        T('landmark', 'S', [5, 8], 'plain', 'cone', 'lamp', 'star', [], []),
+  lighthouse:        T('landmark', 'S', [5, 8], 'plain', 'flat', 'lamp', 'star', [], []),
   windmill:          T('landmark', 'S', [3, 4], 'plain', 'cone', 'sails', 'wheat', [], []),
-  castle:            T('landmark', 'XL', [2, 3], 'gate', 'flat', 'flagpoles', 'crown', ['tower:left', 'tower:right'], ['hall']),
+  castle:            T('landmark', 'XL', [2, 3], 'gate', 'flat', 'flagpoles', 'crown', ['turret:left', 'turret:right'], ['hall']),
 };
 export const TYPE_NAMES = Object.keys(TYPES);
 
@@ -121,12 +121,14 @@ export const TYPE_LOOK = {
   cabin: { style: 'nordic_wood' }, barn: { style: 'nordic_wood' },
   factory: { style: 'brick' }, university: { style: 'brick' }, library: { style: 'brick' }, school: { wall: { material: 'brick', color: '#b8735a' } },
   gallery: { style: 'modern_glass' }, concert_hall: { style: 'modern_glass' }, swimming_pool: { style: 'modern_glass' }, hotel: { style: 'modern_glass' },
-  church: { wall: { material: 'stone', color: '#cfc6b6' } }, castle: { wall: { material: 'stone', color: '#bdb5a6' } }, town_hall: { wall: { material: 'stone', color: '#ddd5c4' } },
+  church: { wall: { material: 'stone', color: '#cfc6b6' } }, castle: { wall: { material: 'stone', color: '#bdb5a6' }, crenel: true }, town_hall: { wall: { material: 'stone', color: '#ddd5c4' } },
   museum: { wall: { material: 'marble', color: '#efece6' } }, mosque: { wall: { material: 'plaster', color: '#f4efe6' } },
   hospital: { wall: { material: 'concrete', color: '#eef1f3' } }, clinic: { wall: { material: 'plaster', color: '#f4f6f8' } },
   warehouse: { wall: { material: 'metal_sheet', color: '#9aa4ad' } }, workshop: { wall: { material: 'metal_sheet', color: '#7f8b94' } },
   parking_garage: { wall: { material: 'concrete', color: '#b8bcc2' } }, apartment: { wall: { material: 'concrete', color: '#e4e2dc' } },
-  lighthouse: { wall: { material: 'plaster', color: '#f4f1ea' } }, windmill: { wall: { material: 'wood_boards', color: '#d8c8a8' } },
+  lighthouse: { wall: { material: 'plaster', color: '#f4f1ea' }, shape: 'round', taper: 0.68, bands: '#d6332a', accent: '#d6332a' },
+  windmill: { wall: { material: 'wood_boards', color: '#d8c8a8' }, shape: 'round', taper: 0.72 },
+  stadium: { shape: 'bowl' }, post_office: { accent: '#d6332a' }, market_hall: { accent: '#e3b448' },
   pc_bang: { wall: { material: 'concrete', color: '#3b3f52' } }, bar: { wall: { material: 'brick', color: '#5a3a32' } },
 };
 export const FAMILIES = [...new Set(Object.values(TYPES).map(t => t.family))];

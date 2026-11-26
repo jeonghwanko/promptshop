@@ -108,7 +108,7 @@ export function buildRoof(r, w, d, ctx) {
       break;
     }
     case 'dome': case 'onion': case 'cone': {
-      const rr = Math.min(w, d) * 0.42;
+      const rr = Math.min(w, d) * (r.shape === 'dome' ? 0.47 : 0.42);
       const drum = new THREE.Mesh(new THREE.CylinderGeometry(rr * .95, rr * .95, .3, 20), ctx.wall); drum.position.y = .15; add(drum);
       let m;
       if (r.shape === 'dome') m = new THREE.Mesh(new THREE.SphereGeometry(rr, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), rm);

@@ -125,7 +125,7 @@ $('go').onclick = async () => {
   const count = +$('count').value, revise = $('revise').value === '1';
   results = []; $('grid').replaceChildren(); stopReq = false; runId = 'r' + Date.now();
   $('go').disabled = true; $('stop').hidden = false; stats();
-  if (db) try { await db.doc(`runs/${runId}`).set({ at: Date.now(), count, revise }); } catch { }
+  if (db) try { await db.doc(`runs/${runId}`).set({ at: Date.now(), count, revise, version: 'parts-2' }); } catch { }
   for (let i = 0; i < Math.min(count, EVAL.length) && !stopReq; i++) {
     $('status').textContent = `${i + 1}/${count} 짓는 중: ${EVAL[i]}`;
     const r = await one(i, EVAL[i], revise); results.push(r); $('grid').append(card(r)); stats(); save(r);

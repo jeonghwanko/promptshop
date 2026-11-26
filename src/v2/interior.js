@@ -44,6 +44,7 @@ export const ZONES = {
   living: Z('#eadfcc', [['rug', 'center'], ['sofa', 'center'], ['tv', 'back'], ['plant', 'corner']]),
   nave: Z('#e9e2d4', [['altar', 'back'], ['pew', 'rows']]), altar: Z('#e2d8c4', [['altar', 'center']]), prayer_hall: Z('#e9dcc4', [['prayer', 'rows']]),
   lounge: Z('#e2d6c4', [['sofa', 'rows'], ['plant', 'corner']]),
+  ring: Z('#d9dde0', [['ring', 'center'], ['bench', 'left']]), diamond: Z('#5f9e4f', [['diamond', 'center']]),
 };
 const zoneDef = (name) => { let z = ZONES[name]; while (typeof z === 'string') z = ZONES[z]; return z ?? ZONES.lobby; };
 export const ZONE_NAMES = Object.keys(ZONES);
@@ -240,7 +241,12 @@ function fixtures(box, cyl, ball) {
     prayer: { size: [.5, .8], draw: (x, z) => box(.45, .02, .75, mat('#8a2b3a'), x, .01, z) },
     balls: { size: [.6, .6], draw: (x, z) => { ball(.12, mat('#e2432f'), x - .2, .12, z); ball(.12, mat('#2e86ab'), x + .1, .12, z + .15); ball(.12, mat('#e3b448'), x + .2, .12, z - .15); } },
     court: { size: [2.2, 1.6], draw: (x, z) => { box(2.2, .02, 1.6, mat('#c98a4b'), x, .01, z); box(2.0, .025, .03, white, x, .01, z); box(.03, .025, 1.4, white, x, .01, z); } },
+    ring: { size: [2.0, 2.0], draw: (x, z) => { box(1.9, .35, 1.9, mat('#2e5d8a'), x, 0, z); box(1.7, .02, 1.7, mat('#e8eef2'), x, .35, z);
+      for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(.1, .7, .1, mat(a * b > 0 ? '#d6332a' : '#2e86ab'), x + a * .88, .35, z + b * .88);
+      for (const h of [.6, .85]) { box(1.76, .03, .03, white, x, h, z + .88); box(1.76, .03, .03, white, x, h, z - .88); box(.03, .03, 1.76, white, x + .88, h, z); box(.03, .03, 1.76, white, x - .88, h, z); } } },
+    diamond: { size: [2.2, 2.2], draw: (x, z) => { const d = box(1.6, .03, 1.6, mat('#c98a4b'), x, .01, z); d.rotation.y = Math.PI / 4; const g = box(1.0, .035, 1.0, mat('#5f9e4f'), x, .01, z); g.rotation.y = Math.PI / 4;
+      for (const [a, b] of [[0, .78], [.78, 0], [0, -.78], [-.78, 0]]) box(.12, .05, .12, white, x + a, .02, z + b); } },
     lamp: { size: [.3, .3], draw: (x, z) => { cyl(.02, .02, 1.2, steel, x + .4, 0, z, 4); ball(.12, glow('#fff2c0'), x + .4, 1.2, z); } },
   };
 }
-export const FIXTURE_NAMES = ['rug', 'sofa', 'plant', 'counter', 'stool', 'table4', 'table2', 'stove', 'fridge', 'prep', 'toilet', 'sink', 'gondola', 'shelf', 'stall', 'crates', 'rolldoor', 'curtain', 'bed', 'flat', 'wardrobe', 'desk', 'desk1', 'couch', 'lowtable', 'bench', 'board', 'kiosk', 'seats', 'stage', 'treadmill', 'weights', 'locker', 'pool', 'lane', 'platform', 'machine', 'conveyor', 'car', 'firetruck', 'pedestal', 'frame', 'tv', 'altar', 'pew', 'prayer', 'balls', 'court', 'lamp'];
+export const FIXTURE_NAMES = ['ring', 'diamond', 'rug', 'sofa', 'plant', 'counter', 'stool', 'table4', 'table2', 'stove', 'fridge', 'prep', 'toilet', 'sink', 'gondola', 'shelf', 'stall', 'crates', 'rolldoor', 'curtain', 'bed', 'flat', 'wardrobe', 'desk', 'desk1', 'couch', 'lowtable', 'bench', 'board', 'kiosk', 'seats', 'stage', 'treadmill', 'weights', 'locker', 'pool', 'lane', 'platform', 'machine', 'conveyor', 'car', 'firetruck', 'pedestal', 'frame', 'tv', 'altar', 'pew', 'prayer', 'balls', 'court', 'lamp'];

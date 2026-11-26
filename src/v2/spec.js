@@ -11,11 +11,11 @@ const oneOf = (v, list, d) => (list.includes(v) ? v : d);
 const num = (v, lo, hi, d) => (typeof v === 'number' && isFinite(v) ? Math.min(hi, Math.max(lo, v)) : d);
 const str = (v, n, d = '') => (typeof v === 'string' && v.trim() ? v.trim().slice(0, n) : d);
 
-export const GROUNDS = ['shopfront', 'arcade', 'portico', 'canopy', 'garage', 'dock', 'porch', 'marquee', 'gate', 'counter', 'plain', 'curtain'];
+export const GROUNDS = ['stairs_down', 'shopfront', 'arcade', 'portico', 'canopy', 'garage', 'dock', 'porch', 'marquee', 'gate', 'counter', 'plain', 'curtain'];
 export const RHYTHMS = ['punched', 'bands', 'grid', 'curtain', 'lattice', 'arched', 'none'];
-export const MASS_SHAPES = ['box', 'round', 'canopy'];
+export const MASS_SHAPES = ['box', 'round', 'canopy', 'bowl', 'saucer'];
 export const SIDES = ['main', 'left', 'right', 'back', 'front', 'top'];
-export const HEROES = ['none', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
+export const HEROES = ['none', 'giant_glove', 'stall_row', 'food_cart', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
   'postbox', 'slide', 'banners', 'marquee_lights', 'dumbbell', 'floodlights', 'giant_pin', 'chimney_stack', 'weathervane', 'mailbox', 'water_tank', 'chimney', 'spire', 'minaret', 'lamp', 'sails'];
 export const ICONS = ['fork', 'cup', 'bread', 'glass', 'burger', 'noodle', 'cart', 'bag', 'pill', 'news', 'pc', 'bed', 'flag', 'badge', 'fire', 'mail', 'book', 'star', 'cap', 'cross',
   'column', 'frame', 'mask', 'film', 'music', 'dumbbell', 'wave', 'ball', 'train', 'bus', 'fuel', 'car', 'gear', 'box', 'wrench', 'wheat', 'house', 'tree', 'cross_r', 'lotus', 'moon', 'clock', 'crown'];
@@ -46,6 +46,7 @@ function defaultMasses(extra, main, levels, style) {
     if (kind === 'tower') out.push(at === 'top' ? { shape: 'box', at: 'top', size: [w * 0.4, d * 0.4], levels: 2, roof: { shape: 'pyramidal' } }
       : { shape: 'box', at, size: [0.95, 0.95], levels: levels + 2, roof: { shape: style.roof.shape === 'flat' ? 'flat' : 'pyramidal' } });
     if (kind === 'canopy') out.push({ shape: 'canopy', at, size: [w * 1.05, 1.3], levels: 1 });
+    if (kind === 'turret') out.push({ shape: 'round', at, size: [1.0, 1.0], levels: levels + 1, roof: { shape: 'cone' } });
     if (kind === 'spire') out.push({ shape: 'round', at, size: [0.6, 0.6], levels: levels + 4, roof: { shape: 'cone' } });
   }
   return out;
@@ -65,8 +66,9 @@ export function normalize(input = {}) {
   const levels = Math.round(num(input.levels, 1, 60, type.levels[0]));
   const base = SCALE[oneOf(input.scale, Object.keys(SCALE), type.scale)];
   const size = [num(input.size?.[0], 0.9, 6, base[0]), num(input.size?.[1], 0.9, 5, base[1])];
-  const trim = color(input.trim, style.trim), accent = color(input.accent, style.accent);
-  const main = { id: 'main', shape: oneOf(input.shape, MASS_SHAPES, 'box'), at: 'main', size, levels,
+  const trim = color(input.trim, style.trim), accent = color(input.accent, look.accent ?? style.accent);
+  const main = { id: 'main', shape: oneOf(input.shape, MASS_SHAPES, look.shape ?? 'box'), at: 'main', size, levels,
+    taper: num(input.taper, 0.4, 1, look.taper ?? 1), crenel: input.crenel ?? look.crenel ?? false, bands: color(input.bands, look.bands),
     wall: wallOf(input.wall, style), roof: roofOf(input.roof, type, style),
     ground: oneOf(input.ground, GROUNDS, type.ground), rhythm: oneOf(input.rhythm, RHYTHMS, style.rhythm), balconies: !!input.balconies };
 
@@ -82,7 +84,8 @@ export function normalize(input = {}) {
     masses.push({ id: str(m.id, 12, 'm' + i), shape: oneOf(m.shape, MASS_SHAPES, 'box'), at: oneOf(m.at, SIDES.slice(1), 'left'), parent: masses[0].id,
       size: [num(m.size?.[0], 0.5, 5, size[0] * 0.5), num(m.size?.[1], 0.5, 5, size[1] * 0.7)], levels: Math.round(num(m.levels, 1, 60, 1)),
       wall: m.wall ? wallOf(m.wall, style) : main.wall, roof: roofOf({ ...m.roof, color: m.roof?.color ?? main.roof.color }, type, style),
-      ground: oneOf(m.ground, GROUNDS, 'plain'), rhythm: oneOf(m.rhythm, RHYTHMS, main.rhythm), balconies: !!m.balconies });
+      ground: oneOf(m.ground, GROUNDS, 'plain'), rhythm: oneOf(m.rhythm, RHYTHMS, main.rhythm), balconies: !!m.balconies,
+      taper: num(m.taper, 0.4, 1, 1), crenel: !!m.crenel, bands: color(m.bands, undefined) });
   });
   // floors: each kind written once over a range of levels; ranges are clamped, sorted and made to cover level 1
   let floors = Array.isArray(input.floors) && input.floors.length ? input.floors.slice(0, 8).map(f => {
