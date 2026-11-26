@@ -184,9 +184,10 @@ function focusLot(l) {   // bring the lot into view
 // ---------- panel ----------
 let current = null;
 const panel = $('panel');
+const show = (...kids) => panel.replaceChildren(...kids.flat().filter(Boolean));   // optional parts may be null
 function showIntro() {
   current = null;
-  panel.replaceChildren(el('h2', {}, '한 줄 마을'),
+  show(el('h2', {}, '한 줄 마을'),
     el('p', { class: 'note' }, '사람들 머리 위 말풍선이 지금 원하는 거예요. 위쪽에 빨갛게 "마을에 없음"이 뜬 걸 지어 주면, 그걸 원하는 사람들이 몰려와 줄을 서고 동전이 생겨요.'),
     el('p', { class: 'note' }, '집·아파트·역·호텔은 사람을 늘려요. 가게는 원하는 걸 채워요. 손님은 가장 가까운, 줄이 짧은 곳으로 가요.'),
     el('p', { class: 'note' }, `빈 부지(점선)를 눌러 한 줄로 지으세요. S 부지는 무료, M ${PRICE.M} · L ${PRICE.L} · XL ${PRICE.XL} 동전으로 열어요. 한 사람이 ${MAX_PER_PERSON}채까지.`));
@@ -207,19 +208,19 @@ function fitToLot(input, lot) {
 function showBuild(lotId) {
   const lot = LOTS.find(l => l.id === lotId); current = { kind: 'build', lot: lotId };
   const head = el('h2', {}, `빈 부지 ${lot.size} · ${lot.w}×${lot.d}칸`);
-  if (!db || !me) return panel.replaceChildren(head, el('p', { class: 'note' }, 'claude.ai에 로그인하고 이 페이지에 Contributor 이상으로 초대받으면 지을 수 있어요.'));
+  if (!db || !me) return show(head, el('p', { class: 'note' }, 'claude.ai에 로그인하고 이 페이지에 Contributor 이상으로 초대받으면 지을 수 있어요.'));
   const mine = Object.keys(myDoc.buildings).length;
-  if (mine >= MAX_PER_PERSON) return panel.replaceChildren(head, el('p', { class: 'note' }, `이미 ${MAX_PER_PERSON}채를 지었어요. 내 건물을 철거하면 다시 지을 수 있어요.`));
+  if (mine >= MAX_PER_PERSON) return show(head, el('p', { class: 'note' }, `이미 ${MAX_PER_PERSON}채를 지었어요. 내 건물을 철거하면 다시 지을 수 있어요.`));
   if (!myDoc.wallet.unlocked.includes(lot.size)) {
     const buy = el('button', { class: 'gold' }, `${PRICE[lot.size]} 동전으로 ${lot.size} 부지 열기`); buy.disabled = myDoc.wallet.coins < PRICE[lot.size];
     buy.onclick = async () => { myDoc.wallet.coins -= PRICE[lot.size]; myDoc.wallet.unlocked = [...myDoc.wallet.unlocked, lot.size]; await save(true); showBuild(lotId); };
-    return panel.replaceChildren(head, el('p', { class: 'note' }, `${lot.size} 부지는 아직 잠겨 있어요. 내 가게가 손님을 받으면 동전이 모여요. 지금 ${myDoc.wallet.coins}개.`), buy, el('button', { class: 'ghost', on: { click: showIntro } }, '닫기'));
+    return show(head, el('p', { class: 'note' }, `${lot.size} 부지는 아직 잠겨 있어요. 내 가게가 손님을 받으면 동전이 모여요. 지금 ${myDoc.wallet.coins}개.`), buy, el('button', { class: 'ghost', on: { click: showIntro } }, '닫기'));
   }
   const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
   const input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + SUGGEST[lot.size][0] });
   const go = el('button', {}, '여기에 짓기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
   const chips = el('div', { class: 'chips' }, SUGGEST[lot.size].map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t)));
-  panel.replaceChildren(head, lack.length ? el('p', { class: 'note' }, `지금 마을에 없는 것: ${lack.join(', ')}`) : null, el('div', { class: 'row' }, input, go), chips, err, log);
+  show(head, lack.length ? el('p', { class: 'note' }, `지금 마을에 없는 것: ${lack.join(', ')}`) : null, el('div', { class: 'row' }, input, go), chips, err, log);
   const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
   async function build() {
     const line = input.value.trim() || input.placeholder.replace(/^예: /, '');
@@ -272,7 +273,7 @@ function showInfo(lotId) {
   if (me && b.author !== me && b.author !== 'seed') buttons.append(el('button', { class: 'ghost', on: { click: (e) => report(lotId, b, e.target) } }, '신고'));
   buttons.append(el('button', { class: 'ghost', on: { click: showIntro } }, '닫기'));
   const what = [role.serves ? `${NEEDS[role.serves].ko}을(를) 채움` : null, role.source ? `사람 +${role.source}` : null].filter(Boolean).join(' · ') || '구경거리';
-  panel.replaceChildren(el('h2', {}, n.name || TYPE_KO[n.type] || '건물'),
+  show(el('h2', {}, n.name || TYPE_KO[n.type] || '건물'),
     el('div', { class: 'note' }, `${TYPE_KO[n.type] ?? n.type} · ${n.levels}층 · 부지 ${lot.size} · ${authorName(b.author)}`),
     el('div', { class: 'stat' }, what, shop?.serves ? el('span', {}, ' · 줄 ', el('b', {}, `${shop.queue.length}/${shop.cap}`), ' · 받은 손님 ', el('b', {}, String(shop.served))) : null),
     el('div', { class: 'quote' }, `“${b.line}”`),

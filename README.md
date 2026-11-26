@@ -61,6 +61,14 @@ Inside a claude.ai artifact the page calls Claude through the artifact runtime. 
 
 `scripts/bundle.py out.html` inlines the page and its modules into one file.
 
+## One world
+
+`world.html` puts the town on a globe. Turn the pixel globe and click anywhere, or search a country, a city or coordinates (`서울`, `Paris`, `6139 1048`, `37.5, 127`). The world is a grid of neighbourhoods (0.05° cells, about 5 km), numbered X and Y, so the same place is always the same neighbourhood; its streets come from a seed of X and Y and its sea follows the real coastline (Natural Earth 1:110m outlines). Inside a neighbourhood you pick a plot size, move the outline (green where it fits: dry, free land with its front on a road) and click to claim it: first come, first served, five plots per person, released after 24 hours if nothing is built. The place goes into the prompt, so the same line builds differently in Seoul and in Paris. Built buildings stand on the globe.
+
+![the globe turned to Korea, with Seoul's buildings standing on it](docs/img/world-globe.png)
+
+![a neighbourhood in Jongno, Seoul](docs/img/world-seoul.png)
+
 ## One town
 
 `town.html` is a shared town. Click an empty lot (S 2×2, M 3×3, L 4×4 or XL 5×5 tiles), write one line, and the model builds something that fits the lot; it then stands on the map for everyone who opens the page. Click a building to see its outside, its cross-section, who built it and the line they wrote. The town is a small visible simulation (`src/v2/townsim.js`): people walk the roads with speech bubbles for what they want (food, coffee, shopping, fun, a place to rest); houses, stations and hotels bring more people; each shop serves one want; people go to the nearest building with room, queue at its door, and every customer drops coins for the owner. A new shop pulls everyone who wants what it serves, so building what the town lacks makes a crowd arrive at once. Coins open bigger lots. Each building is rendered once as a sprite with the same camera and tile size, then composited on a 2D map (`src/v2/town.js`). Opened outside claude.ai it shows the example town from `examples/town-seed.js`.

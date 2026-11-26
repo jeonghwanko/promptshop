@@ -1,6 +1,6 @@
 // Town simulation: people walk the roads, want things, and go to the nearest building that serves that want.
 // Everything that decides an outcome is visible: speech bubbles, queues at doors, coins over buildings.
-import { GRID, LOTS, isRoad } from './town.js';
+import { GRID, LOTS, isRoad as townRoad } from './town.js';
 import { TYPES } from './catalog.js';
 
 export const NEEDS = {
@@ -34,28 +34,35 @@ const LOT_CAP = { S: 2, M: 3, L: 4, XL: 5 }, LOT_COIN = { S: 1, M: 2, L: 3, XL: 
 // ---------- roads ----------
 const key = (x, z) => x * 100 + z;
 const nbr = [[1, 0], [-1, 0], [0, 1], [0, -1]];
-function bfs(from, to) {
+function bfs(from, to, A) {
   const prev = new Map([[key(...from), null]]), q = [from];
   while (q.length) {
     const [x, z] = q.shift();
     if (x === to[0] && z === to[1]) { const path = []; let k = key(x, z); while (k != null) { path.unshift([Math.floor(k / 100), k % 100]); k = prev.get(k); } return path; }
-    for (const [dx, dz] of nbr) { const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= GRID.w || nz >= GRID.d || !isRoad(nx, nz) || prev.has(key(nx, nz))) continue; prev.set(key(nx, nz), key(x, z)); q.push([nx, nz]); }
+    for (const [dx, dz] of nbr) { const nx = x + dx, nz = z + dz; if (nx < 0 || nz < 0 || nx >= A.w || nz >= A.d || !A.isRoad(nx, nz) || prev.has(key(nx, nz))) continue; prev.set(key(nx, nz), key(x, z)); q.push([nx, nz]); }
   }
   return null;
 }
-const ROAD_TILES = []; for (let x = 0; x < GRID.w; x++) for (let z = 0; z < GRID.d; z++) if (isRoad(x, z)) ROAD_TILES.push([x, z]);
 // The road tile in front of a lot's door (lots face +z).
-export const doorOf = (lot) => [Math.min(GRID.w - 1, lot.x + Math.floor(lot.w / 2)), lot.z + lot.d];
+export const doorOf = (lot) => [lot.x + Math.floor(lot.w / 2), lot.z + lot.d];
 
 export class TownSim {
-  constructor(seed = 7) { this.s = seed; this.people = []; this.shops = new Map(); this.events = []; this.t = 0; this.base = 12; }
+  /** area: { w, d, isRoad(x, z), lots: [{ id, size, x, z, w, d }] }; defaults to the fixed demo town */
+  constructor(seed = 7, area = { w: GRID.w, d: GRID.d, isRoad: townRoad, lots: LOTS }) {
+    this.s = seed; this.people = []; this.shops = new Map(); this.events = []; this.t = 0; this.base = 12; this.setArea(area);
+  }
+  setArea(area) {
+    this.A = area; this.roads = [];
+    for (let x = 0; x < area.w; x++) for (let z = 0; z < area.d; z++) if (area.isRoad(x, z)) this.roads.push([x, z]);
+    this.people = []; this.shops = new Map();
+  }
   rnd() { return (this.s = (this.s * 9301 + 49297) % 233280) / 233280; }
 
   /** buildings: Map lotId → { type, levels, owner } */
   setBuildings(buildings) {
     const shops = new Map(); let pop = this.base;
     for (const [id, b] of buildings) {
-      const lot = LOTS.find(l => l.id === id); if (!lot) continue;
+      const lot = (b.lot ?? this.A.lots?.find(l => l.id === id)); if (!lot) continue;
       const r = roleOf(b.type, b.levels); pop += r.source;
       const old = this.shops.get(id);
       shops.set(id, { id, lot, door: doorOf(lot), serves: r.serves, source: r.source, owner: b.owner, cap: LOT_CAP[lot.size] + Math.min(4, Math.floor((b.levels - 1) / 2)), coin: LOT_COIN[lot.size],
@@ -66,15 +73,16 @@ export class TownSim {
     for (const s of shops.values()) if (s.fresh && s.source) for (let k = 0; k < s.source; k++) this.spawn(s.door, k * .4);
     // opening day: a small crowd that wants what a new shop serves arrives from the nearest roads
     for (const s of shops.values()) if (s.fresh && s.serves && this.t > 1) for (let k = 0; k < 4; k++) {
-      const near = ROAD_TILES.filter(([x, z]) => Math.abs(x - s.door[0]) + Math.abs(z - s.door[1]) < 7 && Math.abs(x - s.door[0]) + Math.abs(z - s.door[1]) > 2);
-      this.spawn(near[Math.floor(this.rnd() * near.length)], k * .5, s.serves);
+      const near = this.roads.filter(([x, z]) => Math.abs(x - s.door[0]) + Math.abs(z - s.door[1]) < 7 && Math.abs(x - s.door[0]) + Math.abs(z - s.door[1]) > 2);
+      if (near.length) this.spawn(near[Math.floor(this.rnd() * near.length)], k * .5, s.serves);
     }
     // a new shop pulls everyone who wants what it serves
     for (const s of shops.values()) if (s.fresh && s.serves) for (const p of this.people) if (p.need === s.serves && !p.target) this.route(p);
   }
   serves(need) { for (const s of this.shops.values()) if (s.serves === need) return true; return false; }
   spawn(at, delay = 0, need = null) {
-    const [x, z] = at ?? ROAD_TILES[Math.floor(this.rnd() * ROAD_TILES.length)];
+    if (!this.roads.length) return;
+    const [x, z] = at ?? this.roads[Math.floor(this.rnd() * this.roads.length)];
     this.people.push({ x: x + .5, z: z + .5, path: [], need, since: this.t, target: null, wait: delay, t: this.rnd() * 10, shirt: Math.floor(this.rnd() * 8), side: (this.rnd() - .5) * .5, speed: .8 + this.rnd() * .5, mood: 0, giveUp: 0 });
   }
   /** Go to the nearest building that serves this person's want and has room; nothing is hidden: no room → they give up. */
@@ -87,17 +95,18 @@ export class TownSim {
       if (d < bd) { bd = d; best = s; }
     }
     if (!best) { p.target = null; return false; }
-    const path = bfs(here, best.door); if (!path) return false;
+    const path = bfs(here, best.door, this.A); if (!path) return false;
     p.target = best.id; p.path = path.slice(1); return true;
   }
   wander(p) {
     const here = [Math.floor(p.x), Math.floor(p.z)];
-    const goal = ROAD_TILES[Math.floor(this.rnd() * ROAD_TILES.length)];
-    p.path = (bfs(here, goal) ?? []).slice(1, 12);
+    if (!this.roads.length) return;
+    const goal = this.roads[Math.floor(this.rnd() * this.roads.length)];
+    p.path = (bfs(here, goal, this.A) ?? []).slice(1, 12);
   }
   step(dt) {
     this.t += dt;
-    while (this.people.length < this.target) this.spawn();
+    while (this.roads.length && this.people.length < this.target) this.spawn();
     if (this.people.length > this.target + 4) this.people.splice(0, 1);
     for (const p of this.people) {
       p.t += dt;

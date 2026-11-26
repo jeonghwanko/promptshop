@@ -116,6 +116,8 @@ The building spec is short text. With a Haiku-class model one building costs abo
 - Stage 2, first version: shared town with 13 lots in four sizes, lot-aware prompt, info panel with outside and cross-section, word filter, report and demolish.
 - Stage 2, second version (after "building one is fun, placing it is 'what is this?'"): build in place on the map, and a visible town simulation. People carry wants in speech bubbles, a bar shows what the town lacks, houses/stations/hotels bring people, shops serve one want each, customers walk the roads to the nearest shop with room and queue at the door, and coins go to the owner. Opening a shop the town lacks draws a crowd at once. Coins open M/L/XL lots. Five buildings per person. Next: whether this loop is fun; then upkeep and floor upgrades, reactions between players, night lights last.
 
+- Stage 2, third version (after "choosing where comes first: a world board, claim a spot, search by country, x/y coordinates, or turn a globe"): `world.html`. Real-Earth globe with search and coordinates, procedural neighbourhoods per 5 km cell, free plot placement with first-come claims, the place in the prompt, buildings standing on the globe, the same town simulation inside each neighbourhood.
+
 ## Decisions (2026-11-26)
 
 1. **Tall buildings in the town view** are compressed above 8 floors. A band on the facade marks the hidden floors, and the label shows the real count.

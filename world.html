@@ -1,0 +1,380 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>promptshop — world</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap">
+<style>
+  :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; --line:#d4c4a6; --accent:#3f7a74; --hot:#c0392b; --gold:#e3a72f; --space:#1d2a3a;
+          --f-disp:"Jua","Noto Sans KR",sans-serif; --f-ui:"Noto Sans KR",system-ui,sans-serif; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.55 var(--f-ui); padding:14px max(16px, env(safe-area-inset-left, 0px)); }
+  .wrap { max-width:1500px; margin:0 auto; display:flex; flex-direction:column; gap:10px; }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
+  h1 { margin:0; font:400 28px/1.2 var(--f-disp); }
+  .where { font:400 18px var(--f-disp); color:var(--accent); }
+  .coords { color:var(--dim); font-variant-numeric:tabular-nums; font-size:13px; }
+  .wallet { margin-left:auto; font:400 22px var(--f-disp); color:var(--gold); font-variant-numeric:tabular-nums; }
+  .main { display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:14px; align-items:start; }
+  @media (max-width:980px) { .main { grid-template-columns:minmax(0, 1fr); } }
+  .view { border-radius:16px; overflow:hidden; min-width:0; position:relative; }
+  #globebox { background:radial-gradient(circle at 50% 45%, #2b3d52, var(--space)); }
+  #areabox { background:#9cc786; overflow:auto; max-height:78vh; }
+  #map { display:block; image-rendering:pixelated; cursor:crosshair; }
+  .zoombtns { position:absolute; right:10px; bottom:10px; display:flex; flex-direction:column; gap:6px; }
+  .zoombtns button { width:36px; height:36px; padding:0; font-size:18px; }
+  .wants { display:flex; gap:8px; flex-wrap:wrap; }
+  .want { display:flex; align-items:center; gap:6px; background:var(--card); border-radius:999px; padding:4px 12px 4px 6px; font-size:13px; }
+  .want .dot { width:18px; height:18px; border-radius:50%; display:inline-block; } .want b { font-variant-numeric:tabular-nums; }
+  .want.none { box-shadow:inset 0 0 0 2px var(--hot); } .want.none .tag { color:var(--hot); font-weight:700; }
+  .panel { background:var(--card); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .panel h2 { margin:0; font:400 21px var(--f-disp); }
+  .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
+  input[type=text] { flex:1; min-width:0; font:15px var(--f-ui); padding:10px 11px; border-radius:10px; border:1px solid var(--line); background:#fbf6ec; color:var(--ink); }
+  button { font:700 14px var(--f-ui); padding:9px 14px; border:0; border-radius:10px; background:var(--accent); color:#fff; cursor:pointer; box-shadow:0 3px 0 #2a524e; }
+  button:active:not(:disabled) { transform:translateY(2px); box-shadow:0 1px 0 #2a524e; }
+  button:disabled { opacity:.45; cursor:default; }
+  button.ghost { background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--line); }
+  button.warn { background:var(--hot); box-shadow:0 3px 0 #7a2418; }
+  button.gold { background:var(--gold); box-shadow:0 3px 0 #9a6f14; color:#3a2a00; }
+  button.on { background:var(--ink); box-shadow:none; }
+  button:focus-visible, input:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; } .chips button { background:#fbf6ec; color:var(--ink); box-shadow:none; font-weight:400; padding:5px 9px; font-size:13px; }
+  .sizes button { min-width:54px; }
+  .log { font-size:12px; color:var(--dim); max-height:170px; overflow:auto; display:flex; flex-direction:column; gap:1px; } .log b { color:var(--accent); margin-right:6px; }
+  .err { color:var(--hot); font-size:13px; } .note { color:var(--dim); font-size:13px; }
+  .pics { display:flex; flex-direction:column; gap:8px; } .pics canvas { image-rendering:pixelated; max-width:100%; height:auto; display:block; margin:0 auto; }
+  .secwrap { position:relative; margin-left:56px; } .secwrap canvas { max-width:100%; }
+  .secwrap .lab { position:absolute; transform:translate(-100%, -50%); white-space:nowrap; background:var(--ink); color:#fff7e6; padding:0 5px; border-radius:6px; font-size:11px; } .secwrap .lab b { color:#e3b448; }
+  .quote { font:400 16px var(--f-disp); }
+  .list { display:flex; flex-direction:column; gap:4px; } .list button { text-align:left; background:#fbf6ec; color:var(--ink); box-shadow:none; font-weight:400; font-size:13px; }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<div class="wrap">
+  <header><h1>한 줄 지구</h1><span class="where" id="where"></span><span class="coords" id="coords"></span><span class="wallet" id="wallet"></span></header>
+  <div class="wants" id="wants" hidden></div>
+  <div class="main">
+    <div>
+      <div class="view" id="globebox"><div class="zoombtns"><button id="zin" aria-label="확대">+</button><button id="zout" aria-label="축소">−</button></div></div>
+      <div class="view" id="areabox" hidden><canvas id="map"></canvas></div>
+    </div>
+    <aside class="panel" id="panel"></aside>
+  </div>
+</div>
+<script type="module">
+import { lineReader } from './src/steps.js';
+import { Stage2 } from './src/v2/stage.js';
+import { renderView } from './src/v2/render.js';
+import { emptyBuilding, applyStep, buildPrompt } from './src/v2/steps.js';
+import { check, missingParts, revisePrompt } from './src/v2/check.js';
+import { normalize } from './src/v2/spec.js';
+import { TYPE_KO } from './src/v2/catalog.js';
+import { toXY, cellCenter, cellPoint, placeLabel, search, suggestions } from './src/v2/geo.js';
+import { Globe } from './src/v2/globe.js';
+import { makeArea, canPlace, takenTiles, areaProjection, drawArea, PLOT } from './src/v2/area.js';
+import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
+import { WORLD_SEED } from './examples/world-seed.js';
+
+const $ = (id) => document.getElementById(id);
+const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
+const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
+const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
+const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
+const MAX_PLOTS = 5, CLAIM_HOURS = 24, PRICE = { S: 0, M: 40, L: 150, XL: 500 };
+const BAD = ['시발', '씨발', '병신', '좆', '개새', 'fuck', 'shit', 'bitch', 'nigger', 'nazi', '섹스', 'sex'];
+const bad = (t) => BAD.some(w => (t ?? '').toLowerCase().includes(w));
+const now = () => Date.now();
+
+// ---------- shared state: every claimed plot in the world ----------
+let plots = [];                 // { key, owner, X, Y, x, z, size, at, b? }
+let myDoc = { plots: {}, wallet: { coins: 0, unlocked: ['S'] } }, dirty = false, lastSave = 0, names = {};
+const plotKey = (X, Y, x, z) => `${X}_${Y}_${x}_${z}`;
+const alive = (p) => p.b || now() - p.at < CLAIM_HOURS * 3600e3;
+function collect(docs) {
+  const all = [];
+  for (const [owner, data] of docs) for (const [key, p] of Object.entries(data.plots ?? {})) if (p && PLOT[p.size] != null) all.push({ ...p, key, owner });
+  // first come, first served: a later plot that overlaps an earlier one does not count
+  all.sort((a, b) => a.at - b.at); const out = [], byArea = new Map();
+  for (const p of all.filter(alive)) {
+    const ak = p.X + '_' + p.Y, t = byArea.get(ak) ?? new Set(), n = PLOT[p.size]; let clash = false;
+    for (let i = p.x; i < p.x + n && !clash; i++) for (let k = p.z; k < p.z + n; k++) if (t.has(i + ',' + k)) { clash = true; break; }
+    if (clash) continue;
+    for (let i = p.x; i < p.x + n; i++) for (let k = p.z; k < p.z + n; k++) t.add(i + ',' + k);
+    byArea.set(ak, t); out.push(p);
+  }
+  return out;
+}
+async function save(force) {
+  if (!db || !me) return;
+  if (!force && (!dirty || now() - lastSave < 5000)) return;
+  dirty = false; lastSave = now();
+  try { await db.doc('p/' + me).set({ plots: myDoc.plots, wallet: myDoc.wallet }); } catch { dirty = true; }
+}
+setInterval(() => save(false), 2000);
+async function resolveNames() { if (!user) return; const ids = [...new Set(plots.map(p => p.owner).filter(a => a && a !== 'seed'))]; if (!ids.length) return; const ps = await user.profiles(ids); for (const id of ids) names[id] = ps[id]?.name || '이웃'; }
+const ownerName = (a) => a === 'seed' ? 'promptshop 예시' : a === me ? '나' : (names[a] || '이웃');
+
+function onWorld(next) {
+  plots = next;
+  refreshGlobe();
+  if (area) refreshArea();
+  if (mode === 'globe' && !picked) showGlobePanel();
+}
+if (db) {
+  db.collection('p').onSnapshot(snap => {
+    const docs = [];
+    for (const d of snap.docs) { const data = d.data() ?? {}; docs.push([d.id, data]);
+      if (d.id === me) myDoc = { plots: data.plots ?? {}, wallet: { coins: Math.max(myDoc.wallet.coins, data.wallet?.coins ?? 0), unlocked: data.wallet?.unlocked ?? myDoc.wallet.unlocked } }; }
+    onWorld(collect(docs)); resolveNames();
+  }, () => { $('where').textContent = '세계를 불러오지 못했어요.'; });
+} else setTimeout(() => onWorld(collect([['seed', { plots: WORLD_SEED }]])), 0);
+
+// ---------- globe ----------
+let mode = 'globe', picked = null, area = null;
+const globe = new Globe($('globebox'), { onPick: (lat, lng) => pick(lat, lng) });
+$('zin').onclick = () => globe.zoom(1 / 1.4); $('zout').onclick = () => globe.zoom(1.4);
+const spriteCache = new Map();
+function buildingSprite(p) {
+  const k = p.key + ':' + p.b.at; if (spriteCache.has(k)) return spriteCache.get(k);
+  let c = null; try { c = renderView(p.b.input, 'ext').canvas; } catch { } spriteCache.set(k, c); return c;
+}
+function refreshGlobe() {
+  const areas = new Map(); for (const p of plots) { const k = p.X + '_' + p.Y; const a = areas.get(k) ?? { X: p.X, Y: p.Y, mine: false }; a.mine ||= p.owner === me; areas.set(k, a); }
+  globe.setPins([...areas.values()].map(a => { const [lat, lng] = cellCenter(a.X, a.Y); return { lat, lng, mine: a.mine }; }));
+  globe.setBuildings(plots.filter(p => p.b).map(p => { const n = PLOT[p.size]; const [lat, lng] = cellPoint(p.X, p.Y, (p.x + n / 2) / 20, (p.z + n / 2) / 20); return { lat, lng, canvas: buildingSprite(p) }; }).filter(b => b.canvas));
+}
+function pick(lat, lng, label) {
+  const [X, Y] = toXY(lat, lng), place = placeLabel(lat, lng);
+  picked = { lat, lng, X, Y, place };
+  $('where').textContent = label && !place.text.includes(label) ? `${label} · ${place.text}` : place.text; $('coords').textContent = `X ${X} · Y ${Y}`;
+  showGlobePanel();
+}
+function go(q) {
+  const r = search(q); if (!r) return false;
+  globe.focus(r.lat, r.lng, r.zoomOut ? 2.2 : 1.35); globe.setMarker(r.lat, r.lng); pick(r.lat, r.lng, r.label); return true;
+}
+
+// ---------- panel: globe ----------
+const panel = $('panel');
+const show = (...kids) => panel.replaceChildren(...kids.flat().filter(Boolean));   // optional parts may be null
+function searchBox() {
+  const input = el('input', { type: 'text', id: 'q', list: 'sugg', placeholder: '나라, 도시 또는 좌표 (예: 서울, 파리, 6139 1048)' }), dl = el('datalist', { id: 'sugg' });
+  input.addEventListener('input', () => dl.replaceChildren(...suggestions(input.value).map(s => el('option', { value: s }))));
+  const err = el('div', { class: 'err' }), goBtn = el('button', {}, '찾기');
+  const run = () => { err.textContent = ''; if (!go(input.value)) err.textContent = '찾지 못했어요. 다른 이름이나 좌표로 해 보세요.'; };
+  goBtn.onclick = run; input.addEventListener('keydown', e => { if (e.key === 'Enter') run(); });
+  return [el('div', { class: 'row' }, input, goBtn), dl, err];
+}
+function showGlobePanel() {
+  const mine = plots.filter(p => p.owner === me);
+  const parts = [el('h2', {}, '어디에 지을까요?'), ...searchBox(),
+    el('div', { class: 'chips' }, ['서울', '부산', '제주', '도쿄', '파리', '뉴욕', '암스테르담', '발리'].map(c => el('button', { on: { click: () => go(c) } }, c)))];
+  if (picked) {
+    const here = plots.filter(p => p.X === picked.X && p.Y === picked.Y);
+    const a = makeArea(picked.X, picked.Y);
+    parts.push(el('div', { class: 'quote' }, picked.place.text), el('div', { class: 'note' }, `동네 좌표 X ${picked.X} · Y ${picked.Y} · 선점된 땅 ${here.length}곳`));
+    parts.push(a.land ? el('button', { on: { click: () => enterArea(picked.X, picked.Y) } }, '이 동네로 들어가기') : el('div', { class: 'note' }, '바다예요. 땅을 찍어 주세요.'));
+  } else parts.push(el('p', { class: 'note' }, '지구본을 드래그해서 돌리고, 원하는 곳을 찍으세요. 먼저 찍은 사람이 그 땅의 주인이 돼요.'));
+  if (mine.length) parts.push(el('h2', {}, '내 땅'), el('div', { class: 'list' }, mine.map(p => {
+    const [lat, lng] = cellCenter(p.X, p.Y), pl = placeLabel(lat, lng);
+    return el('button', { on: { click: () => { globe.focus(lat, lng, 1.35); enterArea(p.X, p.Y); } } }, `${pl.text} · ${p.size}${p.b ? ' · ' + (normalize(p.b.input).name || '건물') : ' · 짓기 전'}`);
+  })));
+  show(...parts);
+}
+showGlobePanel();
+
+// ---------- area ----------
+const map = $('map'), g = map.getContext('2d');
+let pr = null, ground = null, sim = null, size = 'S', hover = null, current = null, building = null, drawn = [], pops = [], sprites = new Map();
+function enterArea(X, Y) {
+  area = makeArea(X, Y); mode = 'area'; current = null;
+  pr = areaProjection(area); map.width = pr.width; map.height = pr.height; map.style.width = '100%'; map.style.minWidth = pr.width + 'px'; map.style.maxWidth = pr.width * 2 + 'px';
+  g.imageSmoothingEnabled = false;
+  sim = new TownSim(X * 31 + Y, { w: area.w, d: area.d, isRoad: area.isRoad, lots: [] });
+  $('globebox').hidden = true; $('areabox').hidden = false; $('wants').hidden = false;
+  $('where').textContent = area.place.text; $('coords').textContent = `X ${X} · Y ${Y}`;
+  refreshArea(); showAreaPanel();
+}
+function leaveArea() { mode = 'globe'; area = null; sim = null; building = null; $('globebox').hidden = false; $('areabox').hidden = true; $('wants').hidden = true; showGlobePanel(); }
+const areaPlots = () => plots.filter(p => p.X === area.X && p.Y === area.Y);
+function refreshArea() {
+  const ps = areaPlots(); ground = drawArea(area, pr, ps);
+  const built = new Map(); for (const p of ps) if (p.b) { const n = normalize(p.b.input), w = PLOT[p.size]; built.set(p.key, { type: n.type, levels: n.levels, owner: p.owner, lot: { id: p.key, size: p.size, x: p.x, z: p.z, w, d: w } }); }
+  sim.setBuildings(built);
+  if (current?.kind === 'info') { const p = ps.find(x => x.key === current.key); if (!p) showAreaPanel(); }
+}
+function sprite(p) {
+  const k = p.key + ':' + p.b.at, s = sprites.get(p.key); if (s && s.k === k) return s;
+  try { const { canvas, anchor } = renderView(p.b.input, 'ext'); const n = { canvas, anchor, k, alpha: canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data }; sprites.set(p.key, n); return n; } catch { return null; }
+}
+let last = performance.now();
+function frame(t) {
+  const dt = Math.min(.05, (t - last) / 1000); last = t;
+  if (mode === 'area' && sim) {
+    sim.step(dt);
+    for (const e of sim.events.splice(0)) { const mine = !!me && e.owner === me; if (mine) { myDoc.wallet.coins += e.coins; dirty = true; } pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 }); }
+    for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
+    g.clearRect(0, 0, map.width, map.height); g.drawImage(ground, 0, 0);
+    const ps = areaPlots();
+    // outline: the plot being placed (green ok / red not), and the selected plot — both on the ground
+    const outline = (x, z, n, color, dash) => { const pts = [pr.P(x, z), pr.P(x + n, z), pr.P(x + n, z + n), pr.P(x, z + n)]; g.setLineDash(dash ? [3, 3] : []); g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.stroke(); g.setLineDash([]); };
+    for (const p of ps) if (!p.b) { outline(p.x, p.z, PLOT[p.size], p.owner === me ? '#e3a72f' : '#8a7d62', true); const [fx, fy] = pr.P(p.x + PLOT[p.size] / 2, p.z + PLOT[p.size] / 2); g.fillStyle = p.owner === me ? '#e3a72f' : '#8a7d62'; g.fillRect(Math.round(fx), Math.round(fy) - 12, 1, 12); g.fillRect(Math.round(fx) + 1, Math.round(fy) - 12, 6, 4); }
+    if (hover && !building) outline(hover.x, hover.z, PLOT[size], hover.ok ? '#2fbf71' : '#e2432f', false);
+    if (current?.key) { const p = ps.find(x => x.key === current.key); if (p) outline(p.x, p.z, PLOT[p.size], '#ffd166', false); }
+    const items = [], tops = {};
+    for (const p of ps) { if (!p.b) continue; const s = sprite(p); if (!s) continue; const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2); tops[p.key] = [px, py - s.anchor.y + 6];
+      items.push({ d: p.x + p.z + n, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), key: p.key, s, px, py }); }
+    if (building) { const n = PLOT[building.plot.size], [px, py] = pr.P(building.plot.x + n / 2, building.plot.z + n / 2), st = building.stage; items.push({ d: building.plot.x + building.plot.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
+    for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
+    items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
+    g.font = '900 12px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
+    for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, tp[0], y); g.fillStyle = p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, tp[0], y); g.globalAlpha = 1; }
+    drawn = items;
+  }
+  requestAnimationFrame(frame);
+}
+requestAnimationFrame(frame);
+// ?area=X,Y opens a neighbourhood directly (handy for links and checks); ?q=서울 searches on load
+{ const q = new URLSearchParams(location.search); if (q.get('q')) setTimeout(() => go(q.get('q')), 300); if (q.get('area')) { const [X, Y] = q.get('area').split(',').map(Number); setTimeout(() => enterArea(X, Y), 300); } }
+function hud() {
+  $('wallet').textContent = me ? `동전 ${myDoc.wallet.coins.toLocaleString('ko-KR')}` : '';
+  if (mode !== 'area' || !sim) return;
+  const dm = sim.demand();
+  $('wants').replaceChildren(...NEED_KEYS.map(k => { const d = dm[k], none = !d.served && d.waiting; return el('span', { class: 'want' + (none ? ' none' : '') }, el('span', { class: 'dot', style: `background:${NEEDS[k].color}` }), NEEDS[k].ko, el('b', {}, String(d.waiting)), none ? el('span', { class: 'tag' }, '· 동네에 없음') : null); }));
+}
+setInterval(hud, 500); hud();
+
+const mapXY = (e) => { const r = map.getBoundingClientRect(); return [(e.clientX - r.left) * map.width / r.width, (e.clientY - r.top) * map.height / r.height]; };
+map.addEventListener('pointermove', (e) => {
+  if (mode !== 'area' || building) return;
+  const [sx, sy] = mapXY(e), [fx, fz] = pr.inv(sx, sy), n = PLOT[size];
+  const x = Math.round(fx - n / 2), z = Math.round(fz - n / 2);
+  hover = { x, z, ok: canPlace(area, x, z, size, takenTiles(areaPlots())) };
+});
+map.addEventListener('pointerleave', () => { hover = null; });
+map.addEventListener('click', (e) => {
+  if (mode !== 'area' || building) return;
+  const [sx, sy] = mapXY(e);
+  for (const it of [...drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
+    if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return showPlot(it.key); }
+  const [fx, fz] = pr.inv(sx, sy), tx = Math.floor(fx), tz = Math.floor(fz);
+  const own = areaPlots().find(p => tx >= p.x && tx < p.x + PLOT[p.size] && tz >= p.z && tz < p.z + PLOT[p.size]);
+  if (own) return showPlot(own.key);
+  if (hover?.ok) claim(hover.x, hover.z);
+});
+
+// ---------- panel: area ----------
+function sizeChips(onPick) {
+  return el('div', { class: 'chips sizes' }, Object.keys(PLOT).map(s => {
+    const locked = !myDoc.wallet.unlocked.includes(s);
+    return el('button', { class: s === size ? 'on' : '', on: { click: () => onPick(s) } }, `${s} ${PLOT[s]}×${PLOT[s]}${locked ? ` · ${PRICE[s]}` : ''}`);
+  }));
+}
+function showAreaPanel(msg) {
+  current = null;
+  const mine = Object.values(myDoc.plots).filter(alive).length;
+  show(...[el('h2', {}, area.place.text),
+    el('div', { class: 'note' }, `X ${area.X} · Y ${area.Y} · 이 동네 건물 ${areaPlots().filter(p => p.b).length}채 · 선점 ${areaPlots().filter(p => !p.b).length}곳`),
+    el('p', { class: 'note' }, '크기를 고르고 땅 위에서 틀을 움직이세요. 초록이면 찍을 수 있어요. 앞면이 길에 닿아야 해요. 찍는 순간 내 땅이 되고, 24시간 안에 지어야 해요.'),
+    sizeChips((s) => { if (!myDoc.wallet.unlocked.includes(s)) return showUnlock(s); size = s; showAreaPanel(); }),
+    el('div', { class: 'note' }, `내 땅 ${mine}/${MAX_PLOTS}`), msg ? el('div', { class: 'err' }, msg) : null,
+    el('button', { class: 'ghost', on: { click: leaveArea } }, '지구본으로')]);
+}
+function showUnlock(s) {
+  const buy = el('button', { class: 'gold' }, `${PRICE[s]} 동전으로 ${s} 땅 열기`); buy.disabled = myDoc.wallet.coins < PRICE[s];
+  buy.onclick = async () => { myDoc.wallet.coins -= PRICE[s]; myDoc.wallet.unlocked = [...myDoc.wallet.unlocked, s]; size = s; await save(true); showAreaPanel(); };
+  show(el('h2', {}, `${s} 땅은 잠겨 있어요`), el('p', { class: 'note' }, `내 가게가 손님을 받으면 동전이 모여요. 지금 ${myDoc.wallet.coins}개.`), buy, el('button', { class: 'ghost', on: { click: () => showAreaPanel() } }, '돌아가기'));
+}
+async function claim(x, z) {
+  if (!db || !me) return showAreaPanel('claude.ai에 로그인하고 이 페이지에 Contributor 이상으로 초대받으면 땅을 찍을 수 있어요.');
+  const live = Object.values(myDoc.plots).filter(alive).length;
+  if (live >= MAX_PLOTS) return showAreaPanel(`땅은 ${MAX_PLOTS}곳까지예요. 짓지 않은 땅은 24시간 뒤 풀려요.`);
+  const key = plotKey(area.X, area.Y, x, z);
+  const fresh = Object.fromEntries(Object.entries(myDoc.plots).filter(([, p]) => alive(p)));
+  myDoc.plots = { ...fresh, [key]: { X: area.X, Y: area.Y, x, z, size, at: now() } };
+  plots = collect([[me, myDoc], ...groupOthers()]); refreshArea(); refreshGlobe();
+  await save(true);
+  showPlot(key);
+}
+const groupOthers = () => { const m = new Map(); for (const p of plots) if (p.owner !== me) { const d = m.get(p.owner) ?? { plots: {} }; d.plots[p.key] = p; m.set(p.owner, d); } return [...m]; };
+
+const SUGGEST = { S: ['24시간 편의점', '동네 꽃집', '작은 단독주택'], M: ['동네 빵집', '분식집', '네온사인 PC방'], L: ['12층 아파트', '볼링장', '작은 기차역'], XL: ['20층 호텔', '야구장', '박물관'] };
+function section(input) {
+  const { canvas, labels } = renderView(input, 'section'); const wrap = el('div', { class: 'secwrap' }, canvas);
+  for (const l of labels) { const e = el('span', { class: 'lab' }, l.text); e.style.left = (l.x / canvas.width * 100) + '%'; e.style.top = (l.y / canvas.height * 100) + '%'; if (l.count > 1) e.append(el('b', {}, ' ×' + l.count)); wrap.append(e); }
+  return wrap;
+}
+function fitToLot(input, n) {
+  input.scale = Object.keys(PLOT).find(k => PLOT[k] === n);
+  const s = normalize(input), m = s.masses.find(x => x.at === 'main') ?? s.masses[0];
+  let w = m.size[0], d = m.size[1];
+  for (const x of s.masses) { if (x === m) continue; if (x.at === 'left' || x.at === 'right') w += x.size[0]; if (x.at === 'back' || x.at === 'front') d += x.size[1]; }
+  const k = Math.min(1, (n - .4) / w, (n - .7) / d);
+  if (k < 1) { input.size = [m.size[0] * k, m.size[1] * k]; for (const x of input.masses ?? []) if (Array.isArray(x.size)) x.size = [x.size[0] * k, x.size[1] * k]; }
+}
+function showPlot(key) {
+  const p = areaPlots().find(x => x.key === key); if (!p) return showAreaPanel();
+  current = { kind: p.b ? 'info' : 'claim', key };
+  if (!p.b && p.owner !== me) return show(el('h2', {}, '선점된 땅'), el('div', { class: 'note' }, `${ownerName(p.owner)}의 땅 · ${p.size} · ${Math.max(0, Math.ceil((p.at + CLAIM_HOURS * 3600e3 - now()) / 3600e3))}시간 안에 짓지 않으면 풀려요`), el('button', { class: 'ghost', on: { click: () => showAreaPanel() } }, '돌아가기'));
+  if (!p.b) return showBuild(p);
+  const n = normalize(p.b.input), role = roleOf(n.type, n.levels), shop = sim.shops.get(key);
+  const what = [role.serves ? `${NEEDS[role.serves].ko}을(를) 채움` : null, role.source ? `사람 +${role.source}` : null].filter(Boolean).join(' · ') || '구경거리';
+  const buttons = el('div', { class: 'row' });
+  if (me && (p.owner === me || isOwner)) buttons.append(el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거'));
+  buttons.append(el('button', { class: 'ghost', on: { click: () => showAreaPanel() } }, '닫기'));
+  show(el('h2', {}, n.name || TYPE_KO[n.type] || '건물'),
+    el('div', { class: 'note' }, `${TYPE_KO[n.type] ?? n.type} · ${n.levels}층 · ${p.size} · ${ownerName(p.owner)}`),
+    el('div', { class: 'note' }, what, shop?.serves ? ` · 줄 ${shop.queue.length}/${shop.cap} · 받은 손님 ${shop.served}` : ''),
+    el('div', { class: 'quote' }, `“${p.b.line}”`), el('div', { class: 'pics' }, renderView(p.b.input, 'ext').canvas, section(p.b.input)), buttons);
+}
+function showBuild(p) {
+  const n = PLOT[p.size], placeText = area.place.text;
+  const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
+  const input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + SUGGEST[p.size][0] });
+  const go = el('button', {}, '여기에 짓기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
+  show(el('h2', {}, `내 땅 · ${p.size} ${n}×${n}`), el('div', { class: 'note' }, `${placeText} · ${Math.max(0, Math.ceil((p.at + CLAIM_HOURS * 3600e3 - now()) / 3600e3))}시간 안에 지어 주세요`),
+    lack.length ? el('p', { class: 'note' }, `이 동네에 없는 것: ${lack.join(', ')}`) : null,
+    el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, SUGGEST[p.size].map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t))), err, log,
+    el('div', { class: 'row' }, el('button', { class: 'ghost', on: { click: () => release(p) } }, '땅 놓아주기'), el('button', { class: 'ghost', on: { click: () => showAreaPanel() } }, '닫기')));
+  const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
+  async function build() {
+    const line = input.value.trim() || input.placeholder.replace(/^예: /, '');
+    err.textContent = ''; log.replaceChildren();
+    if (bad(line)) { err.textContent = '그 표현으로는 지을 수 없어요.'; return; }
+    if (!sample) { err.textContent = '이 화면에서는 Claude를 부를 수 없어요.'; return; }
+    go.disabled = true;
+    const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); building = { plot: p, stage };
+    note('…', '구상 중');
+    const seen = []; let raw = '', broken = 0;
+    const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
+      if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note({ building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구' }[s.step] ?? s.step, s.note || s.type || ''); };
+    try {
+      const lot = { size: p.size, w: n, d: n };
+      const rd = lineReader(apply, () => broken++);
+      await sample(buildPrompt(line, { lot, place: area.place.text }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
+      const c = check(b.input, { broken, line }); for (const f of c.fixed) note('수선', f);
+      const problems = [...c.ask, ...missingParts(seen).filter(x => x === 'building').map(x => `The "${x}" line is missing.`)];
+      if (problems.length) { note('다시', `남은 문제 ${problems.length}개`); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
+        await sample(revisePrompt(line, raw, problems), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); check(b.input, { line }); }
+      if (!b.input) throw { code: 'nothing' };
+      fitToLot(b.input, n); const s = normalize(b.input);
+      if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; building = null; go.disabled = false; return; }
+      myDoc.plots = { ...myDoc.plots, [p.key]: { ...myDoc.plots[p.key], b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
+      plots = collect([[me, myDoc], ...groupOthers()]); building = null; refreshArea(); refreshGlobe();
+      await save(true);
+      const role = roleOf(s.type, s.levels);
+      note('완성', `${s.name || TYPE_KO[s.type]} · ${s.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);
+      setTimeout(() => { if (current?.key === p.key) showPlot(p.key); }, 2500);
+    } catch (e) { building = null; err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : '짓지 못했어요. 다시 눌러 주세요.'; }
+    go.disabled = false;
+  }
+  go.onclick = build; input.addEventListener('keydown', e => { if (e.key === 'Enter') build(); });
+}
+async function release(p) { const ps = { ...myDoc.plots }; delete ps[p.key]; myDoc.plots = ps; plots = collect([[me, myDoc], ...groupOthers()]); refreshArea(); refreshGlobe(); await save(true); showAreaPanel(); }
+async function demolish(p) {
+  try {
+    if (p.owner === me) return release(p);
+    const ref = db.doc('p/' + p.owner), cur = await ref.get(), data = cur.data() ?? {}; const ps = { ...(data.plots ?? {}) }; delete ps[p.key]; await ref.set({ ...data, plots: ps }); showAreaPanel();
+  } catch { panel.append(el('div', { class: 'err' }, '철거하지 못했어요.')); }
+}
+</script>
+</html>
