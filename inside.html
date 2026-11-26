@@ -1,0 +1,173 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Inside Shops</title>
+<style>
+  :root { --bg:#efe6d4; --ink:#2e241a; --card:#fbf6ea; --line:#d9cbb0; --gold:#c98f1c; --bad:#c2402e; --mute:#7a6a55; }
+  @media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) { --bg:#1f1b16; --ink:#f1e6d2; --card:#2a251e; --line:#3d362c; --gold:#e3b448; --bad:#e2685a; --mute:#a8987f; } }
+  :root[data-theme="dark"] { --bg:#1f1b16; --ink:#f1e6d2; --card:#2a251e; --line:#3d362c; --gold:#e3b448; --bad:#e2685a; --mute:#a8987f; }
+  * { box-sizing:border-box; }
+  body { margin:0; background:var(--bg); color:var(--ink); font:14px/1.45 system-ui, "Noto Sans KR", sans-serif; }
+  header { position:sticky; top:0; z-index:5; display:flex; gap:12px; align-items:center; padding:10px 16px; background:var(--card); border-bottom:1px solid var(--line); }
+  header h1 { font-size:16px; margin:0; flex:1; }
+  .coins { font-weight:700; color:var(--gold); font-size:18px; font-variant-numeric:tabular-nums; }
+  .speed button { border:1px solid var(--line); background:transparent; color:var(--ink); border-radius:6px; padding:3px 8px; cursor:pointer; }
+  .speed button.on { background:var(--ink); color:var(--card); }
+  main { display:flex; flex-wrap:wrap; gap:16px; padding:16px; align-items:flex-start; }
+  .card { background:var(--card); border:1px solid var(--line); border-radius:10px; padding:12px; max-width:100%; }
+  .card h2 { margin:0 0 6px; font-size:15px; }
+  .stage { position:relative; overflow:auto; max-width:100%; }
+  .stage canvas { image-rendering:pixelated; display:block; }
+  .stage canvas.top { position:absolute; left:0; top:0; cursor:pointer; }
+  .lab { position:absolute; transform:translate(-100%, -50%); white-space:nowrap; background:var(--ink); color:var(--card); padding:0 6px; border-radius:5px; font-size:12px; pointer-events:none; }
+  .stats { display:flex; gap:14px; flex-wrap:wrap; font-variant-numeric:tabular-nums; margin-top:6px; }
+  .stats b { font-size:16px; } .stats .bad b { color:var(--bad); } .stats span { color:var(--mute); font-size:12px; }
+  .tip { position:fixed; z-index:9; pointer-events:none; background:var(--ink); color:var(--card); border-radius:6px; padding:5px 8px; font-size:12px; display:none; }
+  .tip b { color:var(--gold); }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<header><h1>가게 안</h1><span class="coins" id="coins"></span><span class="speed" id="speed"></span></header>
+<main id="out"></main>
+<div class="tip" id="tip"></div>
+<script type="module">
+import { renderView } from './src/v2/render.js';
+import { InsideSim, FIX_INFO, FIX_ROLE, costOf } from './src/v2/inside.js';
+
+const SHOPS = [
+  { title: '골목 카페 · 1층', input: { type: 'cafe', levels: 1, floors: [{ range: [1, 1], name: '1층', zones: [{ zone: 'counter', weight: 1.2 }, { zone: 'seating', weight: 2 }, { zone: 'kitchen', weight: 1 }, { zone: 'wc', weight: .6 }] }] } },
+  { title: '삼층 식당 · 3층', input: { type: 'restaurant', levels: 3, floors: [
+    { range: [1, 1], name: '1층', zones: [{ zone: 'counter', weight: 1.4 }, { zone: 'kitchen', weight: 1.2 }, { zone: 'wc', weight: .6 }] },
+    { range: [2, 2], name: '2층', zones: [{ zone: 'dining', weight: 1 }] },
+    { range: [3, 3], name: '3층', zones: [{ zone: 'lounge', weight: 1 }, { zone: 'seating', weight: 1 }] }] } },
+];
+let coins = 40, speed = 1;
+const $ = (id) => document.getElementById(id), tip = $('tip');
+const SHIRTS = ['#e2432f', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2', '#d97a3a'];
+
+const shops = SHOPS.map((s, n) => {
+  const first = renderView(s.input, 'section', { owned: new Set() });
+  const fx = first.fixtures;
+  const firstSeat = fx.findIndex(f => f.kind === 'table4' || f.kind === 'table2');
+  const owned = new Set([fx.findIndex(f => f.kind === 'counter'), firstSeat >= 0 ? firstSeat : fx.findIndex(f => FIX_ROLE(f.kind) === 'seat')].filter(i => i >= 0));
+  if (new URLSearchParams(location.search).get('own') === 'all') fx.forEach((_, i) => owned.add(i));
+  const shop = { ...s, fx, owned, sim: new InsideSim(first.plan, fx, owned, { seed: n + 3 }), floats: [], served: [] };
+  const card = document.createElement('div'); card.className = 'card';
+  const h = document.createElement('h2'); h.textContent = s.title;
+  shop.stage = document.createElement('div'); shop.stage.className = 'stage';
+  shop.statsEl = document.createElement('div'); shop.statsEl.className = 'stats';
+  card.append(h, shop.stage, shop.statsEl); $('out').append(card);
+  draw(shop);
+  return shop;
+});
+
+function draw(shop) {
+  const v = renderView(shop.input, 'section', { owned: shop.owned });
+  Object.assign(shop, { view: v });
+  const W = v.canvas.width, H = v.canvas.height, z = Math.max(1, Math.min(3, Math.floor((Math.min(innerWidth, 1400) - 64) / W)));
+  shop.zoom = z;
+  const top = shop.top ?? document.createElement('canvas'); top.className = 'top'; top.width = W; top.height = H;
+  for (const c of [v.canvas, top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; }
+  shop.stage.replaceChildren(v.canvas, top);
+  shop.stage.style.width = W * z + 'px'; shop.stage.style.height = H * z + 'px';
+  for (const l of v.labels) { const e = document.createElement('div'); e.className = 'lab'; e.style.left = (l.x * z + 4) + 'px'; e.style.top = l.y * z + 'px'; e.textContent = l.text; e.style.transform = 'translate(0,-50%)'; shop.stage.append(e); }
+  if (!shop.top) { top.addEventListener('mousemove', (e) => hover(shop, e)); top.addEventListener('mouseleave', () => { tip.style.display = 'none'; shop.hot = -1; }); top.addEventListener('click', (e) => buy(shop, e)); }
+  shop.top = top; shop.g = top.getContext('2d');
+}
+
+function ghostAt(shop, e) {
+  const r = shop.top.getBoundingClientRect(), mx = (e.clientX - r.left) / shop.zoom, my = (e.clientY - r.top) / shop.zoom;
+  let best = -1, bd = 16;
+  shop.fx.forEach((f, i) => { if (shop.owned.has(i)) return; const [x, y] = shop.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
+  return best;
+}
+function hover(shop, e) {
+  const i = ghostAt(shop, e); shop.hot = i;
+  if (i < 0) { tip.style.display = 'none'; return; }
+  const f = shop.fx[i], [name, what] = FIX_INFO[f.kind] ?? [f.kind, '꾸밈'], c = costOf(f.kind);
+  tip.innerHTML = ''; const b = document.createElement('b'); b.textContent = `${c}동전`; tip.append(`${name} · ${what} · `, b, coins < c ? ' (모자람)' : '');
+  tip.style.display = 'block'; tip.style.left = e.clientX + 12 + 'px'; tip.style.top = e.clientY + 12 + 'px';
+}
+function buy(shop, e) {
+  const i = ghostAt(shop, e); if (i < 0) return;
+  const f = shop.fx[i], c = costOf(f.kind);
+  if (coins < c) { shop.floats.push({ text: '동전 모자람', x: f.x, y: f.y + 1, z: f.z, t: 0, bad: true }); return; }
+  coins -= c; shop.owned.add(i); shop.sim.setOwned(shop.owned); draw(shop);
+  shop.floats.push({ text: (FIX_INFO[f.kind]?.[0] ?? f.kind) + '!', x: f.x, y: f.y + 1, z: f.z, t: 0 });
+  hover(shop, e);
+}
+
+// ---------- drawing people ----------
+function person(g, x, y, p, staff) {
+  x = Math.round(x); y = Math.round(y);
+  const sit = p.state === 'sit', bob = !sit && p.moving ? (Math.sin(p.t * 12) > 0 ? 1 : 0) : 0;
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(x - 3, y, 7, 1);
+  const by = sit ? y - 3 : y - 4;
+  if (!sit) { g.fillStyle = '#3b3f52'; g.fillRect(x - 2, y - 4, 2, 4); g.fillRect(x + 1, y - 4, 2, 4); }
+  g.fillStyle = staff ? '#f4f1ea' : SHIRTS[p.shirt]; g.fillRect(x - 2, by - 6 - bob, 5, 6);
+  if (staff) { g.fillStyle = staff === 'cook' ? '#e2432f' : '#2e5d8a'; g.fillRect(x - 2, by - 6 - bob, 5, 2); }
+  g.fillStyle = '#f1c9a0'; g.fillRect(x - 2, by - 10 - bob, 4, 4);
+  g.fillStyle = staff === 'cook' ? '#ffffff' : '#4a3424'; g.fillRect(x - 2, by - (staff === 'cook' ? 13 : 11) - bob, 4, staff === 'cook' ? 3 : 1);
+  if (!staff && p.mood && p.mood !== 'ok') bubble(g, x, by - 14 - bob, p.mood);
+}
+function bubble(g, x, y, mood) {
+  if (mood === 'heart') { g.fillStyle = '#e2557a'; for (const [a, b] of [[-2, 0], [-1, -1], [1, -1], [2, 0], [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1], [-1, 2], [0, 2], [1, 2], [0, 3], [0, 0], [-1, 0], [1, 0]]) g.fillRect(x + a, y - 4 + b, 1, 1); return; }
+  g.fillStyle = '#ffffff'; g.fillRect(x - 4, y - 8, 9, 8); g.fillRect(x - 1, y, 2, 2);
+  if (mood === 'wait') { g.fillStyle = '#8b9a9c'; for (const a of [-2, 0, 2]) g.fillRect(x + a, y - 4, 1, 1); }
+  else if (mood === 'seat?') { g.fillStyle = '#8a6a4a'; g.fillRect(x - 2, y - 4, 4, 1); g.fillRect(x - 2, y - 7, 1, 6); g.fillRect(x + 1, y - 4, 1, 3); }
+  else if (mood === 'angry') { g.fillStyle = '#c2402e'; for (let k = 0; k < 5; k++) { g.fillRect(x - 2 + k, y - 6 + k, 1, 1); g.fillRect(x + 2 - k, y - 6 + k, 1, 1); } }
+}
+function render(shop, dt) {
+  const { g, view, sim } = shop, P = view.project;
+  g.clearRect(0, 0, shop.top.width, shop.top.height);
+  // what can still be bought: a small coin marker over each ghost
+  shop.fx.forEach((f, i) => {
+    if (shop.owned.has(i)) return; const [x, y] = P(f.x, f.y + .55, f.z), cx = Math.round(x), cy = Math.round(y), ok = coins >= costOf(f.kind);
+    g.fillStyle = i === shop.hot ? '#ffffff' : ok ? '#e3b448' : 'rgba(160,150,130,.7)'; g.fillRect(cx - 2, cy - 2, 5, 5);
+    g.fillStyle = '#2e241a'; g.fillRect(cx, cy - 1, 1, 3); g.fillRect(cx - 1, cy, 3, 1);
+  });
+  const list = [];
+  for (const s of sim.staff) { const [x, y] = P(s.x, sim.floorY(s.f), s.z); list.push({ x, y, s }); }
+  for (const p of sim.people) { p.moving = p.moves.length > 0; const sy = p.state === 'sit' ? .02 : 0; const [x, y] = P(p.x, p.y + sy, p.z); list.push({ x, y, p }); }
+  list.sort((a, b) => a.y - b.y);
+  for (const o of list) o.s ? person(g, o.x, o.y, { t: 0 }, o.s.kind) : person(g, o.x, o.y, o.p);
+  // coins and losses rise and fade
+  for (const e of sim.events.splice(0)) shop.floats.push({ text: e.kind === 'coin' ? `+${e.n}` : e.why, x: e.x, y: sim.floorY(e.f) + 1.1, z: e.z, t: 0, bad: e.kind === 'lost', tip: e.tip });
+  g.font = 'bold 10px system-ui'; g.textAlign = 'center';
+  for (const f of shop.floats) {
+    f.t += dt; const [x, y] = P(f.x, f.y, f.z), a = Math.max(0, 1 - f.t / 1.4);
+    g.globalAlpha = a; g.fillStyle = '#2e241a'; g.fillText(f.text, Math.round(x) + 1, Math.round(y - f.t * 14) + 1);
+    g.fillStyle = f.bad ? '#e2685a' : f.tip ? '#f08ab0' : '#ffd25a'; g.fillText(f.text, Math.round(x), Math.round(y - f.t * 14));
+  }
+  g.globalAlpha = 1; shop.floats = shop.floats.filter(f => f.t < 1.4);
+}
+
+function stats(shop) {
+  const s = shop.sim.stats, now = shop.sim.t;
+  shop.served.push([now, s.served]); while (shop.served.length && shop.served[0][0] < now - 60) shop.served.shift();
+  const per = shop.served.length > 1 ? (s.served - shop.served[0][1]) / Math.max(10, now - shop.served[0][0]) * 60 : 0;
+  const q = shop.sim.counters.reduce((t, c) => t + c.q.length, 0), seats = shop.sim.seats.length, used = shop.sim.seats.filter(x => x.who).length;
+  const cell = (label, v, bad) => `<div class="${bad ? 'bad' : ''}"><span>${label}</span><br><b>${v}</b></div>`;
+  shop.statsEl.innerHTML = cell('손님/분', per.toFixed(1)) + cell('줄', q, q >= 5) + cell('자리', `${used}/${seats}`, seats && used === seats)
+    + cell('놓친 손님 (줄·자리)', `${s.lostLine} · ${s.lostSeat}`, s.lostLine + s.lostSeat > 0) + cell('번 돈', s.coins);
+}
+
+let last = performance.now(), acc = 0, prevCoins = 0;
+function frame(now) {
+  const dt = Math.min(.1, (now - last) / 1000) * speed; last = now; acc += dt;
+  for (const shop of shops) {
+    const before = shop.sim.stats.coins; shop.sim.step(dt); coins += shop.sim.stats.coins - before;
+    render(shop, dt);
+  }
+  if (acc > .25) { acc = 0; shops.forEach(stats); }
+  $('coins').textContent = `${coins} 동전`;
+  requestAnimationFrame(frame);
+}
+for (const s of [1, 2, 4]) { const b = document.createElement('button'); b.textContent = '×' + s; b.className = s === 1 ? 'on' : ''; b.onclick = () => { speed = s; [...$('speed').children].forEach(x => x.classList.toggle('on', x === b)); }; $('speed').append(b); }
+// ?warm=N runs N seconds before the first frame (for screenshots)
+const warm = +(new URLSearchParams(location.search).get('warm') ?? 0);
+for (let t = 0; t < warm; t += .05) for (const shop of shops) { const b = shop.sim.stats.coins; shop.sim.step(.05); coins += shop.sim.stats.coins - b; }
+if (warm) { for (const shop of shops) { shop.sim.events.length = 0; render(shop, 0); stats(shop); } }
+requestAnimationFrame(frame);
+</script>
+</html>

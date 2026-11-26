@@ -97,8 +97,10 @@ function squarify(items, x, z, w, d) {
  *        Leave it undefined to draw every fixture solid.
  */
 export function buildSection(b, { owned } = {}) {
-  const placed = [];   // every fixture placed, in order: { kind, zone, floor }
-  let floorName = '';
+  const placed = [];   // every fixture placed, in order: { kind, zone, floor, fi, x, y, z }
+  const isOwned = (i) => owned === undefined || (typeof owned === 'number' ? i < owned : owned.has(i));
+  const plan = { floors: [] };   // where things are, in world units, for a sim that runs inside
+  let floorName = '', floorIdx = 0;
   const root = new THREE.Group(), labels = [];
   const main = b.masses.find(m => m.at === 'main') ?? b.masses[0];
   const W = Math.min(7, Math.max(3.2, main.size[0] * 1.7)), D = Math.min(5, Math.max(2.6, main.size[1] * 1.7));
@@ -116,6 +118,7 @@ export function buildSection(b, { owned } = {}) {
   floors.forEach((f, i) => {
     floorName = f.name;
     const g = new THREE.Group(); g.position.y = i * GAP; root.add(g); cur = g;
+    const fplan = { y: i * GAP, name: f.name, zones: [] }; plan.floors.push(fplan); floorIdx = i;
     const count = f.range[1] - f.range[0] + 1;
     // ghost plates under a merged floor
     if (count > 1) for (let k = 1; k <= Math.min(3, count - 1); k++) box(W, .08, D, mat(shade(wallColor, .7 - k * .08)), 0, -k * .32, 0);
@@ -130,6 +133,7 @@ export function buildSection(b, { owned } = {}) {
     if (core) rects.push({ zone: 'corridor', x: areaW, z: core.d, w: core.w, d: D - core.d });
     for (const r of rects) {
       const def = zoneDef(r.zone);
+      fplan.zones.push({ zone: r.zone, x: ox + r.x, z: oz + r.z, w: r.w, d: r.d });
       box(r.w - .04, .02, r.d - .04, mat(f.tint ? shade(f.tint, 1) : def.tint), ox + r.x + r.w / 2, 0, oz + r.z + r.d / 2);
       // low partitions on inner edges, with a doorway gap
       if (r.x > .01) partition(ox + r.x, oz + r.z, oz + r.z + r.d, 'x');
@@ -152,7 +156,8 @@ export function buildSection(b, { owned } = {}) {
     box(core.w * .8, h, core.d * .8, mat('#9fc3d0', { transparent: true, opacity: .25, depthWrite: false }), ox + core.x + core.w / 2, 0, oz + core.d / 2);
     box(.5, .5, .5, mat('#e3b448'), ox + core.x + core.w / 2, GAP * .5, oz + core.d / 2);
   }
-  return { group: root, labels, fixtures: placed };
+  Object.assign(plan, { W, D, gap: GAP, core: core ? { x: ox + core.x + core.w / 2, z: oz + core.d + .25 } : null, door: { x: ox + Math.min(W * .3, 1.2), z: -oz } });
+  return { group: root, labels, fixtures: placed, plan };
 
   function partition(at, a0, a1, axis) {
     const len = a1 - a0, gap = Math.min(.7, len * .4), mid = (a0 + a1) / 2, m = mat(shade(wallColor, .92));
@@ -170,8 +175,8 @@ export function buildSection(b, { owned } = {}) {
     const F = { size: F0.size, draw: (x, z, oo) => {
       const before = cur.children.length, idx = placed.length;
       F0.draw(x, z, oo);
-      placed.push({ kind, zone: r.zone, floor: floorName });
-      if (owned !== undefined && idx >= owned) for (const m of cur.children.slice(before)) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
+      placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x, z, y: floorIdx * GAP });
+      if (!isOwned(idx)) for (const m of cur.children.slice(before)) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
     } };
     const [fw, fd] = F.size;
     if (pattern === 'center') return F.draw(x0 + w / 2, z0 + d / 2, o);
