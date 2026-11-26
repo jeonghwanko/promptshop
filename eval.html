@@ -36,7 +36,7 @@
   <h1>건물 생성 평가</h1>
   <p class="note">평가용 한 줄 설명을 차례로 Claude에게 보내 짓고, 자동 수선과 다시 묻기를 거친 결과를 잽니다. 그림을 보고 "원한 건물"인지 표시해 주세요. 결과는 이 페이지의 저장소에 남습니다. 누르는 사람의 Claude 사용량을 씁니다.</p>
   <div class="bar">
-    <select id="count" aria-label="몇 줄을 돌릴지"><option value="10">10줄</option><option value="30">30줄</option><option value="60" selected>60줄 전부</option></select>
+    <select id="count" aria-label="몇 줄을 돌릴지"><option value="failed" selected>지난번 "아님"만</option><option value="10">10줄</option><option value="30">30줄</option><option value="60">60줄 전부</option></select>
     <select id="revise" aria-label="다시 묻기"><option value="1" selected>다시 묻기 켬</option><option value="0">다시 묻기 끔</option></select>
     <button id="go">평가 돌리기</button><button id="stop" class="ghost" hidden>멈추기</button>
     <span class="note" id="status"></span>
@@ -56,7 +56,7 @@ import { EVAL } from './examples/eval.js';
 const $ = (id) => document.getElementById(id);
 const sample = (await window.claude?.use?.('sample')?.catch?.(() => null)) ?? null;
 const db = (await window.claude?.use?.('db')?.catch?.(() => null)) ?? null;
-let results = [], stopReq = false, runId = null;
+let results = [], stopReq = false, runId = null, carried = null;   // carried: earlier passes kept when only failures are re-run
 
 function stats() {
   const n = results.length, ok = results.filter(r => r.built).length, judged = results.filter(r => r.ok != null), yes = judged.filter(r => r.ok).length;
@@ -65,7 +65,8 @@ function stats() {
   const fam = {}; for (const r of results.filter(r => r.built)) { (fam[r.family] ??= new Set()).add(r.sig); }
   const famN = Object.values(fam), variety = famN.length ? famN.reduce((a, s) => a + s.size, 0) / results.filter(r => r.built).length : 0;
   const types = new Set(results.filter(r => r.built).map(r => r.type)).size;
-  const cards = [['지은 줄', `${n}`], ['오류 없이 지어짐', n ? `${Math.round(ok / n * 100)}%` : '–'], ['자동 수선', `${fixed}건`], ['다시 물음', `${asked}회`],
+  const combined = carried ? [['합산 원한 건물', `${carried.yes + yes}/${carried.total}`]] : [];
+  const cards = [...combined, ['지은 줄', `${n}`], ['오류 없이 지어짐', n ? `${Math.round(ok / n * 100)}%` : '–'], ['자동 수선', `${fixed}건`], ['다시 물음', `${asked}회`],
     ['끝까지 남은 문제', `${left}줄`], ['쓰인 종류', `${types}가지`], ['같은 계열 안 다양성', n ? `${Math.round(variety * 100)}%` : '–'], ['원한 건물', judged.length ? `${yes}/${judged.length}` : '표시 전']];
   $('stats').replaceChildren(...cards.map(([k, v]) => { const d = document.createElement('div'); d.className = 'stat'; d.innerHTML = '<div class="k"></div><div class="v"></div>'; d.children[0].textContent = k; d.children[1].textContent = v; return d; }));
 }
@@ -122,13 +123,27 @@ async function one(i, line, revise) {
 
 $('go').onclick = async () => {
   if (!sample) { $('status').textContent = '이 화면에서는 Claude를 부를 수 없어요(claude.ai 안에서 열어 주세요).'; return; }
-  const count = +$('count').value, revise = $('revise').value === '1';
+  const mode = $('count').value, revise = $('revise').value === '1';
+  let todo = EVAL.map((line, i) => ({ i, line })); carried = null;
+  if (mode === 'failed') {
+    // the latest run that has judgements: keep its passes, re-run what was judged "not it"
+    if (!db) { $('status').textContent = '저장소에 접근할 수 없어 지난 결과를 읽지 못했어요.'; return; }
+    const runs = (await db.collection('runs').orderBy('at', 'desc').limit(10).get()).docs;
+    let prev = null;
+    for (const r of runs) { const items = (await db.collection(`runs/${r.id}/items`).get()).docs.map(d => d.data()); if (items.some(x => x.ok != null)) { prev = { id: r.id, items }; break; } }
+    if (!prev) { $('status').textContent = '판정한 지난 실행이 없어요. 60줄 전부를 먼저 돌려 주세요.'; return; }
+    const failed = new Set(prev.items.filter(x => x.ok === false).map(x => x.i));
+    todo = todo.filter(t => failed.has(t.i));
+    carried = { from: prev.id, yes: prev.items.filter(x => x.ok === true).length, total: EVAL.length };
+  } else todo = todo.slice(0, +mode);
+  const count = todo.length;
   results = []; $('grid').replaceChildren(); stopReq = false; runId = 'r' + Date.now();
   $('go').disabled = true; $('stop').hidden = false; stats();
-  if (db) try { await db.doc(`runs/${runId}`).set({ at: Date.now(), count, revise, version: 'parts-2' }); } catch { }
-  for (let i = 0; i < Math.min(count, EVAL.length) && !stopReq; i++) {
-    $('status').textContent = `${i + 1}/${count} 짓는 중: ${EVAL[i]}`;
-    const r = await one(i, EVAL[i], revise); results.push(r); $('grid').append(card(r)); stats(); save(r);
+  if (db) try { await db.doc(`runs/${runId}`).set({ at: Date.now(), count, revise, version: 'parts-2', mode, carriedFrom: carried?.from ?? null, carriedYes: carried?.yes ?? null }); } catch { }
+  for (let k = 0; k < count && !stopReq; k++) {
+    const { i, line } = todo[k];
+    $('status').textContent = `${k + 1}/${count} 짓는 중: ${line}`;
+    const r = await one(i, line, revise); results.push(r); $('grid').append(card(r)); stats(); save(r);
   }
   if (db) try { await db.doc(`runs/${runId}`).update({ done: results.length }); } catch { }
   $('status').textContent = stopReq ? '멈춤' : '끝'; $('go').disabled = false; $('stop').hidden = true;
