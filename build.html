@@ -36,7 +36,7 @@
 </style>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <div class="wrap">
-  <h1>한 줄 쓰면, 가게가 지어진다</h1>
+  <h1>한 줄 쓰면, 건물이 지어진다</h1>
   <div class="ask">
     <input id="line" type="text" maxlength="80" placeholder="예: 비 오는 날만 여는 우산 수리점">
     <button id="go">짓기</button><button id="stop" class="ghost" hidden>멈추기</button>
@@ -53,17 +53,19 @@
 </div>
 <script type="module">
 import { Stage } from './src/stage.js';
-import { emptyShop, applyStep, lineReader, specToSteps, buildPrompt } from './src/steps.js';
-import { SPECS } from './examples/specs.js';
+import { lineReader } from './src/steps.js';
+import { Stage2 } from './src/v2/stage.js';
+import { emptyBuilding, applyStep, buildPrompt } from './src/v2/steps.js';
+import { STREAMS } from './examples/streams.js';
 
 await document.fonts.load('900 18px "Noto Sans KR"').catch(() => {});
-const ext = new Stage('ext'), int = new Stage('int');
+const ext = new Stage2(), int = new Stage('int');
 document.getElementById('ext').append(ext.canvas); document.getElementById('int').append(int.canvas);
 const $ = (id) => document.getElementById(id);
-const TAG = { name: '이름', base: '몸체', front: '정면', roof: '지붕', decor: '간판', prop: '소품', room: '방', item: '가구' };
+const TAG = { building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', room: '방', item: '가구' };
 
 let shop, queue = [], pumping = false, run = 0;
-function reset() { shop = emptyShop(); queue = []; ext.clear(); int.clear(); $('name').textContent = ''; $('raw').textContent = '';
+function reset() { shop = emptyBuilding(); queue = []; ext.clear(); int.clear(); $('name').textContent = ''; $('raw').textContent = '';
   $('log').replaceChildren(Object.assign(document.createElement('span'), { className: 'st', textContent: '공사 기록' })); }
 // Steps can arrive faster than the eye; show them at least 260 ms apart.
 function enqueue(step, myRun) { queue.push([step, myRun]); if (!pumping) pump(); }
@@ -72,18 +74,18 @@ async function pump() {
   while (queue.length) {
     const [step, myRun] = queue.shift(); if (myRun !== run) continue;
     const ch = applyStep(shop, step); if (!ch) continue;
-    if (step.step === 'name') $('name').textContent = shop.name;
-    else if (ch.view === 'ext') ext.show(shop.ext, ch.key); else int.show(shop.int, ch.key);
-    if (step.step !== 'name') { const r = document.createElement('div'); r.className = 'row';
+    if (step.step === 'building') $('name').textContent = shop.input.name || '';
+    if (ch.view === 'ext') ext.show(shop.input, ch.key); else int.show(shop.int, ch.key);
+    { const r = document.createElement('div'); r.className = 'row';
       const t = document.createElement('span'); t.className = 'tag'; t.textContent = TAG[step.step] ?? step.step;
       const n = document.createElement('span'); n.textContent = (typeof step.note === 'string' && step.note) || step.type || ''; r.append(t, n); $('log').append(r); $('log').scrollTop = 1e9; }
     await new Promise(r => setTimeout(r, 260));
   }
   pumping = false;
 }
-function replay(spec) { reset(); const my = ++run; $('name').textContent = ''; for (const s of specToSteps(spec)) enqueue(s, my); }
+function replay(steps) { reset(); const my = ++run; $('name').textContent = ''; for (const s of steps) enqueue(s, my); }
 
-const EXAMPLES = ['역대 챔피언들의 장갑과 벨트를 전시하는 넓은 전시장', '옥상에 돔이 있는 4층짜리 오래된 백화점', '겨울 골목의 작은 붕어빵 노점', '밤에만 여는 청록 기와 포장마차 라멘집', '고양이가 주인인 작은 2층 북카페', '네온 간판 번쩍이는 격투 굿즈 상점', '비 오는 날만 여는 우산 수리점', '할머니가 하는 떡볶이 분식집'];
+const EXAMPLES = ['20층 럭셔리 호텔', '달빛 아래 한옥 찻집', '역대 챔피언들의 장갑과 벨트를 전시하는 넓은 전시장', '옥상에 돔이 있는 4층짜리 오래된 백화점', '겨울 골목의 작은 붕어빵 노점', '밤에만 여는 청록 기와 포장마차 라멘집', '고양이가 주인인 작은 2층 북카페', '네온 간판 번쩍이는 격투 굿즈 상점', '비 오는 날만 여는 우산 수리점', '할머니가 하는 떡볶이 분식집'];
 for (const ex of EXAMPLES) { const b = document.createElement('button'); b.textContent = ex; b.onclick = () => { $('line').value = ex; build(); }; $('chips').append(b); }
 
 const sample = (await window.claude?.use?.('sample')?.catch?.(() => null)) ?? null;
@@ -91,7 +93,7 @@ let ctl = null;
 async function build() {
   const line = $('line').value.trim() || $('line').placeholder.replace(/^예: /, '');
   $('err').textContent = '';
-  if (!sample) { $('err').textContent = '이 화면에서는 Claude를 부를 수 없어서 예시만 다시 보여 줍니다.'; replay(SPECS.ramen); return; }
+  if (!sample) { $('err').textContent = '이 화면에서는 Claude를 부를 수 없어서 예시만 다시 보여 줍니다.'; replay(STREAMS.hotel); return; }
   reset(); const my = ++run; ctl = new AbortController();
   $('go').disabled = true; $('stop').hidden = false; $('name').textContent = '구상 중…';
   const reader = lineReader((s) => enqueue(s, my));
@@ -110,6 +112,6 @@ async function build() {
 }
 $('go').onclick = build; $('line').addEventListener('keydown', (e) => { if (e.key === 'Enter') build(); });
 $('stop').onclick = () => ctl?.abort();
-replay(SPECS.expo);   // the page opens on a replay of an example build
+replay(STREAMS.hotel);   // the page opens on a replay of an example build
 </script>
 </html>
