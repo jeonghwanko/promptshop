@@ -74,7 +74,7 @@ import { buildSection } from './src/v2/interior.js';
 import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
-import { shopRates, bestNext, FIX_INFO } from './src/v2/inside.js';
+import { shopRates, bestNext, FIX_INFO, nextUp, TRACKS } from './src/v2/inside.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
@@ -399,7 +399,9 @@ function stepInside(dt) {
     const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1);
     watching.view.suggest = new Set(k);
     const names = k.map(x => FIX_INFO[x]?.[0] ?? x).slice(0, 3).join('·'), t = (nextBoat.get(p.slot) ?? 0) - performance.now() / 1000;
-    $('ihint').textContent = (k.length ? `깜빡이는 ${names}을(를) 들이면 수입이 가장 많이 올라요.` : '가구를 다 채웠어요.') + (t > 0 ? ` · 다음 배 ${Math.ceil(t)}초` : '');
+    const up = nextUp(fixturesOf(p), ownedOf(p)), fx = fixturesOf(p);
+    const turn = Object.entries(up).map(([tr, i]) => `${TRACKS[tr]}: ${FIX_INFO[fx[i].kind]?.[0] ?? fx[i].kind}`).join(' · ');
+    $('ihint').textContent = (turn ? `다음 차례 — ${turn}. 깜빡이는 ${names}이(가) 수입을 가장 많이 올려요.` : '가구를 다 채웠어요.') + (t > 0 ? ` · 다음 배 ${Math.ceil(t)}초` : '');
   }
   $('istats').innerHTML = cell('문 앞 줄', door) + cell('안에서 기다림', q, q >= 5) + cell('자리', `${used}/${seats}`, seats && used === seats)
     + cell('놓친 손님 (줄·자리)', `${isim.stats.lostLine} · ${isim.stats.lostSeat}`, isim.stats.lostLine + isim.stats.lostSeat > 0) + cell('지금 번 돈', watching.earned)

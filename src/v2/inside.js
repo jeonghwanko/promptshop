@@ -20,8 +20,12 @@ export const FIX_INFO = {
   table4: ['4인 테이블', '자리 +4'], table2: ['2인 테이블', '자리 +2'], stool: ['스툴', '자리 +1'], sofa: ['소파', '자리 +2'], seats: ['좌석 줄', '자리 +4'],
   bench: ['벤치', '자리 +2'], lowtable: ['좌식 상', '자리 +4'], toilet: ['화장실', '손님이 들름'], sink: ['세면대', '꾸밈'],
   plant: ['화분', '이 층 손님이 팁'], rug: ['러그', '이 층 손님이 팁'], tv: ['TV', '이 층 손님이 팁'], lamp: ['조명', '이 층 손님이 팁'],
-  gondola: ['진열대', '구경하는 곳'], shelf: ['선반', '구경하는 곳'],
+  gondola: ['진열대', '구경하는 곳'], shelf: ['선반', '구경하는 곳'], stall: ['좌판', '구경하는 곳'], pedestal: ['전시대', '구경하는 곳'], frame: ['그림', '구경하는 곳'], kiosk: ['매점', '구경하는 곳'],
+  couch: ['진료 침대', '자리 +2'], desk: ['책상', '자리 +1'], desk1: ['책상', '자리 +1'], pool: ['수영장', '자리 +4'], bed: ['침대', '자리 +1'], pew: ['긴 의자', '자리 +3'], machine: ['기계', '조리가 빨라짐'], balls: ['공', '이 층 손님이 팁'],
 };
+// fixtures with no job in the sim: named so the hint reads well
+const PLAIN = { crates: '상자', rolldoor: '셔터', curtain: '커튼', flat: '집 한 칸', wardrobe: '옷장', board: '칠판', stage: '무대', treadmill: '러닝머신', weights: '역기', locker: '사물함', lane: '레인', platform: '승강장', conveyor: '컨베이어', car: '차', firetruck: '소방차', altar: '제단', prayer: '기도 깔개', court: '코트', ring: '링', diamond: '야구장', sink: '세면대' };
+for (const [k, n] of Object.entries(PLAIN)) FIX_INFO[k] ??= [n, '꾸밈'];
 export const FIX_COST = { counter: 20, stove: 14, prep: 9, fridge: 6, table4: 12, table2: 7, stool: 3, sofa: 7, seats: 10, bench: 5, lowtable: 10, toilet: 8, sink: 3, plant: 4, rug: 5, tv: 7, lamp: 4 };
 export const costOf = (k) => FIX_COST[k] ?? 6;
 
@@ -47,11 +51,37 @@ export function shopRates(fixtures, owned, baseCoin = 3) {
   return { interval: Math.max(.5, .46 / rate), cap: 3 + 2 * counters + Math.floor(seats / 4), price: baseCoin + Math.min(3, decor) + Math.floor(browse / 2), seats, counters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
 }
 
+// ---------- the order fixtures come in ----------
+// Four tracks, each with its own order; only the next fixture of each track can be bought.
+export const TRACKS = { order: '주문', seat: '자리', browse: '진열', deco: '꾸밈' };
+const trackOf = (k) => { const r = FIX_ROLE(k); return r === 'serve' || r === 'cook' ? 'order' : r === 'seat' ? 'seat' : r === 'browse' ? 'browse' : 'deco'; };
+/** Per track, fixture indices in the order they are bought: lower floors first, nearer the door first. */
+export function trackOrder(fixtures, door) {
+  const d = door ?? { x: 0, z: Math.max(0, ...fixtures.map(f => f.z)) + 1 };
+  const near = (f) => f.fi * 100 + Math.hypot(f.x - d.x, f.z - d.z);
+  const out = { order: [], seat: [], browse: [], deco: [] };
+  const idx = fixtures.map((f, i) => i);
+  const by = (pred) => idx.filter(i => pred(fixtures[i])).sort((a, b) => near(fixtures[a]) - near(fixtures[b]));
+  const counters = by(f => f.kind === 'counter');
+  out.order = [...counters.slice(0, 1), ...by(f => COOK[f.kind]), ...counters.slice(1)];
+  out.seat = by(f => SEATS[f.kind]);
+  out.browse = by(f => BROWSE.has(f.kind));
+  out.deco = [...by(f => f.kind === 'toilet'), ...by(f => DECOR.has(f.kind)), ...by(f => trackOf(f.kind) === 'deco' && f.kind !== 'toilet' && !DECOR.has(f.kind))];
+  return out;
+}
+/** The next fixture of each track: { track: index }. */
+export function nextUp(fixtures, owned, door) {
+  const out = {};
+  for (const [t, list] of Object.entries(trackOrder(fixtures, door))) { const i = list.find(i => !owned.has(i)); if (i !== undefined) out[t] = i; }
+  return out;
+}
+
 /** Unbought fixtures that would raise income (price per guest ÷ seconds per guest) the most, by kind. */
 export function bestNext(fixtures, owned, baseCoin = 3) {
   const rev = (set) => { const r = shopRates(fixtures, set, baseCoin); return r.price / r.interval; }, now = rev(owned);
   const gain = new Map();
-  fixtures.forEach((f, i) => { if (owned.has(i)) return; const g = rev(new Set([...owned, i])) - now; if (g > (gain.get(f.kind) ?? 0)) gain.set(f.kind, g); });
+  const allowed = new Set(Object.values(nextUp(fixtures, owned)));
+  fixtures.forEach((f, i) => { if (owned.has(i) || !allowed.has(i)) return; const g = rev(new Set([...owned, i])) - now; if (g > (gain.get(f.kind) ?? 0)) gain.set(f.kind, g); });
   const best = Math.max(0, ...gain.values());
   return best > 0 ? [...gain].filter(([, g]) => g >= best * .8).map(([k]) => k) : [];
 }

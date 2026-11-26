@@ -1,7 +1,7 @@
 // The live cross-section of one building: the section render, an overlay canvas with the people of an InsideSim,
 // see-through fixtures that can be tapped to buy, and coins and losses that rise over the spot where they happen.
 import { renderView } from './render.js';
-import { InsideSim, FIX_INFO, FIX_ROLE, costOf } from './inside.js';
+import { InsideSim, FIX_INFO, FIX_ROLE, costOf, trackOrder, nextUp } from './inside.js';
 
 const SHIRTS = ['#e2432f', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2', '#d97a3a'];
 let tipEl = null;
@@ -14,9 +14,10 @@ function tip() {
 
 /** Which fixtures a fresh building starts with: its first counter and its first table (or seat, or shelf). */
 export function startingFixtures(fixtures) {
-  const t = fixtures.findIndex(f => f.kind === 'table4' || f.kind === 'table2');
-  const out = [fixtures.findIndex(f => f.kind === 'counter'), t >= 0 ? t : fixtures.findIndex(f => FIX_ROLE(f.kind) === 'seat')].filter(i => i >= 0);
-  if (!out.length) { const b = fixtures.findIndex(f => FIX_ROLE(f.kind) === 'browse'); if (b >= 0) out.push(b); }
+  const tr = trackOrder(fixtures), out = [];
+  if (tr.order.length && fixtures[tr.order[0]].kind === 'counter') out.push(tr.order[0]);
+  if (tr.seat.length) out.push(tr.seat[0]); else if (tr.browse.length) out.push(tr.browse[0]);
+  if (!out.length && tr.order.length) out.push(tr.order[0]);
   return out;
 }
 
@@ -60,9 +61,12 @@ export class InsideView {
   ghostAt(e) {
     const r = this.top.getBoundingClientRect(), mx = (e.clientX - r.left) / this.zoom, my = (e.clientY - r.top) / this.zoom;
     let best = -1, bd = 16;
-    this.fx.forEach((f, i) => { if (this.owned.has(i)) return; const [x, y] = this.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
+    const can = this.buyable();
+    this.fx.forEach((f, i) => { if (!can.has(i)) return; const [x, y] = this.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
     return best;
   }
+  /** Fixtures that can be bought now: the next of each track. */
+  buyable() { return new Set(Object.values(nextUp(this.fx, this.owned))); }
   hover(e) {
     const i = this.ghostAt(e), t = tip(); this.hot = i;
     if (i < 0) { t.style.display = 'none'; return; }
@@ -83,8 +87,9 @@ export class InsideView {
     this.sim.step(dt);
     const { g, view, sim } = this, P = view.project, paid = [];
     g.clearRect(0, 0, this.top.width, this.top.height);
+    const can = this.coins ? this.buyable() : new Set();
     if (this.coins) this.fx.forEach((f, i) => {
-      if (this.owned.has(i)) return; const [x, y] = P(f.x, f.y + .55, f.z), cx = Math.round(x), cy = Math.round(y), ok = this.coins() >= costOf(f.kind);
+      if (!can.has(i)) return; const [x, y] = P(f.x, f.y + .55, f.z), cx = Math.round(x), cy = Math.round(y), ok = this.coins() >= costOf(f.kind);
       // suggested fixtures blink larger
       const big = this.suggest?.has(f.kind) && Math.sin(performance.now() / 160) > -.3, r = big ? 4 : 2;
       g.fillStyle = i === this.hot ? '#ffffff' : ok ? (big ? '#ffd23a' : '#e3b448') : 'rgba(160,150,130,.7)'; g.fillRect(cx - r, cy - r, r * 2 + 1, r * 2 + 1);
