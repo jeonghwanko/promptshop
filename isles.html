@@ -324,25 +324,30 @@ async function widen() {
   setTimeout(() => { celebrate('🌱 땅이 넓어졌어요!', `땅 +${fresh.length}칸 · 이제 건물 ${maxPlots()}채까지`); }, landAnim.end * 1000 + 100);
 }
 // ---------- a building site: fence tape, scaffold, a tower crane, sparks and dust while Claude designs; a dust burst when it is done ----------
-const site = { parts: [], t: 0, done: null };
-function drawSite(dt) {
-  site.t += dt; const P = (x, z) => pr.P(x, z), b = building ?? site.done; if (!b) { site.parts.length = 0; return; }
-  const n = PLOT[b.size], x0 = b.x, z0 = b.z, C = [P(x0, z0), P(x0 + n, z0), P(x0 + n, z0 + n), P(x0, z0 + n)], H = 26 + n * 10;
+const site = { parts: [], t: 0, done: null, dt: 0, step(dt) { this.dt = dt; this.t += dt; } };
+function drawSite(half) {
+  const b = building ?? site.done; if (!b) return; const dt = site.dt, P = (x, z) => pr.P(x, z);
+  const n = PLOT[b.size], x0 = b.x, z0 = b.z, C = [P(x0, z0), P(x0 + n, z0), P(x0 + n, z0 + n), P(x0, z0 + n)], H = 26 + n * 10;   // C[0] back, C[2] front
   const line = (a, c, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(Math.round(a[0]) + .5, Math.round(a[1]) + .5); g.lineTo(Math.round(c[0]) + .5, Math.round(c[1]) + .5); g.stroke(); };
-  if (building) {
-    // scaffold poles at the corners with planks, drawn light so the building shows through
-    for (const c of C) line(c, [c[0], c[1] - H], 'rgba(58,42,28,.9)', 2);
-    for (const f of [.45, .9]) for (let k = 0; k < 4; k++) if (k !== 1 && k !== 2) line([C[k][0], C[k][1] - H * f], [C[(k + 1) % 4][0], C[(k + 1) % 4][1] - H * f], '#c08a4a', 2);
-    // fence tape round the lot
-    for (let k = 0; k < 4; k++) { const a = C[k], c = C[(k + 1) % 4], m = 10; for (let i = 0; i < m; i++) line([a[0] + (c[0] - a[0]) * i / m, a[1] + (c[1] - a[1]) * i / m - 4], [a[0] + (c[0] - a[0]) * (i + 1) / m, a[1] + (c[1] - a[1]) * (i + 1) / m - 4], i % 2 ? '#2e241a' : '#ffcf3f', 2); }
+  const tape = (a, c) => { const m = 10; for (let i = 0; i < m; i++) line([a[0] + (c[0] - a[0]) * i / m, a[1] + (c[1] - a[1]) * i / m - 4], [a[0] + (c[0] - a[0]) * (i + 1) / m, a[1] + (c[1] - a[1]) * (i + 1) / m - 4], i % 2 ? '#2e241a' : '#ffcf3f', 2); };
+  if (half === 'back') {
+    if (!building) return;
     // a tower crane on the back corner, its jib turning a little, a load swinging on the hook
     const base = C[0], mast = H + 40, top = [base[0], base[1] - mast], sw = Math.sin(site.t * .7) * 14, tip = [top[0] + 34 + sw, top[1] + 6], back = [top[0] - 18 - sw * .4, top[1] - 2];
     line(base, top, '#2e241a', 4); line(base, top, '#ffcf3f', 2);
     for (let y = 8; y < mast; y += 8) line([base[0] - 1, base[1] - y], [base[0] + 1, base[1] - y + 6], '#b58a10', 1);
     line(back, tip, '#2e241a', 4); line(back, tip, '#ffcf3f', 2); g.fillStyle = '#5b5f66'; g.fillRect(Math.round(back[0]) - 3, Math.round(back[1]) - 1, 6, 5);
     const hook = [tip[0] - 6, tip[1] + 18 + Math.sin(site.t * 2) * 3]; line([tip[0] - 6, tip[1]], hook, '#2e241a', 1); g.fillStyle = '#c08a4a'; g.fillRect(Math.round(hook[0]) - 4, Math.round(hook[1]), 8, 4);
-    // sparks and dust
-    if (Math.random() < dt * 8) { const k = Math.floor(Math.random() * 4), c = C[k]; for (let i = 0; i < 5; i++) site.parts.push({ x: c[0] + (Math.random() - .5) * 20, y: c[1] - H * (.3 + Math.random() * .6), vx: (Math.random() - .5) * 50, vy: -20 - Math.random() * 30, t: 0, spark: true }); }
+    // back poles, the planks between them, the back fence
+    for (const c of [C[0], C[1], C[3]]) line(c, [c[0], c[1] - H], 'rgba(58,42,28,.9)', 2);
+    for (const f of [.45, .9]) for (const [a, c] of [[C[3], C[0]], [C[0], C[1]]]) line([a[0], a[1] - H * f], [c[0], c[1] - H * f], '#c08a4a', 2);
+    tape(C[3], C[0]); tape(C[0], C[1]);
+    return;
+  }
+  if (building) {
+    line(C[2], [C[2][0], C[2][1] - H], 'rgba(58,42,28,.9)', 2);
+    tape(C[1], C[2]); tape(C[2], C[3]);
+    if (Math.random() < dt * 8) { const c = C[Math.floor(Math.random() * 4)]; for (let i = 0; i < 5; i++) site.parts.push({ x: c[0] + (Math.random() - .5) * 20, y: c[1] - H * (.3 + Math.random() * .6), vx: (Math.random() - .5) * 50, vy: -20 - Math.random() * 30, t: 0, spark: true }); }
     if (Math.random() < dt * 4) { const k = Math.floor(Math.random() * 4); site.parts.push({ x: C[k][0], y: C[k][1], vx: (Math.random() - .5) * 12, vy: -8, t: 0 }); }
   } else if (site.done && site.done.t === 0) {   // finished: a ring of dust bursts out from the foot
     for (let i = 0; i < 26; i++) { const a = i / 26 * 6.28; site.parts.push({ x: (C[0][0] + C[2][0]) / 2, y: (C[0][1] + C[2][1]) / 2, vx: Math.cos(a) * 60, vy: Math.sin(a) * 26 - 6, t: 0, big: true }); }
@@ -536,8 +541,9 @@ function frame(t) {
   if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
   for (const b of boats) items.push({ d: b.x + b.z, draw: () => drawBoat(b) });
+  { const sb = building ?? site.done; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
+      items.push({ d: sb.x + sb.z - .01, draw: () => drawSite('back') }, { d: sb.x + sb.z + n + .02, draw: () => drawSite('front') }); } else site.parts.length = 0; }
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
-  drawSite(dt);
   // island labels: owner names, empty slots invite
   g.textAlign = 'center';
   for (let s = 1; s <= SLOTS && !zoomShop; s++) {   // map words would be blown up behind an open shop
