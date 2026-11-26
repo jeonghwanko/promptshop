@@ -86,6 +86,10 @@ This is an early prototype. Known limits:
 
 Contributions of new parts are welcome. Keep the camera, the light and the tile size unchanged.
 
+## Plans
+
+See [docs/ROADMAP.md](docs/ROADMAP.md) for where this is going and [docs/RESEARCH.md](docs/RESEARCH.md) for the research behind it.
+
 ## License
 
 MIT
