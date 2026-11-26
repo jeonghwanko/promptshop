@@ -22,8 +22,12 @@
   .main { display:grid; grid-template-columns:minmax(0,1fr) minmax(0,1fr) 260px; gap:14px; align-items:start; }
   @media (max-width:900px) { .main { grid-template-columns:minmax(0,1fr); } }
   .view { background:var(--card); border-radius:14px; padding:10px; display:flex; flex-direction:column; gap:4px; min-width:0; }
-  .view .lab { font-size:12px; color:var(--dim); font-weight:700; letter-spacing:.06em; }
+  .view .lab0 { font-size:12px; color:var(--dim); font-weight:700; letter-spacing:.06em; }
   .view canvas { image-rendering:pixelated; width:100%; height:auto; display:block; }
+  .secwrap { position:relative; margin-left:64px; }
+  .secwrap canvas { max-height:640px; width:auto; max-width:100%; }
+  .secwrap .lab { position:absolute; transform:translate(-100%, -50%); white-space:nowrap; background:var(--ink); color:#fff7e6; padding:0 6px; border-radius:6px; font-size:11px; }
+  .secwrap .lab b { color:#e3b448; }
   .name { font:400 22px var(--f-disp); min-height:30px; }
   .log { background:var(--card); border-radius:14px; padding:12px; display:flex; flex-direction:column; gap:4px; max-height:560px; overflow:auto; font-size:13px; }
   .log .st { color:var(--dim); font-size:12px; }
@@ -45,27 +49,37 @@
   <div class="err" id="err"></div>
   <div class="name" id="name"></div>
   <div class="main">
-    <div class="view"><span class="lab">겉 · 마을 지도</span><div id="ext"></div></div>
-    <div class="view"><span class="lab">속 · 들어가면</span><div id="int"></div></div>
+    <div class="view"><span class="lab0">겉 · 마을 지도</span><div id="ext"></div></div>
+    <div class="view"><span class="lab0">속 · 층 단면</span><div id="int"></div></div>
     <div class="log" id="log"><span class="st">공사 기록</span></div>
   </div>
   <details><summary>받은 설계도 (JSON Lines)</summary><pre id="raw"></pre></details>
 </div>
 <script type="module">
-import { Stage } from './src/stage.js';
 import { lineReader } from './src/steps.js';
 import { Stage2 } from './src/v2/stage.js';
+import { renderView } from './src/v2/render.js';
 import { emptyBuilding, applyStep, buildPrompt } from './src/v2/steps.js';
 import { STREAMS } from './examples/streams.js';
 
 await document.fonts.load('900 18px "Noto Sans KR"').catch(() => {});
-const ext = new Stage2(), int = new Stage('int');
-document.getElementById('ext').append(ext.canvas); document.getElementById('int').append(int.canvas);
+const ext = new Stage2();
+document.getElementById('ext').append(ext.canvas);
+// the stacked cross-section is re-drawn whole after each step; floor labels sit outside the picture
+function showSection(input) {
+  const host = document.getElementById('int'); host.replaceChildren();
+  if (!input) return;
+  const { canvas, labels } = renderView(input, 'section');
+  const wrap = document.createElement('div'); wrap.className = 'secwrap'; wrap.append(canvas);
+  for (const l of labels) { const e = document.createElement('span'); e.className = 'lab'; e.style.left = (l.x / canvas.width * 100) + '%'; e.style.top = (l.y / canvas.height * 100) + '%';
+    e.textContent = l.text; if (l.count > 1) { const b = document.createElement('b'); b.textContent = ' ×' + l.count; e.append(b); } wrap.append(e); }
+  host.append(wrap);
+}
 const $ = (id) => document.getElementById(id);
-const TAG = { building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', room: '방', item: '가구' };
+const TAG = { building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구' };
 
 let shop, queue = [], pumping = false, run = 0;
-function reset() { shop = emptyBuilding(); queue = []; ext.clear(); int.clear(); $('name').textContent = ''; $('raw').textContent = '';
+function reset() { shop = emptyBuilding(); queue = []; ext.clear(); showSection(null); $('name').textContent = ''; $('raw').textContent = '';
   $('log').replaceChildren(Object.assign(document.createElement('span'), { className: 'st', textContent: '공사 기록' })); }
 // Steps can arrive faster than the eye; show them at least 260 ms apart.
 function enqueue(step, myRun) { queue.push([step, myRun]); if (!pumping) pump(); }
@@ -75,7 +89,8 @@ async function pump() {
     const [step, myRun] = queue.shift(); if (myRun !== run) continue;
     const ch = applyStep(shop, step); if (!ch) continue;
     if (step.step === 'building') $('name').textContent = shop.input.name || '';
-    if (ch.view === 'ext') ext.show(shop.input, ch.key); else int.show(shop.int, ch.key);
+    if (ch.view === 'ext') ext.show(shop.input, ch.key);
+    if (ch.view === 'int' || step.step === 'building') showSection(shop.input);
     { const r = document.createElement('div'); r.className = 'row';
       const t = document.createElement('span'); t.className = 'tag'; t.textContent = TAG[step.step] ?? step.step;
       const n = document.createElement('span'); n.textContent = (typeof step.note === 'string' && step.note) || step.type || ''; r.append(t, n); $('log').append(r); $('log').scrollTop = 1e9; }

@@ -3,6 +3,7 @@
 import { TYPES, STYLES, SCALE, FAMILY_LOOK, TYPE_LOOK } from './catalog.js';
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
+import { ZONE_NAMES, FIXTURE_NAMES, defaultFloors } from './interior.js';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const color = (v, d) => (typeof v === 'string' && HEX.test(v) ? v : d);
@@ -83,7 +84,17 @@ export function normalize(input = {}) {
       wall: m.wall ? wallOf(m.wall, style) : main.wall, roof: roofOf({ ...m.roof, color: m.roof?.color ?? main.roof.color }, type, style),
       ground: oneOf(m.ground, GROUNDS, 'plain'), rhythm: oneOf(m.rhythm, RHYTHMS, main.rhythm), balconies: !!m.balconies });
   });
+  // floors: each kind written once over a range of levels; ranges are clamped, sorted and made to cover level 1
+  let floors = Array.isArray(input.floors) && input.floors.length ? input.floors.slice(0, 8).map(f => {
+    const a = Math.round(num(f.range?.[0], 1, levels, 1)), b2 = Math.round(num(f.range?.[1], a, levels, a));
+    const zones = (Array.isArray(f.zones) ? f.zones : []).slice(0, 6).map(z => typeof z === 'string' ? { zone: z, weight: 1 } : { zone: z?.zone, weight: num(z?.weight, .3, 5, 1) }).filter(z => ZONE_NAMES.includes(z.zone));
+    const fixtures = (Array.isArray(f.fixtures) ? f.fixtures : []).slice(0, 8).filter(x => FIXTURE_NAMES.includes(x?.kind)).map(x => ({ zone: x.zone, kind: x.kind, pattern: oneOf(x.pattern, ['back', 'left', 'rows', 'center', 'corner', 'front', 'cells'], 'rows'), count: Math.round(num(x.count, 1, 12, 0)) || undefined, color: color(x.color, undefined) }));
+    return { range: [a, b2], name: str(f.name, 14, a === b2 ? `${a}층` : `${a}~${b2}층`), zones: zones.length ? zones : [{ zone: 'hall', weight: 1 }], tint: color(f.tint, undefined), fixtures };
+  }).sort((x, y) => x.range[0] - y.range[0]) : defaultFloors(typeName, levels);
+  floors = floors.filter((f, i, a) => i === 0 || f.range[0] > a[i - 1].range[1]);
+  if (floors[0].range[0] !== 1) floors[0].range[0] = 1;
   return {
+    floors,
     type: typeName, style: styleName, family: type.family, name: str(input.name, 16, ''), levels,
     trim, accent, style_: style, masses,
     sign: { icon: oneOf(input.sign?.icon, ICONS, type.icon), place: oneOf(input.sign?.place, ['front', 'roof', 'blade', 'pole'], type.hero === 'pylon_sign' ? 'pole' : 'front'),

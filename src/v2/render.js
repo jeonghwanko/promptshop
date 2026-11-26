@@ -1,12 +1,16 @@
 // Render a v2 building to a canvas at a fixed pixel scale (one tile = 40 px wide); the canvas grows with the building.
 import * as THREE from 'three';
 import { buildExterior } from './exterior.js';
+import { buildSection } from './interior.js';
 import { normalize } from './spec.js';
 
 const PPU = 40 / Math.SQRT2;
 
-export function renderBuilding(input, opt = {}) {
-  const spec = input.masses ? input : normalize(input);
+export function renderBuilding(input, opt = {}) { return renderView(input, 'ext', opt).canvas; }
+
+/** Render the exterior ('ext') or the stacked cross-section ('section'). Returns { canvas, labels: [{x, y, text, count}] } in canvas pixels. */
+export function renderView(input, view = 'ext', opt = {}) {
+  const spec = input.style_ ? input : normalize(input);   // normalized specs carry style_
   const scene = new THREE.Scene();
   const pitch = Math.PI / 6, yaw = Math.PI / 4;
   const dir = new THREE.Vector3(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw));
@@ -19,7 +23,8 @@ export function renderBuilding(input, opt = {}) {
   Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 120 });
   sun.shadow.bias = -0.0015;
   scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
-  scene.add(buildExterior(spec));
+  let labels = [];
+  if (view === 'section') { const sec = buildSection(spec); scene.add(sec.group); labels = sec.labels; } else scene.add(buildExterior(spec));
 
   const box = new THREE.Box3().setFromObject(scene);
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -42,6 +47,7 @@ export function renderBuilding(input, opt = {}) {
   const out = document.createElement('canvas'); out.width = W; out.height = H;
   out.getContext('2d').drawImage(renderer.domElement, 0, 0);
   renderer.dispose(); renderer.forceContextLoss?.();
-  out.dataset.levels = spec.levels; out.dataset.shown = spec.masses.reduce((a, m) => Math.max(a, m.levels), 0);
-  return out;
+  out.dataset.levels = spec.levels;
+  const px = labels.map(l => { const v = l.pos.clone().project(cam); return { x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, text: l.text, count: l.count }; });
+  return { canvas: out, labels: px };
 }

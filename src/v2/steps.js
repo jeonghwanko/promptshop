@@ -5,9 +5,9 @@ import { TYPES, STYLES, TYPE_KO, STYLE_KO } from './catalog.js';
 import { GROUNDS, RHYTHMS, ICONS, HEROES, PROPS, MASS_SHAPES } from './spec.js';
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
-import { applyStep as applyInteriorStep, emptyShop } from '../steps.js';
+import { ZONE_NAMES, FIXTURE_NAMES } from './interior.js';
 
-export function emptyBuilding() { return { input: null, int: emptyShop().int }; }
+export function emptyBuilding() { return { input: null }; }
 
 const pick = (o, keys) => Object.fromEntries(keys.filter(k => o[k] !== undefined).map(k => [k, o[k]]));
 
@@ -19,7 +19,7 @@ export function applyStep(b, step) {
     b.input = { ...pick(step, ['type', 'style', 'name', 'levels', 'scale', 'size', 'trim', 'accent', 'night']) };
     return { view: 'ext', key: 'all' };
   }
-  if (!b.input) return ['room', 'item'].includes(s) ? applyInteriorStep({ int: b.int, ext: {} }, step) : null;
+  if (!b.input) return null;
   const i = b.input;
   switch (s) {
     case 'main':
@@ -39,7 +39,18 @@ export function applyStep(b, step) {
       i.props.push(pick(step, ['type', 'x', 'color']));
       return { view: 'ext', key: 'prop:' + (i.props.length - 1) };
     }
-    case 'room': case 'item': return applyInteriorStep({ int: b.int, ext: {} }, step);
+    case 'floor': {
+      i.floors = i.floors ?? [];
+      if (i.floors.length >= 8) return null;
+      i.floors.push({ ...pick(step, ['range', 'name', 'zones', 'tint']), fixtures: [] });
+      return { view: 'int', key: 'floor:' + (i.floors.length - 1) };
+    }
+    case 'fixture': {
+      const f = i.floors?.[step.floor ?? i.floors.length - 1];
+      if (!f || f.fixtures.length >= 8) return null;
+      f.fixtures.push(pick(step, ['zone', 'kind', 'pattern', 'count', 'color']));
+      return { view: 'int', key: 'fixture' };
+    }
   }
   return null;
 }
@@ -65,12 +76,12 @@ Output ONLY JSON Lines, one JSON object per line, no other text, no code fences,
 4. {"step":"sign","icon":"${list(ICONS)}","place":"front|roof|blade|pole","bg":"#rrggbb","fg":"#rrggbb","note":"..."}
 5. {"step":"hero","hero":"${list(HEROES)}","note":"..."}  one oversized prop that tells what this building is.
 6. 0-6 lines {"step":"prop","type":"${list(PROPS)}","x":<-1..1 along the front>,"color":"#rrggbb","note":"..."}
-7. {"step":"room","size":[w,d],"floor":{"type":"wood|checker","a":"#rrggbb","b":"#rrggbb"},"wall":{"mat":"plank|plaster|brick","color":"#rrggbb"},"note":"..."}  the main ground-floor space: a stall about 2x2, a shop 3-4x3, a hall 6-7x4-5. Room x runs 0..w and z 0..d; back walls at z=0 and x=0.
-8. 6-14 lines {"step":"item","type":"<item>", placement, extra fields, "note":"..."}:
-   floor items use "at":[x,z]: pedestal(color) partition(len,color,rot:0|90) counter(len,color,on:bowls|coffee|register,rot:0|90) stove stool plant bag case catbed cat chair(color) table(color) sofa(color) rug(size:[w,d],color) pendant(color = the light);
-   shelf: "at":[x,z] against the z=0 wall, or "wall":"x","at":<z>; len; goods:bowls|figures|gloves;
-   wall items use "wall":"x"|"z","at":<distance>: frame(color) bookshelf(len) window poster(text,color) lantern(color) neon(color).
-   Keep the inside's colours consistent with the outside. Leave about 0.6 tiles between floor items.
+7. Inside, written once per KIND of floor (the engine draws a stacked cross-section, repeated floors merge into one, a lift core is added automatically):
+   1-5 lines {"step":"floor","range":[from,to],"name":"<e.g. 로비, 객실층, 스카이 라운지>","zones":[{"zone":"<zone>","weight":<area weight 0.3-5>}, ...],"tint":"#rrggbb" (optional),"note":"..."}
+   Ranges must cover every level from 1 to the building's levels without overlap, e.g. a 20-floor hotel: [1,1] lobby, [2,19] guest floors, [20,20] sky lounge. A 1-floor shop has one floor line.
+   Zones (each already comes with its recognisable furniture): ${ZONE_NAMES.join(' ')}
+8. Optional 0-6 lines {"step":"fixture","floor":<index of the floor line, 0-based>,"zone":"<a zone on that floor>","kind":"<fixture>","pattern":"back|left|rows|center|corner|front|cells","count":<n>,"color":"#rrggbb","note":"..."} to add something special.
+   Fixtures: ${FIXTURE_NAMES.join(' ')}
 
 Write every "note" in the same language as the description, under 20 characters, saying what that line builds.`;
 }

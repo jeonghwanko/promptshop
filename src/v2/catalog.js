@@ -40,7 +40,7 @@ export const TYPES = {
   kiosk:             T('retail', 'S', [1, 1], 'counter', 'pyramidal', 'none', 'news', [], ['counter']),
   pc_bang:           T('leisure', 'M', [2, 3], 'plain', 'flat', 'neon_arrow', 'pc', [], ['seating', 'counter']),
   // hospitality
-  hotel:             T('hospitality', 'L', [8, 30], 'canopy', 'flat', 'flagpoles', 'bed', ['podium:base'], ['lobby', 'core', 'guest_rooms', 'restaurant']),
+  hotel:             T('hospitality', 'L', [8, 30], 'canopy', 'flat', 'flagpoles', 'bed', ['podium:base'], ['lobby', 'reception', 'guest_rooms', 'restaurant']),
   motel:             T('hospitality', 'M', [2, 3], 'canopy', 'hipped', 'pylon_sign', 'bed', [], ['lobby', 'guest_rooms']),
   guesthouse:        T('hospitality', 'M', [1, 2], 'porch', 'hipped-and-gabled', 'none', 'bed', [], ['lobby', 'guest_rooms']),
   // civic

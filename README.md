@@ -44,6 +44,12 @@ scripts/render.sh            # writes out/<id>-ext.png and out/<id>-int.png
 
 ![catalogue: 52 building types and 5 style presets](docs/img/catalog.png)
 
+## Cross-sections
+
+Inside, a building is a stack of floors drawn as an exploded cross-section. Each kind of floor is written once over a range of levels ("2-19: guest floors"), repeated floors merge into one plate with a ×N label, a lift core threads the floors, zones are laid out by a squarified treemap, and each zone brings its own furniture. `section.html` renders a few examples.
+
+![cross-sections of a hotel, school, café, apartment block, hospital, museum, factory and restaurant](docs/img/sections.png)
+
 ## Watch it build
 
 `build.html` shows a shop being built while the model is still writing. The model answers in **JSON Lines, one part per line** (name → body → front → roof → sign → props → room → furniture), and every finished line is built at once: the body rises out of the ground, then each part drops into place, and a build log lists what each line added.
