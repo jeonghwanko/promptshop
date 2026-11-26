@@ -203,7 +203,7 @@ function drawLandAnim(dt) {   // old coast, then each new tile rising into place
   if (a.t > a.end) landAnim = null;
 }
 function drawSplash(dt) {
-  for (const p of splash) { p.t += dt; p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; g.globalAlpha = Math.max(0, 1 - p.t / .7); g.fillStyle = p.t < .25 ? '#ffffff' : '#bfe3f2'; g.fillRect(Math.round(p.x), Math.round(p.y), 3, 3); }
+  for (const p of splash) { p.t += dt; p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; g.globalAlpha = Math.max(0, 1 - p.t / .7); g.fillStyle = p.dust ? (p.t < .25 ? '#e8d8b0' : '#b89a6a') : p.t < .25 ? '#ffffff' : '#bfe3f2'; g.fillRect(Math.round(p.x), Math.round(p.y), 3, 3); }
   g.globalAlpha = 1; for (let i = splash.length - 1; i >= 0; i--) if (splash[i].t > .7) splash.splice(i, 1);
 }
 // ---------- growth: guests served fill the permit gauge; a permit builds one building; served guests also raise the island's level ----------
@@ -335,11 +335,14 @@ function frame(t) {
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
   g.clearRect(0, 0, map.width, map.height); if (landAnim) drawLandAnim(dt); else g.drawImage(ground, 0, 0);
   const outline = (x, z, n, color) => { const pts = [pr.P(x, z), pr.P(x + n, z), pr.P(x + n, z + n), pr.P(x, z + n)]; g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.stroke(); };
-  if (hover && !building) outline(hover.x, hover.z, PLOT[size], hover.door ? '#2fbf71' : '#e2432f');
+  if (hover && !building) outline(hover.x, hover.z, moving ? PLOT[moving.size] : PLOT[size], hover.door || hover.swap ? '#2fbf71' : '#e2432f');
+  if (moving) { const mp0 = myDoc.plots[moving.key]; if (mp0) outline(mp0.x, mp0.z, PLOT[mp0.size], 'rgba(255,255,255,.55)'); }
   const all = allPlots();
   if (current?.key) { const p = all.find(x => x.key === current.key); if (p) outline(p.x, p.z, PLOT[p.size], '#ffd166'); }
   const items = [], tops = {};
-  for (const p of all) { if (!p.b) continue; const s = sprite(p); if (!s) continue; const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2); tops[p.key] = [px, py - s.anchor.y + 6];
+  if (moving && hover) { const p = all.find(q => q.key === moving.key), sp = p && sprite(p); if (sp) { const n = PLOT[p.size], [px, py] = pr.P(hover.x + n / 2, hover.z + n / 2), lift = 10 + Math.sin(performance.now() / 160) * 2;
+    items.push({ d: 1e9, draw: () => { g.globalAlpha = .85; g.drawImage(sp.canvas, Math.round(px - sp.anchor.x), Math.round(py - sp.anchor.y - lift)); g.globalAlpha = 1; } }); } }
+  for (const p of all) { if (!p.b || (moving && p.key === moving.key)) continue; const s = sprite(p); if (!s) continue; const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2); tops[p.key] = [px, py - s.anchor.y + 6];
     items.push({ d: p.x + p.z + n, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), key: p.key, s, px, py }); }
   if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
@@ -498,14 +501,17 @@ setInterval(() => {
 const mapXY = (e) => { const r = map.getBoundingClientRect(); return [(e.clientX - r.left) * map.width / r.width, (e.clientY - r.top) * map.height / r.height]; };
 const takenSet = () => { const t = new Set(); for (const p of allPlots()) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) t.add(i + ',' + k); return t; };
 map.addEventListener('pointermove', (e) => {
-  if (!mySlot || building || !buildMode) { hover = null; return; }
-  const [sx, sy] = mapXY(e), [fx, fz] = pr.inv(sx, sy), n = PLOT[size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2);
+  if (!mySlot || building || !(buildMode || moving)) { hover = null; return; }
+  const [sx, sy] = mapXY(e), [fx, fz] = pr.inv(sx, sy);
+  if (moving) { hover = moveTarget(fx, fz); return; }
+  const n = PLOT[size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2);
   hover = slotAt(Math.floor(fx), Math.floor(fz)) === mySlot ? { x, z, door: placePlot(world, mySlot, x, z, n, takenSet()) } : null;
 });
 map.addEventListener('pointerleave', () => { hover = null; });
 map.addEventListener('click', (e) => {
   if (building || dragged) return;
   const [sx, sy] = mapXY(e);
+  if (moving) { const [fx, fz] = pr.inv(sx, sy); return dropMove(moveTarget(fx, fz)); }
   for (const it of [...drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
     if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return showBuilding(it.key); }
   const [fx, fz] = pr.inv(sx, sy), s = slotAt(Math.floor(fx), Math.floor(fz));
@@ -678,7 +684,40 @@ function celebrate(title, sub) {
 $('d-home').onclick = () => { setBuildMode(false); if (panel.hidden || current) showHome(); else closePanel(); };   // open my island; a second press closes it
 $('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.autoInvest = !myDoc.wallet.autoInvest; save(true); dockState(); toast(!myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
 function dockState() { const auto = !!myDoc && !!myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = auto ? '자동 켬' : '자동 끔'; }
-addEventListener('keydown', (e) => { if (e.key === 'Escape' && buildMode) setBuildMode(false); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && buildMode) setBuildMode(false); if (e.key === 'Escape' && moving) cancelMove(); });
+// ---------- moving a building: it lifts, follows the pointer, and lands where it fits; landing on another of mine of the same size swaps them ----------
+let moving = null;
+function startMove(key) {
+  const p = myDoc?.plots[key]; if (!p) return;
+  if (watching) closeInside(); setBuildMode(false); closePanel();
+  moving = { key, size: p.size }; hover = null; toast('↔ 옮길 자리를 누르세요 · 같은 크기 내 건물을 누르면 자리를 바꿔요 · Esc 취소');
+}
+function cancelMove() { moving = null; hover = null; toast(''); }
+function moveTarget(fx, fz) {   // where the moved building would land under the pointer
+  const n = PLOT[moving.size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2);
+  if (slotAt(Math.floor(fx), Math.floor(fz)) !== mySlot) return null;
+  // the same-sized building of mine under the pointer: swap
+  const other = Object.entries(myDoc.plots).find(([k, p]) => k !== moving.key && p.size === moving.size && fx >= p.x && fx < p.x + n && fz >= p.z && fz < p.z + n);
+  if (other) return { x: other[1].x, z: other[1].z, swap: other[0] };
+  const taken = new Set(); for (const p of allPlots()) if (p.key !== moving.key) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) taken.add(i + ',' + k);
+  return { x, z, door: placePlot(world, mySlot, x, z, n, taken) };
+}
+function dropMove(t) {
+  if (!t || (!t.door && !t.swap)) return toast('길에 닿은 빈 땅이나, 같은 크기 내 건물을 누르세요 · Esc 취소', 1800);
+  const a = myDoc.plots[moving.key], plots = { ...myDoc.plots }; delete plots[moving.key];
+  const at = (p, x, z, door) => ({ ...p, x, z, door });
+  if (t.swap) {   // exchange places; each finds its door again from its new spot
+    const b = plots[t.swap]; delete plots[t.swap];
+    const doorOfSpot = (x, z, n, skip) => { const taken = new Set(); for (const p of allPlots()) if (!skip.includes(p.key)) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) taken.add(i + ',' + k); return placePlot(world, mySlot, x, z, n, taken); };
+    const n = PLOT[a.size], da = doorOfSpot(b.x, b.z, n, [moving.key, t.swap]), db = doorOfSpot(a.x, a.z, n, [moving.key, t.swap]);
+    if (!da || !db) return toast('그 자리끼리는 바꿀 수 없어요', 1600);
+    plots[`${mySlot}_${b.x}_${b.z}`] = at(a, b.x, b.z, da); plots[`${mySlot}_${a.x}_${a.z}`] = at(b, a.x, a.z, db);
+  } else plots[`${mySlot}_${t.x}_${t.z}`] = at(a, t.x, t.z, t.door);
+  myDoc.plots = plots;
+  // a thump of dust where it lands
+  const n = PLOT[a.size], [px, py] = pr.P(t.x + n / 2, t.z + n / 2); for (let i = 0; i < 14; i++) splash.push({ x: px + (Math.random() - .5) * 40, y: py + (Math.random() - .5) * 10, vx: (Math.random() - .5) * 70, vy: -20 - Math.random() * 30, t: 0, dust: true });
+  moving = null; hover = null; toast(t.swap ? '⇄ 자리를 바꿨어요' : '쿵! 옮겼어요', 1300); rebuild(); save(true);
+}
 
 // ---------- panel ----------
 const panel = $('panel');
@@ -772,6 +811,7 @@ function manage(p) {
   if (role.serves) { const si = starsInfo(p), nx = si.checks.find(c => !c.ok);
     out.push(el('div', { class: 'card' }, el('span', {}, el('b', { class: 'stars' }, starText(si.stars)), el('div', { class: 'note' }, si.stars >= 3 ? `👑 VIP 손님이 와요 · 한 명 +${starBonus(si.stars)}동전` : '★3부터 VIP 손님이 와요 · 값도 올라요')),
       el('div', { class: 'checks' }, si.checks.map(c => el('span', { class: c.ok ? 'ok' : '' }, (c.ok ? '✓ ' : '○ ') + c.label))))); }
+  if (mineP) out.push(el('button', { class: 'ghost', on: { click: () => startMove(p.key) } }, '↔ 옮기기'));
   if (mineP && owned >= total) out.push(el('div', { class: 'card alert' }, el('span', {}, '가구를 다 채웠어요!', el('div', { class: 'note' }, '한 줄로 한 층을 올리면 새 자리가 생겨요')),
     el('button', { class: 'gold', on: { click: () => startExtend(p.key) } }, `🏗️ 증축 · 🎫1`)));
   out.push(el('div', { class: 'card' }, el('span', {}, `가구 ${owned}/${total}`, role.serves ? el('div', { class: 'note' }, `자리 ${r.seats} · 주문 창구 ${r.counters} · 조리 ${r.cooks} · 꾸밈 ${r.decor} — ${r.slow === 'seat' ? '자리가' : '주문이'} 막혀요`) : null),
@@ -1151,7 +1191,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, moveWithIsland(u, d)])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; } };
+window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
