@@ -14,9 +14,10 @@ function tip() {
 
 /** Which fixtures a fresh building starts with: its first counter and its first table (or seat, or shelf). */
 export function startingFixtures(fixtures, order) {
-  if (order?.length) {   // the building's own order: it opens with the first two kinds on its list
-    const out = [];
-    for (const k of order) { const i = fixtures.findIndex(f => f.kind === k); if (i >= 0) out.push(i); if (out.length === 2) break; }
+  if (order?.length) {   // the building's own order: it opens with the first kind on its list, and a place to sit if it has one
+    const present = order.filter(k => fixtures.some(f => f.kind === k)), first = present[0];
+    const seat = present.find(k => FIX_ROLE(k) === 'seat' && k !== first) ?? (fixtures.find(f => FIX_ROLE(f.kind) === 'seat' && f.kind !== first)?.kind);
+    const kinds = [first, seat ?? present[1]].filter(Boolean), out = kinds.map(k => fixtures.findIndex(f => f.kind === k)).filter(i => i >= 0);
     if (out.length) return out;
   }
   const tr = trackOrder(fixtures), out = [];

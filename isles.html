@@ -71,6 +71,15 @@
   .dock button.ready { animation:nudge 1.6s infinite; } @keyframes nudge { 0%, 70%, 100% { transform:none; } 80% { transform:translateY(-4px); } 90% { transform:translateY(0); } }
   .gauge { display:inline-block; width:70px; height:8px; background:#e2d6bd; border-radius:999px; overflow:hidden; vertical-align:middle; margin-left:4px; } .gauge i { display:block; height:100%; background:var(--accent); border-radius:999px; }
   .lv { font:700 12px var(--f-ui); color:#fff; background:var(--accent); border-radius:999px; padding:1px 8px; margin-right:6px; }
+  .guide { position:fixed; z-index:45; left:14px; bottom:96px; display:flex; align-items:flex-end; gap:8px; max-width:min(440px, calc(100vw - 28px)); animation:pop .4s cubic-bezier(.2,1.6,.4,1); pointer-events:none; }
+  .guide[hidden] { display:none; } .gbird { font-size:52px; line-height:1; animation:bob 1.2s ease-in-out infinite; filter:drop-shadow(0 3px 0 rgba(0,0,0,.25)); }
+  @keyframes bob { 50% { transform:translateY(-6px) rotate(-4deg); } }
+  .gbub { position:relative; background:#fff; border-radius:16px; padding:10px 14px; box-shadow:0 5px 0 rgba(0,0,0,.25); font-size:15px; line-height:1.5; white-space:pre-line; pointer-events:auto; }
+  .gbub::before { content:''; position:absolute; left:-8px; bottom:14px; border:8px solid transparent; border-right-color:#fff; border-left:0; }
+  .gname { font:400 13px var(--f-disp); color:var(--accent); } .grow2 { display:flex; gap:6px; margin-top:6px; } .grow2 button { padding:6px 14px; } .grow2 .skip { background:none; box-shadow:none; color:var(--dim); font-weight:400; padding:6px 4px; }
+  .garrow { position:fixed; z-index:46; color:var(--gold); font-size:34px; text-shadow:0 3px 0 #9a6f14, 0 0 8px #fff; transform:translate(-50%, -100%); pointer-events:none; animation:point .7s ease-in-out infinite; }
+  .garrow[hidden] { display:none; } @keyframes point { 50% { margin-top:-10px; } }
+  .glow { box-shadow:0 0 0 4px #fff, 0 0 0 8px var(--gold), 0 0 24px 8px rgba(227,167,47,.8) !important; border-radius:12px; }
   @media (max-width:760px) { .panel { left:8px; right:8px; top:auto; width:auto; max-height:52vh; } .wants { display:none; } }
   .panel h2 { margin:0; font:400 21px var(--f-disp); } .panel h3 { margin:4px 0 0; font:400 16px var(--f-disp); }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -112,6 +121,8 @@
   <div class="wzoom"><button id="wplus">＋</button><button id="wminus">－</button></div><div class="wcard" id="wcard" hidden></div></div>
 <div class="toast" id="toast" hidden></div>
 <div class="cards" id="cards" hidden></div>
+<div class="guide" id="guide" hidden><div class="gbird">🐦</div><div class="gbub"><div class="gname">끼룩이</div><div id="gtext"></div><div class="grow2" id="gbtns"></div></div></div>
+<div class="garrow" id="garrow" hidden>▼</div>
 <nav class="dock" id="dock">
   <div class="sizes" id="sizes" hidden></div>
   <button id="d-build"><span class="ic">🏗️</span>짓기</button>
@@ -195,6 +206,10 @@ function rebuild() {
   if (!scrolled) { scrolled = true; setTimeout(() => scrollToSlot(mySlot || 1), 50); }
   if (!current && !mySlot && panel.hidden) showHome();
   else if (mySlot && joinShown) closePanel();   // the join card goes away once my island is known
+  if (myDoc && mySlot && !guided) { guided = true; const w = myDoc.wallet, none = !Object.keys(myDoc.plots).length;
+    if (w.tut === undefined && none) w.tut = 0;
+    if (w.tut >= 2 && w.tut <= 5 && none) w.tut = 1;   // came back in the middle of the first build: start it again from [짓기]
+    guide(); }
 }
 const fxCache = new Map();
 function fixturesOf(p) { const k = p.key + ':' + p.b.at; if (!fxCache.has(k)) { let f = []; try { f = buildSection(normalize(p.b.input)).fixtures; } catch {} fxCache.set(k, f); } return fxCache.get(k); }
@@ -228,7 +243,7 @@ const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
 const sprites = new Map(), pops = [];
 let current = null, size = 'S', hover = null, building = null, drawn = [], buildMode = false;
-let watching = null, joinShown = false, boardName = BOARD === 'main' ? '첫 군도' : '';   // the building whose inside is open; the join card is up
+let guided = false, watching = null, joinShown = false, boardName = BOARD === 'main' ? '첫 군도' : '';   // the building whose inside is open; the join card is up
 const earned = [];           // [time, coins] my shops earned, for coins per minute
 function sprite(p) {
   const k = p.key + ':' + p.b.at, s = sprites.get(p.key); if (s && s.k === k) return s;
@@ -245,7 +260,7 @@ function frame(t) {
       if (mine) { countGuest(); const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
       if (watching?.key === e.lot) watching.view.sim.spawn(); continue;
     }
-    if (mine) { countGuest(); earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
+    if (mine) { tutEvent('coin'); countGuest(); earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
@@ -275,7 +290,8 @@ function frame(t) {
   for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, tp[0], y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, tp[0], y); g.globalAlpha = 1; }
   // my shops running low on stock show a red mark
   for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
-  drawn = items;
+  drawn = items; lastTops = tops;
+  if (tutSpot && buildMode && tutOn() && TUT[tutStep()].map === 'spot') { const t = (Math.sin(performance.now() / 180) + 1) / 2; outline(tutSpot.x, tutSpot.z, PLOT[size], `rgba(255,${200 + 55 * t | 0},80,${.6 + .4 * t})`); }
   requestAnimationFrame(frame);
 }
 // ---------- boats: customers come by sea to islands that have shops ----------
@@ -345,7 +361,7 @@ setInterval(hud, 500); hud();
 // furniture comes in by itself: every 3 s, the next piece (of any shop) that raises income most per coin,
 // keeping enough for the next batch of supplies. Off when the owner turns it off on the home panel.
 setInterval(() => {
-  if (!myDoc || myDoc.wallet.manual) return;
+  if (!myDoc || myDoc.wallet.manual || tutOn()) return;   // during the first visit the owner buys by hand
   let best = null;
   for (const p of allPlots()) {
     if (p.owner !== me || !p.b || !roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves) continue;
@@ -390,7 +406,10 @@ map.addEventListener('click', (e) => {
   for (const it of [...drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
     if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return showBuilding(it.key); }
   const [fx, fz] = pr.inv(sx, sy), s = slotAt(Math.floor(fx), Math.floor(fz));
-  if (buildMode) { if (s === mySlot && hover?.door) { setBuildMode(false); return startBuild(hover.x, hover.z, hover.door); } return toast(s === mySlot ? '길에 닿은 빈 땅을 고르세요' : '내 섬 땅을 누르세요', 1500); }
+  if (buildMode) {   // the spot comes from the tap itself (touch screens have no hover)
+    const n = PLOT[size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2), door = s === mySlot ? placePlot(world, mySlot, x, z, n, takenSet()) : null;
+    if (door) { setBuildMode(false); return startBuild(x, z, door); }
+    return toast(s === mySlot ? '길에 닿은 빈 땅을 고르세요' : '내 섬 땅을 누르세요', 1500); }
   if (s && s !== mySlot) return showIsland(s);
   if (!panel.hidden && current?.kind !== 'build') closePanel();
 });
@@ -411,6 +430,51 @@ function setBuildMode(on) {
   else toast('');
 }
 $('d-build').onclick = () => { if (!mySlot) return showHome(); if (buildMode) return setBuildMode(false); openCards(); };
+// ---------- the first visit: 끼룩이 walks a new owner through one whole loop, one step at a time ----------
+const TUT = [
+  { say: '끼룩! 여기가 네 섬이야.\n섬 사람들이 첫 가게를 기다리고 있어!', btn: '좋아!' },
+  { say: '허가증 🎫이 한 장 있어.\n아래 [짓기]를 눌러 봐!', el: '#d-build', on: 'cards' },
+  { say: '섬 사람들 부탁이야.\n마음에 드는 카드를 하나 골라!', on: 'card' },
+  { say: '반짝이는 땅을 눌러!\n거기에 지을 거야.', map: 'spot', on: 'place' },
+  { say: '어떤 가게일까?\n한 줄로 쓰거나, 아래 예시를 눌러 봐.', el: '#panel .chips', on: 'line' },
+  { say: 'Claude가 짓는 중이야…\n건물이 올라가는 거 봐! 끼룩', on: 'built' },
+  { say: '완공! 🎉\n저기 봐, 배가 손님을 싣고 와!', on: 'coin', boat: true },
+  { say: '첫 수입이야! 동전이 쌓였지?\n이제 가게를 눌러 볼래?', map: 'shop', on: 'info' },
+  { say: '[가게 안으로]를 눌러서\n안을 들여다봐!', el: '#go-inside', on: 'inside' },
+  { say: '손님이 들어와서 돈을 내고 가.\n크게 깜빡이는 + 를 눌러 가구를 들이면 더 많이 받아!', on: 'furnish' },
+  { say: '잘했어! 손님을 받을수록 🎫 게이지가 차.\n다 차면 또 지을 수 있어. 섬을 키워 보자!', btn: '시작!' },
+];
+const tutStep = () => myDoc?.wallet?.tut ?? 99;
+const tutOn = () => !!mySlot && tutStep() < TUT.length;
+function guide() {   // show the current step
+  const g = $('guide'); document.querySelectorAll('.glow').forEach(e => e.classList.remove('glow'));
+  if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
+  const st = TUT[tutStep()]; g.hidden = false; $('gtext').textContent = st.say;
+  $('gbtns').replaceChildren(...[st.btn ? el('button', { class: 'gold', on: { click: () => tutNext() } }, st.btn) : null,
+    tutStep() < TUT.length - 1 ? el('button', { class: 'skip', on: { click: () => { myDoc.wallet.tut = 99; dirty = true; save(true); guide(); } } }, '건너뛰기') : null].filter(Boolean));
+  if (st.boat && mySlot) nextBoat.set(mySlot, 0);   // the first boat comes at once
+  if (st.on === 'info' && current?.kind === 'info') return tutNext();   // the shop's card is already open
+}
+function tutNext() { myDoc.wallet.tut = tutStep() + 1; dirty = true; save(true); guide(); }
+function tutEvent(name) { if (tutOn() && TUT[tutStep()].on === name) tutNext(); }
+// where the arrow points: an element on the page, or a spot on the map
+let tutSpot = null;
+function guideArrow() {
+  const a = $('garrow'); if (!tutOn()) { a.hidden = true; return; }
+  const st = TUT[tutStep()]; let x = null, y = null;
+  if (st.el) { const e = document.querySelector(st.el); if (e && e.offsetParent) { e.classList.add('glow'); const r = e.getBoundingClientRect(); x = r.left + r.width / 2; y = r.top - 4; } }
+  if (st.map === 'spot' && buildMode) {
+    if (!tutSpot) { const [cx, cz] = centerOf(mySlot), n = PLOT[size], taken = takenSet();
+      for (let d = 1; d < 6 && !tutSpot; d++) for (const [dx, dz] of [[1, 1], [-n, 1], [1, -n], [-n, -n]]) { const door = placePlot(world, mySlot, cx + dx * d, cz + dz * d, n, taken); if (door) { tutSpot = { x: cx + dx * d, z: cz + dz * d, door }; break; } } }
+    if (tutSpot) { const r = map.getBoundingClientRect(), [px, py] = pr.P(tutSpot.x + PLOT[size] / 2, tutSpot.z + PLOT[size] / 2); x = r.left + px * r.width / map.width; y = r.top + py * r.height / map.height - 10; }
+  }
+  if (st.map === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && lastTops[p.key]; if (tp) { const r = map.getBoundingClientRect(); x = r.left + tp[0] * r.width / map.width; y = r.top + tp[1] * r.height / map.height - 8; } }
+  if (x === null) { a.hidden = true; return; }
+  a.hidden = false; a.style.left = x + 'px'; a.style.top = y + 'px';
+}
+let lastTops = {};
+setInterval(guideArrow, 120);
+
 // ---------- request cards: what the island wants, dealt when there is a permit to spend ----------
 let card = null;
 function openCards() {
@@ -424,7 +488,7 @@ function openCards() {
   const box = $('cards');
   const deal = (need, i) => {
     const r = need ? REQ[need] : null, wait = need ? dm[need].waiting : 0;
-    const c = el('button', { class: 'rcard' + (need ? '' : ' free'), on: { click: () => { card = { need }; box.hidden = true; setBuildMode(true); } } },
+    const c = el('button', { class: 'rcard' + (need ? '' : ' free'), on: { click: () => { card = { need }; box.hidden = true; setBuildMode(true); tutEvent('card'); } } },
       el('span', { class: 'big' }, r ? r.icon : '✏️'), el('b', {}, r ? `“${r.ko}”` : '마음대로'), el('small', {}, r ? r.sub : '무엇이든 한 줄로'),
       r ? el('span', { class: 'need' }, wait ? `손님 ${wait}명이 기다려요` : have.has(need) ? '더 있으면 좋겠대요' : '섬에 아직 없어요') : null,
       el('span', { class: 'prize' }, r ? `들어주면 +${REQ_BONUS}동전 · 손님 무리` : '보너스 없음'));
@@ -432,7 +496,7 @@ function openCards() {
   };
   box.replaceChildren(el('h2', {}, `🎫 ${w.permits}장 — 무엇을 지을까요?`), el('div', { class: 'row3' }, ...picks.map(deal), deal(null, 2)),
     el('button', { class: 'ghost', style: 'background:#fbf6ec', on: { click: () => { box.hidden = true; } } }, '나중에'));
-  box.hidden = false;
+  box.hidden = false; tutEvent('cards');
 }
 let celebT = 0;
 function celebrate(title, sub) {
@@ -492,8 +556,8 @@ function boatCard() {
 }
 async function join(s) {
   if (owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');
-  myDoc = { slot: s, at: now(), plots: {}, half: {}, wallet: { coins: START_COINS, unlocked: ['S', 'M', 'L'] } };
-  docs.set(me, myDoc); rebuild(); await save(true); showHome();
+  myDoc = { slot: s, at: now(), plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0 } };
+  docs.set(me, myDoc); rebuild(); await save(true); closePanel(); scrollToSlot(s); guide();
 }
 async function unlock(s) {
   if (myDoc.wallet.coins < PRICE[s]) return showHome(`${s} 크기는 ${PRICE[s]} 동전이 필요해요. 지금 ${myDoc.wallet.coins}개.`);
@@ -519,6 +583,7 @@ function section(input, owned) {
 }
 function showBuilding(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return showHome();
+  if (p.owner === me) setTimeout(() => tutEvent('info'), 0);
   current = { kind: 'info', key };
   const n = normalize(p.b.input), role = roleOf(n.type, n.levels), shop = sim.shops.get(key);
   const what = [role.serves ? `${NEEDS[role.serves].ko}을(를) 채움` : null, role.source ? `사람 +${role.source}` : null].filter(Boolean).join(' · ') || '구경거리';
@@ -533,7 +598,7 @@ function manage(p) {
   const n = normalize(p.b.input), role = roleOf(n.type, n.levels), r = ratesOf(p), owned = ownedOf(p).size, total = fxTotal(p), mineP = p.owner === me;
   const out = [];
   out.push(el('div', { class: 'card' }, el('span', {}, `가구 ${owned}/${total}`, role.serves ? el('div', { class: 'note' }, `자리 ${r.seats} · 주문 창구 ${r.counters} · 조리 ${r.cooks} · 꾸밈 ${r.decor} — ${r.slow === 'seat' ? '자리가' : '주문이'} 막혀요`) : null),
-    el('button', { class: mineP ? 'gold' : '', on: { click: () => openInside(p.key) } }, mineP ? '가게 안으로' : '안 구경하기')));
+    el('button', { class: mineP ? 'gold' : '', id: mineP ? 'go-inside' : null, on: { click: () => openInside(p.key) } }, mineP ? '가게 안으로' : '안 구경하기')));
   if (role.serves && mineP) {
     const mp = myDoc.plots[p.key], stock = mp.stock ?? START_STOCK, buy = el('button', { class: 'gold', on: { click: async () => { myDoc.wallet.coins -= RESTOCK.coins; mp.stock = stock + RESTOCK.units; rebuild(); await save(true); showBuilding(p.key); } } }, `재료 ${RESTOCK.units}개 사기 · ${RESTOCK.coins}`);
     buy.disabled = myDoc.wallet.coins < RESTOCK.coins;
@@ -544,13 +609,14 @@ function manage(p) {
 
 // ---------- inside a building: its own simulation, guests come from the map's queue ----------
 function openInside(key) {
+  setTimeout(() => tutEvent('inside'), 0);
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   const mineP = p.owner === me && !!myDoc?.plots[key], owned = ownedOf(p), n = normalize(p.b.input);
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
     maxWidth: Math.min(innerWidth - 60, 1100),
     coins: mineP ? () => myDoc.wallet.coins : undefined,
-    buy: (i, kind, cost) => { if (myDoc.wallet.coins < cost) return false; myDoc.wallet.coins -= cost; const mp = myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
+    buy: (i, kind, cost) => { if (myDoc.wallet.coins < cost) return false; setTimeout(() => tutEvent('furnish'), 300); myDoc.wallet.coins -= cost; const mp = myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
   });
   watching = { key, view, mine: mineP, earned: 0 };
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
@@ -605,7 +671,7 @@ const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어�
 function startBuild(x, z, door) {
   if (Object.keys(myDoc.plots).length >= MAX_PLOTS) return showHome(`내 섬에는 ${MAX_PLOTS}채까지 지을 수 있어요.`);
   if (G().permits <= 0) return toast('허가증이 없어요', 1800);
-  const n = PLOT[size], sz = size, req = card?.need ? REQ[card.need] : null, need = card?.need ?? null; current = { kind: 'build' };
+  const n = PLOT[size], sz = size, req = card?.need ? REQ[card.need] : null, need = card?.need ?? null; current = { kind: 'build' }; tutSpot = null; setTimeout(() => tutEvent('place'), 0);
   const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
   const ideas = req ? req.ex : SUGGEST[sz], input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + ideas[0] });
   const go = el('button', {}, '여기에 짓기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
@@ -618,7 +684,7 @@ function startBuild(x, z, door) {
     err.textContent = ''; log.replaceChildren();
     if (bad(line)) { err.textContent = '그 표현으로는 지을 수 없어요.'; return; }
     if (!sample) { err.textContent = '이 화면에서는 Claude를 부를 수 없어요.'; return; }
-    go.disabled = true;
+    go.disabled = true; tutEvent('line');
     const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); building = { x, z, size: sz, stage };
     note('…', '구상 중');
     const seen = []; let raw = '', broken = 0;
@@ -643,7 +709,7 @@ function startBuild(x, z, door) {
       const answered = need && roleOf(s.type, s.levels).serves === need;
       if (answered) { myDoc.wallet.coins += REQ_BONUS; const d = dockOf(mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
       else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), 400);
-      card = null;
+      card = null; tutEvent('built');
       rebuild(); await save(true);
       const role = roleOf(s.type, s.levels);
       note('완성', `${s.name || TYPE_KO[s.type]} · ${s.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);
@@ -819,7 +885,7 @@ if (db) {
     for (const d of snap.docs) docs.set(d.id, d.data() ?? {});
     // my own doc: take the stored copy only when it is newer than what this page holds (another tab, or an edit from outside)
     if (me && docs.has(me)) { const remote = docs.get(me);
-      if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { coins: remote.wallet?.coins ?? 0, unlocked: remote.wallet?.unlocked ?? ['S'], manual: !!remote.wallet?.manual } };
+      if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { ...(remote.wallet ?? {}), coins: remote.wallet?.coins ?? 0 } };
       docs.set(me, myDoc); }
     else if (me && myDoc) docs.set(me, myDoc);
     rebuild(); resolveNames();
