@@ -123,7 +123,7 @@ export class TownSim {
       if (p.inside || p.inQueue) continue;   // someone in a queue waits there
       // wants appear over time; a want with nowhere to go turns into a sigh after a while
       if (!p.need && !p.target && !p.dock && this.rnd() < dt * .06) { p.need = NEED_KEYS[Math.floor(this.rnd() * NEED_KEYS.length)]; p.since = this.t; p.mood = 0; this.route(p); }
-      if (p.need && !p.target && this.t - p.since > (p.dock ? 14 : this.serves(p.need) ? 20 : 75)) { p.need = null; p.mood = 2; }
+      if (p.need && !p.target && this.t - p.since > (p.patience ?? (p.dock ? 14 : this.serves(p.need) ? 20 : 75))) { p.need = null; p.mood = 2; }
       if (p.need && !p.target && (!p.tried || (Math.floor(p.t) % 4 === 0 && this.rnd() < dt))) { p.tried = true; this.route(p); }
       if (p.dock && !p.need && !p.target) {
         const here = [Math.floor(p.x), Math.floor(p.z)];
