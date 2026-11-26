@@ -62,7 +62,8 @@ import { emptyBuilding, applyStep, buildPrompt } from './src/v2/steps.js';
 import { check, missingParts, revisePrompt } from './src/v2/check.js';
 import { normalize } from './src/v2/spec.js';
 import { TYPE_KO } from './src/v2/catalog.js';
-import { SLOTS, WORLD, centerOf, neighbours, bridgeId, makeIsles, placePlot, PLOT, islesProjection, drawIsles, slotAt } from './src/v2/isles.js';
+import { SLOTS, WORLD, centerOf, neighbours, bridgeId, makeIsles, placePlot, PLOT, islesProjection, drawIsles, slotAt, dockOf } from './src/v2/isles.js';
+import { buildSection } from './src/v2/interior.js';
 import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
 
@@ -71,7 +72,8 @@ const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag)
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
 const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
-const PRICE = { S: 0, M: 40, L: 150 }, BRIDGE = 30, MAX_PLOTS = 8;
+const COST = { S: 10, M: 25, L: 60 }, BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 8 };
+const fxCost = (i) => 4 + 2 * i;   // the i-th piece of furniture
 const BAD = ['시발', '씨발', '병신', '좆', '개새', 'fuck', 'shit', 'bitch', 'nigger', 'nazi', '섹스', 'sex'];
 const bad = (t) => BAD.some(w => (t ?? '').toLowerCase().includes(w));
 const now = () => Date.now();
@@ -97,12 +99,14 @@ function rebuild() {
   // reset the walkers only when the road network changes (an island joined, a bridge finished)
   const sig = [...joined].sort((a, b) => a - b).join(',') + '|' + [...bridges].filter(([, h]) => h.a && h.b).map(([id]) => id).sort().join(',');
   if (sig !== roadSig) { roadSig = sig; sim.setArea({ w: world.w, d: world.d, isRoad: world.isRoad, lots: [] }); } else sim.A = { ...sim.A, isRoad: world.isRoad };
-  const built = new Map(); for (const p of all) if (p.b) { const n = normalize(p.b.input), w = PLOT[p.size]; built.set(p.key, { type: n.type, levels: n.levels, owner: p.owner, lot: { id: p.key, size: p.size, x: p.x, z: p.z, w, d: w, door: p.door } }); }
+  const built = new Map(); for (const p of all) if (p.b) { const n = normalize(p.b.input), w = PLOT[p.size]; built.set(p.key, { type: n.type, levels: n.levels, owner: p.owner, stock: p.stock ?? START_STOCK, fx: p.fx ?? 1, fxTotal: fxTotal(p), lot: { id: p.key, size: p.size, x: p.x, z: p.z, w, d: w, door: p.door } }); }
   sim.setBuildings(built);
   $('who').textContent = mySlot ? `${mySlot}번 섬` : '';
   if (!scrolled) { scrolled = true; setTimeout(() => scrollToSlot(mySlot || 1), 50); }
   if (!current) showHome();
 }
+const fxTotals = new Map();
+function fxTotal(p) { const k = p.key + ':' + p.b.at; if (!fxTotals.has(k)) { try { fxTotals.set(k, buildSection(normalize(p.b.input)).fixtures.length); } catch { fxTotals.set(k, 8); } } return fxTotals.get(k); }
 function allPlots() { const out = []; for (const [s, uid] of owners) { const d = docs.get(uid); for (const [key, p] of Object.entries(d?.plots ?? {})) out.push({ ...p, key, owner: uid, slot: s }); } return out; }
 async function save(force) {
   if (!db || !me || !myDoc) return;
@@ -120,7 +124,7 @@ let fit = false;
 const applyZoom = () => { map.style.width = fit ? '100%' : pr.width + 'px'; $('zoom').textContent = fit ? '가까이 보기' : '전체 보기'; };
 function scrollToSlot(s) { if (fit) return; const box = $('mapbox'), [cx, cz] = centerOf(s), [px, py] = pr.P(cx, cz); box.scrollTo({ left: px - box.clientWidth / 2, top: py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
-let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] });
+let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
 const sprites = new Map(), pops = [];
 let current = null, size = 'S', hover = null, building = null, drawn = [];
 function sprite(p) {
@@ -130,8 +134,13 @@ function sprite(p) {
 let last = performance.now();
 function frame(t) {
   const dt = Math.min(.05, (t - last) / 1000); last = t;
-  sim.step(dt);
-  for (const e of sim.events.splice(0)) { const mine = !!me && e.owner === me; if (mine) { myDoc.wallet.coins += e.coins; dirty = true; } pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 }); }
+  sim.step(dt); stepBoats(dt);
+  for (const e of sim.events.splice(0)) {
+    const mine = !!me && e.owner === me;
+    if (e.kind === 'empty') { pops.push({ key: e.lot, text: '재료 없음', mine, bad: true, t: 0 }); continue; }
+    if (mine) { myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
+    pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
+  }
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
   g.clearRect(0, 0, map.width, map.height); g.drawImage(ground, 0, 0);
   const outline = (x, z, n, color) => { const pts = [pr.P(x, z), pr.P(x + n, z), pr.P(x + n, z + n), pr.P(x, z + n)]; g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.stroke(); };
@@ -143,6 +152,7 @@ function frame(t) {
     items.push({ d: p.x + p.z + n, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), key: p.key, s, px, py }); }
   if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
+  for (const b of boats) items.push({ d: b.x + b.z, draw: () => drawBoat(b) });
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
   // island labels: owner names, empty slots invite
   g.textAlign = 'center';
@@ -155,9 +165,49 @@ function frame(t) {
     if (!uid) { g.font = '400 11px "Noto Sans KR", sans-serif'; g.fillStyle = 'rgba(255,255,255,.9)'; const [mx, my] = pr.P(cx + .5, cz + .5); g.fillText('+ 친구 초대', mx, my); }
   }
   g.font = '900 12px "Noto Sans KR", sans-serif';
-  for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, tp[0], y); g.fillStyle = p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, tp[0], y); g.globalAlpha = 1; }
+  for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, tp[0], y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, tp[0], y); g.globalAlpha = 1; }
+  // my shops running low on stock show a red mark
+  for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) <= 3 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
   drawn = items;
   requestAnimationFrame(frame);
+}
+// ---------- boats: customers come by sea to islands that have shops ----------
+const boats = [], nextBoat = new Map();
+function islandShops(slot) { return allPlots().filter(p => p.slot === slot && p.b && roleOf(normalize(p.b.input).type).serves && (p.owner === me ? (myDoc.plots[p.key]?.stock ?? START_STOCK) : (p.stock ?? START_STOCK)) > 0); }
+function stepBoats(dt) {
+  const t = performance.now() / 1000;
+  for (const s of world.joined) {
+    const shops = islandShops(s); if (!shops.length) { nextBoat.delete(s); continue; }
+    if (!nextBoat.has(s)) nextBoat.set(s, t + 3);
+    if (t >= nextBoat.get(s) && !boats.some(b => b.slot === s)) {
+      const d = dockOf(s); boats.push({ slot: s, x: d.out[0] + .5, z: d.out[1] + .5, to: [d.stop[0] + .5, d.stop[1] + .5], state: 'in', wait: 0, shops, people: Math.min(8, 2 + shops.length), t: 0 });
+      nextBoat.set(s, t + Math.max(10, 40 - 6 * shops.length));
+    }
+  }
+  for (const b of boats) {
+    b.t += dt;
+    if (b.state === 'wait') { b.wait -= dt; if (b.wait <= 0) { const d = dockOf(b.slot); b.state = 'out'; b.to = [d.out[0] + .5, d.out[1] + .5]; } continue; }
+    const dx = b.to[0] - b.x, dz = b.to[1] - b.z, dist = Math.hypot(dx, dz), v = 2.4 * dt;
+    if (dist <= v) {
+      b.x = b.to[0]; b.z = b.to[1];
+      if (b.state === 'in') {   // unload: most want what this island sells
+        const d = dockOf(b.slot), wants = [...new Set(b.shops.map(p => roleOf(normalize(p.b.input).type).serves))];
+        for (let k = 0; k < b.people; k++) sim.spawn(d.road, k * .45, Math.random() < .75 ? wants[k % wants.length] : NEED_KEYS[Math.floor(Math.random() * NEED_KEYS.length)], d.road);
+        b.state = 'wait'; b.wait = 9;
+      } else b.done = true;
+    } else { b.x += dx / dist * v; b.z += dz / dist * v; }
+  }
+  for (let i = boats.length - 1; i >= 0; i--) if (boats[i].done) boats.splice(i, 1);
+}
+function drawBoat(b) {
+  const [px, py] = pr.P(b.x, b.z), x = Math.round(px), y = Math.round(py + Math.sin(b.t * 3) * 1.5);
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(x - 12, y + 3, 24, 1);
+  g.fillStyle = '#6b4026'; g.beginPath(); g.moveTo(x - 13, y - 3); g.lineTo(x + 13, y - 3); g.lineTo(x + 9, y + 3); g.lineTo(x - 9, y + 3); g.closePath(); g.fill();
+  g.fillStyle = '#8a5a34'; g.fillRect(x - 13, y - 4, 26, 2);
+  g.fillStyle = '#3a2418'; g.fillRect(x, y - 24, 1, 21);
+  g.fillStyle = '#f4f1ea'; g.beginPath(); g.moveTo(x + 1, y - 23); g.lineTo(x + 12, y - 7); g.lineTo(x + 1, y - 7); g.closePath(); g.fill();
+  g.fillStyle = '#c0392b'; g.fillRect(x - 1, y - 27, 6, 3);
+  if (b.state !== 'out') for (let k = 0; k < Math.min(5, b.people); k++) { g.fillStyle = ['#c0392b', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2'][k]; g.fillRect(x - 9 + k * 4, y - 7, 2, 3); }
 }
 requestAnimationFrame(frame);
 applyZoom(); $('zoom').onclick = () => { fit = !fit; applyZoom(); if (!fit) scrollToSlot(mySlot || 1); };
@@ -220,13 +270,14 @@ function showHome(msg) {
   const mine = Object.keys(myDoc.plots).length;
   show(el('h2', {}, `${mySlot}번 섬 · 내 섬`),
     el('p', { class: 'note' }, '크기를 고르고 내 섬 땅 위에서 틀을 움직이세요. 초록이면 그 자리에 한 줄로 지을 수 있어요(길에 닿아야 해요).'),
-    el('div', { class: 'chips' }, Object.keys(PLOT).map(s => { const locked = !myDoc.wallet.unlocked.includes(s); return el('button', { class: s === size ? 'on' : '', on: { click: () => (locked ? unlock(s) : (size = s, showHome())) } }, `${s} ${PLOT[s]}×${PLOT[s]}${locked ? ` · ${PRICE[s]}` : ''}`); })),
+    el('p', { class: 'note' }, '가게를 지으면 배가 손님을 싣고 와요. 손님이 내는 돈으로 재료를 사고, 가구를 들이고, 더 지으세요.'),
+    el('div', { class: 'chips' }, Object.keys(PLOT).map(s => el('button', { class: s === size ? 'on' : '', on: { click: () => { size = s; showHome(); } } }, `${s} ${PLOT[s]}×${PLOT[s]} · ${COST[s]}동전`))),
     el('div', { class: 'note' }, `내 건물 ${mine}/${MAX_PLOTS}`), msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃 섬과 다리'), bridgeCards(), inviteCard());
 }
 async function join(s) {
   if (owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');
-  myDoc = { slot: s, at: now(), plots: {}, half: {}, wallet: { coins: 0, unlocked: ['S'] } };
+  myDoc = { slot: s, at: now(), plots: {}, half: {}, wallet: { coins: START_COINS, unlocked: ['S', 'M', 'L'] } };
   docs.set(me, myDoc); rebuild(); await save(true); showHome();
 }
 async function unlock(s) {
@@ -246,8 +297,8 @@ function showIsland(s) {
     el('div', { class: 'chips' }, ps.map(p => el('button', { on: { click: () => showBuilding(p.key) } }, normalize(p.b.input).name || TYPE_KO[normalize(p.b.input).type]))),
     el('button', { class: 'ghost', on: { click: () => showHome() } }, '돌아가기'));
 }
-function section(input) {
-  const { canvas, labels } = renderView(input, 'section'); const wrap = el('div', { class: 'secwrap' }, canvas);
+function section(input, owned) {
+  const { canvas, labels } = renderView(input, 'section', { owned }); const wrap = el('div', { class: 'secwrap' }, canvas);
   for (const l of labels) { const e = el('span', { class: 'lab' }, l.text); e.style.left = (l.x / canvas.width * 100) + '%'; e.style.top = (l.y / canvas.height * 100) + '%'; if (l.count > 1) e.append(el('b', {}, ' ×' + l.count)); wrap.append(e); }
   return wrap;
 }
@@ -259,9 +310,28 @@ function showBuilding(key) {
   show(el('h2', {}, n.name || TYPE_KO[n.type] || '건물'),
     el('div', { class: 'note' }, `${TYPE_KO[n.type] ?? n.type} · ${n.levels}층 · ${p.slot}번 섬 · ${nameOf(p.owner)}`),
     el('div', { class: 'note' }, what, shop?.serves ? ` · 줄 ${shop.queue.length}/${shop.cap} · 받은 손님 ${shop.served}` : ''),
-    el('div', { class: 'quote' }, `“${p.b.line}”`), el('div', { class: 'pics' }, renderView(p.b.input, 'ext').canvas, section(p.b.input)),
+    el('div', { class: 'quote' }, `“${p.b.line}”`), manage(p), el('div', { class: 'pics' }, renderView(p.b.input, 'ext').canvas, section(p.b.input, p.fx ?? 1)),
     el('div', { class: 'row' }, me && (p.owner === me || isOwner) ? el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거') : null, el('button', { class: 'ghost', on: { click: () => showHome() } }, '닫기')));
 }
+// running my shop: stock and furniture
+function manage(p) {
+  if (p.owner !== me) return el('div', { class: 'note' }, `가구 ${p.fx ?? 1}/${fxTotal(p)}`);
+  const mp = myDoc.plots[p.key], n = normalize(p.b.input), role = roleOf(n.type, n.levels), total = fxTotal(p), owned = mp.fx ?? 1;
+  const out = [];
+  if (role.serves) {
+    const stock = mp.stock ?? START_STOCK, buy = el('button', { class: 'gold', on: { click: async () => { myDoc.wallet.coins -= RESTOCK.coins; mp.stock = stock + RESTOCK.units; rebuild(); await save(true); showBuilding(p.key); } } }, `재료 ${RESTOCK.units}개 사기 · ${RESTOCK.coins}`);
+    buy.disabled = myDoc.wallet.coins < RESTOCK.coins;
+    out.push(el('div', { class: 'card' + (stock <= 3 ? ' alert' : '') }, el('span', {}, `재료 ${stock}개`, stock === 0 ? el('div', { class: 'err' }, '재료가 없어 손님이 그냥 돌아가요') : null), buy));
+  }
+  if (owned < total) {
+    const fixtures = buildSection(n).fixtures, next = fixtures[owned], cost = fxCost(owned);
+    const b = el('button', { class: 'gold', on: { click: async () => { myDoc.wallet.coins -= cost; mp.fx = owned + 1; rebuild(); await save(true); showBuilding(p.key); } } }, `들이기 · ${cost}`);
+    b.disabled = myDoc.wallet.coins < cost;
+    out.push(el('div', { class: 'card' }, el('span', {}, `가구 ${owned}/${total} · 다음: ${FIX_KO[next.kind] ?? next.kind}`, el('div', { class: 'note' }, '가구가 늘면 줄이 길어지고, 값이 오르고, 빨라져요')), b));
+  } else out.push(el('div', { class: 'card' }, el('b', {}, `가구 ${total}/${total} · 다 채웠어요`)));
+  return out;
+}
+const FIX_KO = { rug: '카펫', sofa: '소파', plant: '화분', counter: '카운터', stool: '의자', table4: '4인 테이블', table2: '2인 테이블', stove: '화구', fridge: '냉장고', prep: '조리대', toilet: '변기', sink: '세면대', gondola: '진열대', shelf: '선반', stall: '좌판', crates: '상자', rolldoor: '셔터', curtain: '커튼', bed: '침대', flat: '집 한 칸', wardrobe: '옷장', desk: '책상', desk1: '학생 책상', couch: '진료 침대', lowtable: '좌식 탁자', bench: '벤치', board: '칠판', kiosk: '매점', seats: '객석', stage: '무대', treadmill: '러닝머신', weights: '역기', locker: '사물함', pool: '수영장', lane: '레인', platform: '승강장', machine: '기계', conveyor: '컨베이어', car: '차', firetruck: '소방차', pedestal: '전시대', frame: '그림', tv: 'TV', altar: '제단', pew: '긴 의자', prayer: '기도 깔개', balls: '공', court: '코트', lamp: '조명', ring: '링', diamond: '야구장' };
 async function demolish(p) {
   if (p.owner === me) { const ps = { ...myDoc.plots }; delete ps[p.key]; myDoc.plots = ps; rebuild(); await save(true); return showHome(); }
   try { const ref = db.doc('i/' + p.owner), cur = await ref.get(), data = cur.data() ?? {}; const ps = { ...(data.plots ?? {}) }; delete ps[p.key]; await ref.set({ ...data, plots: ps }); showHome(); } catch { showHome('철거하지 못했어요.'); }
@@ -277,6 +347,7 @@ function fitToLot(input, n) {
 const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어빵 노점'], M: ['동네 빵집', '할머니 분식집', '네온사인 PC방'], L: ['12층 아파트', '레트로 볼링장', '작은 기차역'] };
 function startBuild(x, z, door) {
   if (Object.keys(myDoc.plots).length >= MAX_PLOTS) return showHome(`내 섬에는 ${MAX_PLOTS}채까지 지을 수 있어요.`);
+  if (myDoc.wallet.coins < COST[size]) return showHome(`${size} 건물은 ${COST[size]} 동전이 필요해요. 지금 ${myDoc.wallet.coins}개.`);
   const n = PLOT[size], sz = size; current = { kind: 'build' };
   const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
   const input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + SUGGEST[sz][0] });
@@ -307,7 +378,8 @@ function startBuild(x, z, door) {
       fitToLot(b.input, n); const s = normalize(b.input);
       if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; building = null; go.disabled = false; return; }
       const key = `${mySlot}_${x}_${z}`;
-      myDoc.plots = { ...myDoc.plots, [key]: { x, z, size: sz, door, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
+      myDoc.wallet.coins -= COST[sz];
+      myDoc.plots = { ...myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, fx: 1, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
       building = null; rebuild(); await save(true);
       const role = roleOf(s.type, s.levels);
       note('완성', `${s.name || TYPE_KO[s.type]} · ${s.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);

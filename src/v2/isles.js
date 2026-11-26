@@ -21,6 +21,14 @@ function islandTiles(slot) {
   }
   SHAPE.set(slot, set); return set;
 }
+/** The dock of an island: the road end on the open-sea side (north for the top row, south for the bottom row),
+ *  a two-tile pier, and the water tile where boats stop. */
+export function dockOf(slot) {
+  const [cx, cz] = centerOf(slot), top = slot <= COLS, tiles = islandTiles(slot);
+  let z = cz; while (tiles.has(cx + ',' + (z + (top ? -1 : 1)))) z += top ? -1 : 1;
+  const step = top ? -1 : 1;
+  return { road: [cx, z], pier: [[cx, z + step], [cx, z + 2 * step]], stop: [cx, z + 3 * step], out: [cx, z + 14 * step] };
+}
 export function slotAt(x, z) { for (let s = 1; s <= SLOTS; s++) if (islandTiles(s).has(x + ',' + z)) return s; return 0; }
 /** Tiles of the bridge between two neighbours, from a's side to b's side (only the water part). */
 export function bridgeTiles(a, b) {
@@ -86,6 +94,8 @@ export function drawIsles(world, pr, { taken = new Set(), mine = 0 } = {}) {
     else if (shore) tile(x, z, '#e6d6a8', '#d8c79a');
     else tile(x, z, s === mine ? ((x * 7 + z * 3) % 5 ? '#8fc070' : '#88b968') : ((x * 7 + z * 3) % 5 ? '#86b56a' : '#7fae63'), '#78a75d');
   }
+  // piers of joined islands
+  for (const s of world.joined) for (const [x, z] of dockOf(s).pier) tile(x, z, '#b8834e', '#7a4a2a');
   // half bridges: planks from the builder's side to the middle
   for (const [id, h] of world.bridges) {
     if (h.a && h.b) continue; const [a, b] = id.split('-').map(Number); const t = bridgeTiles(a, b), half = Math.ceil(t.length / 2);

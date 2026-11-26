@@ -63,7 +63,9 @@ Inside a claude.ai artifact the page calls Claude through the artifact runtime. 
 
 ## Archipelago
 
-`isles.html` is the social version: ten islands, one per friend. You start alone on your island with nine empty slots; invited friends pick a slot and their island fills in. On your own island you pick a size and build with one line, in place. Neighbouring islands are joined by a bridge that both owners build half of (30 coins each); when it is finished, people from one island walk over and spend in the other's shops, so each owner earns from the other's residents. Everyone shares one town simulation across the archipelago.
+`isles.html` is the social version: ten islands, one per friend. You start alone on your island with nine empty slots; invited friends pick a slot and their island fills in. On your own island you pick a size and build with one line, in place. Neighbouring islands are joined by a bridge that both owners build half of (30 coins each); when it is finished, people from one island walk over and spend in the other's shops, so each owner earns from the other's residents. Everyone shares one town simulation across the archipelago. Islands start empty: customers arrive by boat at each island's pier once it has a shop, walk to the shops they want, pay, and sail away. Every sale uses one unit of stock; an empty shop turns customers away until you buy more. Furniture inside starts as see-through ghosts; each piece you buy fills it in and gives the shop a longer queue, a higher price and faster service.
+
+![a restaurant cross-section with one, four and all pieces of furniture bought](docs/img/furniture.png)
 
 ![the archipelago with two example friends' islands and the empty island 1 between them](docs/img/isles.png)
 

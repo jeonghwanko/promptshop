@@ -1,0 +1,6 @@
+<!doctype html><meta charset="utf-8"><style>body{background:#e8dcc4;margin:0;display:flex;gap:20px;align-items:flex-end;padding:10px}canvas{image-rendering:pixelated}</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import { renderView } from '../src/v2/render.js';
+for (const owned of [1, 4, undefined]) { const { canvas, fixtures } = renderView({ type: 'restaurant', levels: 1 }, 'section', { owned }); canvas.style.width = canvas.width * 2 + 'px'; document.body.append(canvas); document.title = fixtures.length; }
+</script>

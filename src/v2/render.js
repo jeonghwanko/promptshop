@@ -24,7 +24,8 @@ export function renderView(input, view = 'ext', opt = {}) {
   sun.shadow.bias = -0.0015;
   scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
   let labels = [];
-  if (view === 'section') { const sec = buildSection(spec); scene.add(sec.group); labels = sec.labels; } else scene.add(buildExterior(spec));
+  let fixtures = [];
+  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; } else scene.add(buildExterior(spec));
 
   const box = new THREE.Box3().setFromObject(scene);
   let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
@@ -50,5 +51,5 @@ export function renderView(input, view = 'ext', opt = {}) {
   out.dataset.levels = spec.levels;
   const o = new THREE.Vector3(0, 0, 0).project(cam), anchor = { x: (o.x + 1) / 2 * W, y: (1 - o.y) / 2 * H };   // where the ground origin lands in the canvas
   const px = labels.map(l => { const v = l.pos.clone().project(cam); return { x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, text: l.text, count: l.count }; });
-  return { canvas: out, labels: px, anchor };
+  return { canvas: out, labels: px, anchor, fixtures };
 }

@@ -14,7 +14,7 @@ for (const [uid, f] of Object.entries(friends)) {
     for (let z = cz - 8; z <= cz + 8 && !spot; z++) for (let x = cx - 8; x <= cx + 8 && !spot; x++) { const door = placePlot(world, f.slot, x, z, n, taken); if (door) spot = { x, z, door }; }
     if (!spot) { console.log('no spot', uid, type); continue; }
     for (let i = spot.x; i < spot.x + n; i++) for (let k = spot.z; k < spot.z + n; k++) taken.add(i + ',' + k);
-    plots[`${f.slot}_${spot.x}_${spot.z}`] = { x: spot.x, z: spot.z, size, door: spot.door, b: { input: { type, name: line.split(' ').slice(-1)[0], scale: size, ...extra }, line, at: 1 } };
+    plots[`${f.slot}_${spot.x}_${spot.z}`] = { x: spot.x, z: spot.z, size, door: spot.door, stock: 999, fx: 4, b: { input: { type, name: line.split(' ').slice(-1)[0], scale: size, ...extra }, line, at: 1 } };
   }
   out[uid] = { slot: f.slot, at: 1, name: f.name, plots, half: f.half, wallet: { coins: 0, unlocked: ['S', 'M', 'L'] } };
 }

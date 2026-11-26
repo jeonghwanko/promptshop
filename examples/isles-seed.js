@@ -13,6 +13,8 @@ export const ISLES_SEED = {
      27,
      6
     ],
+    "stock": 999,
+    "fx": 4,
     "b": {
      "input": {
       "type": "bakery",
@@ -33,6 +35,8 @@ export const ISLES_SEED = {
      27,
      6
     ],
+    "stock": 999,
+    "fx": 4,
     "b": {
      "input": {
       "type": "house",
@@ -52,6 +56,8 @@ export const ISLES_SEED = {
      27,
      8
     ],
+    "stock": 999,
+    "fx": 4,
     "b": {
      "input": {
       "type": "house",
@@ -88,6 +94,8 @@ export const ISLES_SEED = {
      11,
      22
     ],
+    "stock": 999,
+    "fx": 4,
     "b": {
      "input": {
       "type": "pc_bang",
@@ -108,6 +116,8 @@ export const ISLES_SEED = {
      11,
      28
     ],
+    "stock": 999,
+    "fx": 4,
     "b": {
      "input": {
       "type": "apartment",
@@ -127,6 +137,8 @@ export const ISLES_SEED = {
      11,
      22
     ],
+    "stock": 999,
+    "fx": 4,
     "b": {
      "input": {
       "type": "kiosk",

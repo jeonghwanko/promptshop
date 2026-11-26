@@ -91,7 +91,14 @@ function squarify(items, x, z, w, d) {
  * @param {object} b  normalized building (spec.js), with b.floors (from normalizeFloors)
  * @returns {{group: THREE.Group, labels: {pos: THREE.Vector3, text: string}[]}}
  */
-export function buildSection(b) {
+/**
+ * @param b normalized building
+ * @param opts.owned how many fixtures are bought (in drawing order); the rest are drawn as see-through ghosts.
+ *        Leave it undefined to draw every fixture solid.
+ */
+export function buildSection(b, { owned } = {}) {
+  const placed = [];   // every fixture placed, in order: { kind, zone, floor }
+  let floorName = '';
   const root = new THREE.Group(), labels = [];
   const main = b.masses.find(m => m.at === 'main') ?? b.masses[0];
   const W = Math.min(7, Math.max(3.2, main.size[0] * 1.7)), D = Math.min(5, Math.max(2.6, main.size[1] * 1.7));
@@ -107,6 +114,7 @@ export function buildSection(b) {
   FIX = fixtures(box, cyl, ball);
 
   floors.forEach((f, i) => {
+    floorName = f.name;
     const g = new THREE.Group(); g.position.y = i * GAP; root.add(g); cur = g;
     const count = f.range[1] - f.range[0] + 1;
     // ghost plates under a merged floor
@@ -144,7 +152,7 @@ export function buildSection(b) {
     box(core.w * .8, h, core.d * .8, mat('#9fc3d0', { transparent: true, opacity: .25, depthWrite: false }), ox + core.x + core.w / 2, 0, oz + core.d / 2);
     box(.5, .5, .5, mat('#e3b448'), ox + core.x + core.w / 2, GAP * .5, oz + core.d / 2);
   }
-  return { group: root, labels };
+  return { group: root, labels, fixtures: placed };
 
   function partition(at, a0, a1, axis) {
     const len = a1 - a0, gap = Math.min(.7, len * .4), mid = (a0 + a1) / 2, m = mat(shade(wallColor, .92));
@@ -156,8 +164,15 @@ export function buildSection(b) {
 
   // ---------- placing fixtures by pattern ----------
   function place(kind, pattern, o, r) {
-    const x0 = ox + r.x, z0 = oz + r.z, w = r.w, d = r.d, F = FIX[kind];
-    if (!F) return;
+    const x0 = ox + r.x, z0 = oz + r.z, w = r.w, d = r.d, F0 = FIX[kind];
+    if (!F0) return;
+    // wrap the fixture so each one placed is counted, and drawn as a ghost until it is bought
+    const F = { size: F0.size, draw: (x, z, oo) => {
+      const before = cur.children.length, idx = placed.length;
+      F0.draw(x, z, oo);
+      placed.push({ kind, zone: r.zone, floor: floorName });
+      if (owned !== undefined && idx >= owned) for (const m of cur.children.slice(before)) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
+    } };
     const [fw, fd] = F.size;
     if (pattern === 'center') return F.draw(x0 + w / 2, z0 + d / 2, o);
     if (pattern === 'corner') return F.draw(x0 + w - .3, z0 + d - .3, o);
