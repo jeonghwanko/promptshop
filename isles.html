@@ -149,7 +149,7 @@ import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson, typesFor } from './src/v
 import { ISLES_SEED } from './examples/isles-seed.js';
 import { drawLand, countryAt, placeLabel } from './src/v2/geo.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
-import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCaps } from './src/v2/inside.js';
+import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCaps, LV_MAX, upgradeCost } from './src/v2/inside.js';
 import { FlowView } from './src/v2/flowview.js';
 
 const $ = (id) => document.getElementById(id);
@@ -234,8 +234,9 @@ function ownedOf(p) {
   return new Set(Array.from({ length: Math.min(fxTotal(p), d.fx ?? 1) }, (_, i) => i));
 }
 const helpersOf = (p) => (p.owner === me && myDoc?.plots[p.key] ? myDoc.plots[p.key].helpers : p.helpers) ?? 0;
+const levelsOf = (p) => (p.owner === me && myDoc?.plots[p.key] ? (myDoc.plots[p.key].lv ??= {}) : p.lv) ?? {};
 const HELPER_MAX = 4, helperCost = (n) => 30 * 2 ** n;
-const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, helpersOf(p));
+const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, helpersOf(p), levelsOf(p));
 function allPlots() { const out = []; for (const [s, uid] of owners) { const d = docs.get(uid); for (const [key, p] of Object.entries(d?.plots ?? {})) out.push({ ...p, key, owner: uid, slot: s }); } return out; }
 async function save(force) {
   if (!db || !me || !myDoc) return;
@@ -384,14 +385,25 @@ setInterval(() => {
   for (const p of allPlots()) {
     if (p.owner !== me || !p.b || !roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves) continue;
     const fx = fixturesOf(p), owned = ownedOf(p), order = p.b.input.order, base = BASE_COIN[p.size] ?? 1;
-    const kinds = bestNext(fx, owned, base, order, helpersOf(p)), up = Object.values(nextUp(fx, owned, undefined, order)); if (!up.length) continue;
+    const kinds = bestNext(fx, owned, base, order, helpersOf(p), levelsOf(p)), up = Object.values(nextUp(fx, owned, undefined, order)); if (!up.length) continue;
     // the piece that raises income most; when none does, the cheapest next piece (every piece still brings boats sooner)
     const i = up.find(j => kinds.includes(fx[j].kind)) ?? up.sort((a, b) => costOf(fx[a].kind) - costOf(fx[b].kind))[0];
-    const r0 = shopRates(fx, owned, base, helpersOf(p)), r1 = shopRates(fx, new Set([...owned, i]), base, helpersOf(p)), cost = costOf(fx[i].kind);
+    const r0 = shopRates(fx, owned, base, helpersOf(p), levelsOf(p)), r1 = shopRates(fx, new Set([...owned, i]), base, helpersOf(p), levelsOf(p)), cost = costOf(fx[i].kind);
     const value = (Math.max(0, r1.price / r1.interval - r0.price / r0.interval) + 1e-4) / cost;
     if (!best || value > best.value) best = { p, i, cost, value, kind: fx[i].kind };
   }
-  if (!best || myDoc.wallet.coins - best.cost < RESTOCK.coins) return;
+  if (!best) {   // every shop is full: level up what lifts income most per coin
+    for (const p of allPlots()) { if (p.owner !== me || !p.b || !roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves) continue;
+      const fx = fixturesOf(p), lv = levelsOf(p), base = BASE_COIN[p.size] ?? 1, r0 = shopRates(fx, ownedOf(p), base, helpersOf(p), lv);
+      for (const j of ownedOf(p)) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const r1 = shopRates(fx, ownedOf(p), base, helpersOf(p), { ...lv, [j]: L + 1 }), cost = upgradeCost(fx[j].kind, L);
+        const value = (r1.price / r1.interval - r0.price / r0.interval) / cost; if (value > 0 && (!best || value > best.value)) best = { p, j, cost, value, kind: fx[j].kind, L }; } }
+    if (!best || myDoc.wallet.coins - best.cost < RESTOCK.coins) return;
+    myDoc.wallet.coins -= best.cost; levelsOf(best.p)[best.j] = best.L + 1;
+    pops.push({ key: best.p.key, text: `${FIX_INFO[best.kind]?.[0] ?? best.kind} Lv${best.L + 1} -${best.cost}`, mine: true, t: 0 });
+    if (watching?.key === best.p.key) { watching.view.levels[best.j] = best.L + 1; watching.view.sim.setLevels(watching.view.levels); }
+    rebuild(); save(true); return;
+  }
+  if (myDoc.wallet.coins - best.cost < RESTOCK.coins) return;
   const mp = myDoc.plots[best.p.key]; if (!mp) return;
   myDoc.wallet.coins -= best.cost; mp.own = [...new Set([...ownedOf(best.p), best.i])]; mp.fx = mp.own.length;
   pops.push({ key: best.p.key, text: `${FIX_INFO[best.kind]?.[0] ?? best.kind} -${best.cost}`, mine: true, t: 0 });
@@ -704,9 +716,19 @@ function openInside(key) {
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
     maxWidth: Math.min(innerWidth - 60, 1100),
-    onHover: (i) => {   // what one more fixture would change, before it is bought
+    levels: levelsOf(p),
+    upgrade: (i, kind, cost, L) => { if (!mineP || myDoc.wallet.coins < cost) return false;
+      const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), { ...levelsOf(p), [i]: L }), role = FIX_ROLE(kind);
+      myDoc.wallet.coins -= cost; levelsOf(p)[i] = L; dirty = true; rebuild(); save(true); view.sim.price = ratesOf(p).price;
+      const node = role === 'seat' ? 2 : role === 'decor' ? 3 : 1, sup = watching?.supply ?? Infinity, dg = Math.min(b.gpm, sup) - Math.min(a.gpm, sup);
+      setTimeout(() => flow.pop(node, dg > .05 ? `+${dg.toFixed(1)}명/분` : b.price > a.price ? `+${b.price - a.price}동전` : `Lv${L}`), 50); flow.preview(''); return true; },
+    onHover: (i, mode) => {   // what one more fixture (or one more level) would change, before it is paid for
       if (i < 0) return flow.preview('');
-      const f = fixturesOf(p)[i], name = FIX_INFO[f.kind]?.[0] ?? f.kind, base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p));
+      if (mode === 'up') { const f = fixturesOf(p)[i], L = levelsOf(p)[i] ?? 1, name = FIX_INFO[f.kind]?.[0] ?? f.kind; if (L >= LV_MAX) return flow.preview(`${name}: 최고 레벨이에요`);
+        const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), { ...levelsOf(p), [i]: L + 1 });
+        const sup = watching?.supply ?? Infinity, ea = Math.min(a.gpm, sup), eb = Math.min(b.gpm, sup), dc = eb * b.price - ea * a.price;
+        return flow.preview(eb - ea > .05 ? `⬆ ${name} Lv${L + 1}: 받는 손님 ${ea.toFixed(1)} → ${eb.toFixed(1)}명/분 · 수입 +${Math.round(dc)}동전/분 · ${upgradeCost(f.kind, L)}동전` : b.price > a.price ? `⬆ ${name} Lv${L + 1}: 손님 한 명이 ${a.price} → ${b.price}동전 · ${upgradeCost(f.kind, L)}동전` : `⬆ ${name} Lv${L + 1}: 지금 막힌 곳이 아니라 당장은 그대로예요 · ${upgradeCost(f.kind, L)}동전`); }
+      const f = fixturesOf(p)[i], name = FIX_INFO[f.kind]?.[0] ?? f.kind, base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p), levelsOf(p));
       const sup = watching?.supply ?? Infinity, ea = Math.min(a.gpm, sup), eb = Math.min(b.gpm, sup), dg = eb - ea, dc = eb * b.price - ea * a.price;
       flow.preview(dg > .05 ? `＋ ${name}: 받는 손님 ${ea.toFixed(1)} → ${eb.toFixed(1)}명/분 · 수입 +${Math.round(dc)}동전/분` : b.price > a.price ? `＋ ${name}: 손님 한 명이 ${a.price} → ${b.price}동전을 내요 · 수입 +${Math.round(dc)}동전/분`
         : b.gpm - a.gpm > .05 ? `＋ ${name}: 더 받을 수 있게 되지만, 지금은 오는 손님이 모자라요 (배가 1초 빨리 와요)` : `＋ ${name}: 지금 막힌 곳이 아니라 당장은 그대로예요 (배가 1초 빨리 와요)`);
@@ -714,11 +736,11 @@ function openInside(key) {
     },
     coins: mineP ? () => myDoc.wallet.coins : undefined,
     buy: (i, kind, cost) => { if (myDoc.wallet.coins < cost) return false;
-      { const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p)), role = FIX_ROLE(kind);
+      { const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p), levelsOf(p)), role = FIX_ROLE(kind);
         const node = role === 'seat' ? 2 : role === 'decor' ? 3 : 1, sup = watching?.supply ?? Infinity, dg = Math.min(b.gpm, sup) - Math.min(a.gpm, sup); setTimeout(() => flow.pop(node, dg > .05 ? `+${dg.toFixed(1)}명/분` : b.price > a.price ? `+${b.price - a.price}동전` : '+1'), 50); flow.preview(''); }
       setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); myDoc.wallet.coins -= cost; const mp = myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
   });
-  view.sim.setHelpers(helpersOf(p));
+  view.sim.setHelpers(helpersOf(p), levelsOf(p));
   const flow = new FlowView(); $('iflow').replaceChildren(flow.el);
   watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0 };
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
@@ -751,10 +773,17 @@ function fixAction(w, p, fc) {
   if (i !== undefined) { const f = fx[i], c = costOf(f.kind), name = FIX_INFO[f.kind]?.[0] ?? f.kind;
     return w.flow.action({ title: slow === 1 ? '주문이 밀려요' : '자리가 모자라요', button: `＋ ${name} 들이기 · ${c}동전`, disabled: myDoc.wallet.coins < c, onClick: () => { if (w.view.buyIndex(i)) { w.view.onHover?.(-1); } }, note: myDoc.wallet.coins < c ? `동전 ${c - myDoc.wallet.coins}개 더 필요해요` : '' }); }
   const ext = { button2: `🏗️ 증축 · 🎫${G().permits}`, disabled2: G().permits <= 0, onClick2: () => { closeInside(); startExtend(p.key); } };
+  { // the track is full: the level-up that frees the red step most per coin
+    const base = BASE_COIN[p.size] ?? 1, lv = levelsOf(p), a = flowCaps(fx, ownedOf(p), base, helpersOf(p), lv), roles = slow === 1 ? ['serve', 'cook'] : ['seat'];
+    let best = null; for (const j of ownedOf(p)) { const f = fx[j], L = lv[j] ?? 1; if (L >= LV_MAX || !roles.includes(FIX_ROLE(f.kind))) continue;
+      const b = flowCaps(fx, ownedOf(p), base, helpersOf(p), { ...lv, [j]: L + 1 }), cost = upgradeCost(f.kind, L), v = (b.gpm - a.gpm) / cost; if (v > 0 && (!best || v > best.v)) best = { j, f, L, cost, v, d: b.gpm - a.gpm }; }
+    if (best) { const name = FIX_INFO[best.f.kind]?.[0] ?? best.f.kind;
+      return w.flow.action({ title: slow === 1 ? '주문이 밀려요' : '자리가 모자라요', button: `⬆ ${name} Lv${best.L + 1} · ${best.cost}동전`, disabled: myDoc.wallet.coins < best.cost, onClick: () => w.view.upgradeIndex(best.j), ...ext,
+        note: `받는 손님 +${best.d.toFixed(1)}명/분 · 가구를 누르면 직접 올릴 수도 있어요` }); } }
   if (slow === 1) { const h = helpersOf(p), c = helperCost(h);
     if (h >= HELPER_MAX) return w.flow.action({ title: '주문이 밀려요', ...ext, button: null, note: '알바도 다 뽑았어요 — 한 층 올려 주방을 넓혀 보세요' });
     return w.flow.action({ title: '주문이 밀려요', ...ext, button: `🧑‍🍳 알바 고용 · ${c}동전`, disabled: myDoc.wallet.coins < c, note: `가구는 다 채웠어요 · 알바가 서면 주문이 빨라져요 (${h}/${HELPER_MAX})`,
-      onClick: () => { if (myDoc.wallet.coins < c) return; const a = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h), b = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h + 1);
+      onClick: () => { if (myDoc.wallet.coins < c) return; const a = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h, levelsOf(p)), b = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h + 1, levelsOf(p));
         myDoc.wallet.coins -= c; myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); w.flow.pop(1, `+${(b.order - a.order).toFixed(1)}명/분`); toast('🧑‍🍳 알바가 왔어요!', 1500); } }); }
   return w.flow.action({ title: '자리가 모자라요', button: ext.button2, disabled: ext.disabled2, onClick: ext.onClick2, note: G().permits > 0 ? '한 줄로 한 층을 올리면 새 자리가 생겨요' : `🎫가 있어야 증축해요 · 다음까지 손님 ${G().nextAt - G().served}명` });
 }
@@ -769,7 +798,7 @@ function stepInside(dt) {
     { const pp = allPlots().find(x => x.key === w.key), bp = pp ? boatPlan(pp.slot) : null, expect = bp && bp.shops ? bp.people / bp.every * 60 / bp.shops : 0;
       w.supply = (now0 - w.opened) / 1000 > 30 ? Math.max(per(w.ins), .5) : Math.max(expect, per(w.ins)); }
     const p0 = allPlots().find(x => x.key === w.key);
-    if (p0) { const fc = flowCaps(fixturesOf(p0), ownedOf(p0), BASE_COIN[p0.size] ?? 1, helpersOf(p0)), isim = w.view.sim, used = isim.seats.filter(x => x.who).length;
+    if (p0) { const fc = flowCaps(fixturesOf(p0), ownedOf(p0), BASE_COIN[p0.size] ?? 1, helpersOf(p0), levelsOf(p0)), isim = w.view.sim, used = isim.seats.filter(x => x.who).length;
       const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, door = sim.shops.get(w.key)?.queue.length ?? 0;
       w.flow.set({ nodes: [
         { icon: '🚪', label: '들어옴', sub: '배 손님', cap: w.supply, state: `문 앞 줄 ${door}` },
@@ -785,7 +814,7 @@ function stepInside(dt) {
   const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, seats = isim.seats.length, used = isim.seats.filter(x => x.who).length;
   const cell = (label, v, bad) => `<div class="${bad ? 'bad' : ''}"><span>${label}</span><br><b>${v}</b></div>`;
   if (watching.mine && r) {   // what to do next: the fixtures that would raise income the most blink
-    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order, helpersOf(p));
+    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order, helpersOf(p), levelsOf(p));
     watching.view.suggest = new Set(k);
     const names = k.map(x => FIX_INFO[x]?.[0] ?? x).slice(0, 3).join('·'), t = (nextBoat.get(p.slot) ?? 0) - performance.now() / 1000;
     const up = nextUp(fixturesOf(p), ownedOf(p), undefined, p.b.input.order), fx = fixturesOf(p);
@@ -1033,6 +1062,8 @@ if (db) {
   }, () => show(el('p', { class: 'err' }, '군도를 불러오지 못했어요.')));
 } else { docs = new Map(BOARD === 'main' ? Object.entries(ISLES_SEED) : []); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
+// for checks from the browser console
+window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; } };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)

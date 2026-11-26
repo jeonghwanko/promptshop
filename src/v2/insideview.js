@@ -1,7 +1,7 @@
 // The live cross-section of one building: the section render, an overlay canvas with the people of an InsideSim,
 // see-through fixtures that can be tapped to buy, and coins and losses that rise over the spot where they happen.
 import { renderView } from './render.js';
-import { InsideSim, FIX_INFO, FIX_ROLE, costOf, trackOrder, nextUp } from './inside.js';
+import { InsideSim, FIX_INFO, FIX_ROLE, costOf, trackOrder, nextUp, LV_MAX, upgradeCost } from './inside.js';
 
 const SHIRTS = ['#e2432f', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2', '#d97a3a'];
 let tipEl = null;
@@ -36,14 +36,14 @@ export class InsideView {
    * @param opts.every  seconds between walk-ins (Infinity: the caller calls sim.spawn())
    * @param opts.maxWidth  CSS pixels available
    */
-  constructor(input, owned, { coins, buy, every = 2.1, seed = 3, maxWidth = 900, price, onHover } = {}) {
-    this.onHover = onHover; this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
+  constructor(input, owned, { coins, buy, upgrade, levels = {}, every = 2.1, seed = 3, maxWidth = 900, price, onHover } = {}) {
+    this.onHover = onHover; this.upgradeFn = upgrade; this.levels = levels; this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
     this.el = document.createElement('div'); Object.assign(this.el.style, { position: 'relative', maxWidth: '100%' });
     this.floats = []; this.hot = -1;
     this.top = document.createElement('canvas'); Object.assign(this.top.style, { position: 'absolute', left: 0, top: 0, imageRendering: 'pixelated', cursor: coins ? 'pointer' : 'default' });
     this.g = this.top.getContext('2d');
     this.redraw();
-    this.sim = new InsideSim(this.view.plan, this.fx, owned, { seed, every, price });
+    this.sim = new InsideSim(this.view.plan, this.fx, owned, { seed, every, price }); this.sim.setLevels(levels);
     if (coins) {
       this.top.addEventListener('mousemove', (e) => this.hover(e));
       this.top.addEventListener('mouseleave', () => { tip().style.display = 'none'; if (this.hot >= 0) this.onHover?.(-1); this.hot = -1; });
@@ -71,6 +71,21 @@ export class InsideView {
     this.fx.forEach((f, i) => { if (!can.has(i)) return; const [x, y] = this.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
     return best;
   }
+  ownedAt(e) {
+    const r = this.top.getBoundingClientRect(), mx = (e.clientX - r.left) / this.zoom, my = (e.clientY - r.top) / this.zoom;
+    let best = -1, bd = 14;
+    this.fx.forEach((f, i) => { if (!this.owned.has(i)) return; const [x, y] = this.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
+    return best;
+  }
+  /** Raise an owned fixture one level. */
+  upgradeIndex(i) {
+    const f = this.fx[i], L = this.levels[i] ?? 1; if (L >= LV_MAX) return false;
+    const c = upgradeCost(f.kind, L);
+    if (!this.upgradeFn || this.coins() < c || !this.upgradeFn(i, f.kind, c, L + 1)) { this.floats.push({ text: '동전 모자람', x: f.x, y: f.y + 1, z: f.z, t: 0, bad: true }); return false; }
+    this.levels[i] = L + 1; this.sim.setLevels(this.levels);
+    this.floats.push({ text: `⬆ Lv${L + 1}`, x: f.x, y: f.y + 1, z: f.z, t: 0 });
+    return true;
+  }
   /** Screen point of a fixture that can be bought now, preferring the suggested ones (for the guide's arrow). */
   ghostPoint() {
     const can = [...this.buyable()], i = can.find(j => this.suggest?.has(this.fx[j].kind)) ?? can[0]; if (i === undefined) return null;
@@ -81,12 +96,19 @@ export class InsideView {
   buyable() { return new Set(Object.values(nextUp(this.fx, this.owned, undefined, this.input.order))); }
   hover(e) {
     const i = this.ghostAt(e), t = tip(); if (i !== this.hot) this.onHover?.(i); this.hot = i;
-    if (i < 0) { t.style.display = 'none'; return; }
+    if (i < 0) {
+      const o = this.upgradeFn ? this.ownedAt(e) : -1;
+      if (o !== this.hotUp) { this.hotUp = o; this.onHover?.(o, 'up'); }
+      if (o < 0) { t.style.display = 'none'; return; }
+      const f = this.fx[o], L = this.levels[o] ?? 1, name = FIX_INFO[f.kind]?.[0] ?? f.kind;
+      t.textContent = L >= LV_MAX ? `${name} Lv${L} · 최고 레벨` : `${name} Lv${L} → Lv${L + 1} · ${upgradeCost(f.kind, L)}동전 · 누르면 올려요`;
+      t.style.display = 'block'; t.style.left = e.clientX + 12 + 'px'; t.style.top = e.clientY + 12 + 'px'; return;
+    }
     const f = this.fx[i], [name, what] = FIX_INFO[f.kind] ?? [f.kind, '꾸밈'], c = costOf(f.kind);
     t.textContent = `${name} · ${what} · ${c}동전${this.coins() < c ? ' (모자람)' : ''}`;
     t.style.display = 'block'; t.style.left = e.clientX + 12 + 'px'; t.style.top = e.clientY + 12 + 'px';
   }
-  tryBuy(e) { const i = this.ghostAt(e); if (i >= 0) { this.buyIndex(i); this.hover(e); } }
+  tryBuy(e) { const i = this.ghostAt(e); if (i >= 0) { this.buyIndex(i); this.hover(e); return; } const o = this.upgradeFn ? this.ownedAt(e) : -1; if (o >= 0) { this.upgradeIndex(o); this.hotUp = -2; this.hover(e); } }
   /** Buy fixture i (also used by the flow diagram's fix button). */
   buyIndex(i) {
     const f = this.fx[i], c = costOf(f.kind);
@@ -108,6 +130,10 @@ export class InsideView {
       g.fillStyle = i === this.hot ? '#ffffff' : ok ? (big ? '#ffd23a' : '#e3b448') : 'rgba(160,150,130,.7)'; g.fillRect(cx - r, cy - r, r * 2 + 1, r * 2 + 1);
       g.fillStyle = '#2e241a'; g.fillRect(cx, cy - r + 1, 1, r * 2 - 1); g.fillRect(cx - r + 1, cy, r * 2 - 1, 1);
     });
+    // levels above 1: a small gold badge over the fixture
+    g.font = 'bold 9px system-ui'; g.textAlign = 'center';
+    for (const [i, L] of Object.entries(this.levels)) { if (L <= 1 || !this.owned.has(+i)) continue; const f = this.fx[i]; if (!f) continue; const [x, y] = P(f.x, f.y + .5, f.z);
+      const bx = Math.round(x), by = Math.round(y) - 4; g.fillStyle = '#2e241a'; g.fillRect(bx - 9, by - 7, 18, 10); g.fillStyle = '#ffd25a'; g.fillText('Lv' + L, bx, by + 1); }
     const list = [];
     for (const s of sim.staff) { const [x, y] = P(s.x, sim.floorY(s.f), s.z); list.push({ x, y, s }); }
     for (const p of sim.people) { p.moving = p.moves.length > 0; const [x, y] = P(p.x, p.y, p.z); list.push({ x, y, p }); }

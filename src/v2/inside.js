@@ -36,19 +36,32 @@ export function profileOf(fixtures) {
   out.cook = Math.round(out.cook * 10) / 10; return out;
 }
 
+// ---------- fixture levels: each level above 1 adds a quarter (a faster counter or stove, quicker turnover at a table, more tips) ----------
+export const LV_MAX = 5;
+export const lvFactor = (L) => 1 + .25 * ((L ?? 1) - 1);
+export const upgradeCost = (kind, L) => costOf(kind) * 2 ** (L ?? 1);
+// owned fixtures summed with their levels (shared by the map, the diagram and the sim)
+function sums(fixtures, owned, lv = {}) {
+  let counters = 0, cooks = 0, seatsW = 0, seats = 0, decor = 0, browse = 0, ncounters = 0;
+  fixtures.forEach((f, i) => { if (!owned.has(i)) return; const L = lv[i] ?? 1, k = lvFactor(L);
+    if (f.kind === 'counter') { counters += k; ncounters++; }
+    if (COOK[f.kind]) cooks += COOK[f.kind] * k;
+    if (SEATS[f.kind]) { seats += SEATS[f.kind].length; seatsW += SEATS[f.kind].length * k; }
+    if (DECOR.has(f.kind)) decor += L;
+    if (BROWSE.has(f.kind)) browse += k; });
+  return { counters, ncounters, cooks, seatsW, seats, decor, browse };
+}
 /**
  * The same setup seen from the map, where a shop is a door with a queue: how often it can take the next guest,
  * how long its queue may grow and what a guest pays. Bottleneck of ordering (counters and cooks) and of seats.
  */
-export function shopRates(fixtures, owned, baseCoin = 3, helpers = 0) {
-  const own = fixtures.filter((_, i) => owned.has(i));
-  const counters = own.filter(f => f.kind === 'counter').length, cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
-  const seats = own.reduce((t, f) => t + (SEATS[f.kind]?.length ?? 0), 0), decor = own.filter(f => DECOR.has(f.kind)).length, browse = own.filter(f => BROWSE.has(f.kind)).length;
+export function shopRates(fixtures, owned, baseCoin = 3, helpers = 0, lv = {}) {
+  const { counters, ncounters, cooks, seatsW, seats, decor, browse } = sums(fixtures, owned, lv);
   const st = 4.2 / (1 + .7 * cooks) / (1 + helpers);
   const order = counters ? counters / st : seats ? 1 / st : .3 + browse * .08;
-  const seat = seats ? seats / 13 : Infinity;
+  const seat = seats ? seatsW / 13 : Infinity;
   const rate = Math.min(order, seat);
-  return { interval: Math.max(.5, 1 / rate), cap: 3 + 2 * counters + Math.floor(seats / 4), price: baseCoin + Math.min(3, decor) + Math.floor(browse / 2), seats, counters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
+  return { interval: Math.max(.5, 1 / rate), cap: 3 + 2 * ncounters + Math.floor(seats / 4), price: baseCoin + Math.min(4, Math.floor(decor * .75)) + Math.floor(browse / 2), seats, counters: ncounters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
 }
 
 // ---------- the order fixtures come in ----------
@@ -79,19 +92,17 @@ export function nextUp(fixtures, owned, door, order) {
 }
 
 /** What each step of the flow can take, in guests per minute on the map's scale, for the diagram. */
-export function flowCaps(fixtures, owned, baseCoin = 3, helpers = 0) {
-  const own = fixtures.filter((_, i) => owned.has(i));
-  const counters = own.filter(f => f.kind === 'counter').length, cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
-  const seats = own.reduce((t, f) => t + (SEATS[f.kind]?.length ?? 0), 0), browse = own.filter(f => BROWSE.has(f.kind)).length;
+export function flowCaps(fixtures, owned, baseCoin = 3, helpers = 0, lv = {}) {
+  const { counters, ncounters, cooks, seatsW, seats, browse } = sums(fixtures, owned, lv);
   const st = 4.2 / (1 + .7 * cooks) / (1 + helpers), k = 60;
-  const order = (counters ? counters / st : seats ? 1 / st : .3 + browse * .08) * k, seat = seats ? seats / 13 * k : Infinity;
-  const r = shopRates(fixtures, owned, baseCoin, helpers);
-  return { helpers, order, seat, gpm: Math.min(order, seat), price: r.price, counters, cooks: Math.round(cooks * 10) / 10, seats, browse, slow: seat < order ? 'seat' : 'order' };
+  const order = (counters ? counters / st : seats ? 1 / st : .3 + browse * .08) * k, seat = seats ? seatsW / 13 * k : Infinity;
+  const r = shopRates(fixtures, owned, baseCoin, helpers, lv);
+  return { helpers, order, seat, gpm: Math.min(order, seat), price: r.price, counters: ncounters, cooks: Math.round(cooks * 10) / 10, seats, browse, slow: seat < order ? 'seat' : 'order' };
 }
 
 /** Unbought fixtures that would raise income (price per guest ÷ seconds per guest) the most, by kind. */
-export function bestNext(fixtures, owned, baseCoin = 3, order, helpers = 0) {
-  const rev = (set) => { const r = shopRates(fixtures, set, baseCoin, helpers); return r.price / r.interval; }, now = rev(owned);
+export function bestNext(fixtures, owned, baseCoin = 3, order, helpers = 0, lv = {}) {
+  const rev = (set) => { const r = shopRates(fixtures, set, baseCoin, helpers, lv); return r.price / r.interval; }, now = rev(owned);
   const gain = new Map();
   const allowed = new Set(Object.values(nextUp(fixtures, owned, undefined, order)));
   fixtures.forEach((f, i) => { if (owned.has(i) || !allowed.has(i)) return; const g = rev(new Set([...owned, i])) - now; if (g > (gain.get(f.kind) ?? 0)) gain.set(f.kind, g); });
@@ -115,17 +126,20 @@ export class InsideSim {
     this.owned = owned;
     const own = this.fixtures.map((f, i) => ({ ...f, i })).filter(f => owned.has(f.i));
     const keep = new Map((this.counters ?? []).map(c => [c.i, c])), keepSeat = new Map((this.seats ?? []).map(s => [s.key, s]));
-    this.counters = own.filter(f => f.kind === 'counter').map(f => keep.get(f.i) ?? { ...f, q: [], busy: null, left: 0 });
-    this.seats = own.filter(f => SEATS[f.kind]).flatMap(f => SEATS[f.kind].map(([a, b], k) => keepSeat.get(f.i + ':' + k) ?? { key: f.i + ':' + k, f: f.fi, x: f.x + a, z: f.z + b, who: null, kind: f.kind }));
+    const L = (i) => lvFactor(this.lv?.[i]);
+    this.counters = own.filter(f => f.kind === 'counter').map(f => Object.assign(keep.get(f.i) ?? { ...f, q: [], busy: null, left: 0 }, { k: L(f.i) }));
+    this.seats = own.filter(f => SEATS[f.kind]).flatMap(f => SEATS[f.kind].map(([a, b], k) => keepSeat.get(f.i + ':' + k) ?? { key: f.i + ':' + k, f: f.fi, x: f.x + a, z: f.z + b, who: null, kind: f.kind }))
+      .map(st => Object.assign(st, { k: L(+st.key.split(':')[0]) }));
     this.browse = own.filter(f => BROWSE.has(f.kind));
     this.toilets = own.filter(f => f.kind === 'toilet').map(f => (this.toilets ?? []).find(t => t.i === f.i) ?? { ...f, who: null });
-    this.cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
-    this.decor = new Map(); for (const f of own) if (DECOR.has(f.kind)) this.decor.set(f.fi, (this.decor.get(f.fi) ?? 0) + 1);
+    this.cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0) * L(f.i), 0);
+    this.decor = new Map(); for (const f of own) if (DECOR.has(f.kind)) this.decor.set(f.fi, (this.decor.get(f.fi) ?? 0) + (this.lv?.[f.i] ?? 1));
     this.staff = [...this.counters.map(c => ({ f: c.fi, x: c.x + .45, z: c.z - .05, kind: 'clerk' })), ...Array.from({ length: Math.min(4, this.helpers ?? 0) }, (_, k) => { const c = this.counters[k % Math.max(1, this.counters.length)]; return c ? { f: c.fi, x: c.x - .45 - .35 * Math.floor(k / Math.max(1, this.counters.length)), z: c.z - .05, kind: 'clerk' } : null; }).filter(Boolean), ...own.filter(f => COOK[f.kind] >= .7).map(f => ({ f: f.fi, x: f.x, z: f.z + .4, kind: 'cook' }))];
   }
   get serviceTime() { return 4.2 / (1 + .7 * this.cooks) / (1 + (this.helpers ?? 0)); }
   /** hired helpers: each stands by a counter and speeds up taking orders */
   setHelpers(n) { this.helpers = n; this.setOwned(this.owned); }
+  setLevels(lv) { this.lv = lv; this.setOwned(this.owned); }
   floorY(f) { return this.plan.floors[f]?.y ?? 0; }
 
   // walking: a list of waypoints; a floor change goes through the lift
@@ -159,7 +173,7 @@ export class InsideSim {
     if (this.kitchen.length) { this.cooking += dt; if (this.cooking >= this.serviceTime) { this.cooking = 0; const id = this.kitchen.shift(), p = this.people.find(q => q.id === id); if (p) { p.ordered = true; p.state = 'toSeat'; } } }
     for (const c of this.counters) {
       if (c.busy) { c.left -= dt; if (c.left <= 0) { const p = this.people.find(q => q.id === c.busy); c.busy = null; if (p) { if (!this.seats.length) this.pay(this.price, c.fi, c.x, c.z); p.state = 'served'; p.mood = ''; this.afterCounter(p); } } }
-      if (!c.busy && c.q.length) { const p = this.people.find(q => q.id === c.q[0]); if (p && !p.moves.length && Math.hypot(p.x - c.x, p.z - (c.z + .55)) < .2) { c.q.shift(); c.busy = p.id; c.left = this.serviceTime; p.state = 'order'; } }
+      if (!c.busy && c.q.length) { const p = this.people.find(q => q.id === c.q[0]); if (p && !p.moves.length && Math.hypot(p.x - c.x, p.z - (c.z + .55)) < .2) { c.q.shift(); c.busy = p.id; c.left = this.serviceTime / (c.k ?? 1); p.state = 'order'; } }
     }
     for (const p of this.people) {
       p.t += dt;
@@ -175,10 +189,10 @@ export class InsideSim {
         case 'toSeat':
           // no counter: the order is taken at the table and waits for the kitchen
           if (!this.counters.length && p.ordered !== true) { p.state = 'food'; p.mood = 'wait'; this.kitchen.push(p.id); break; }
-          p.state = 'sit'; p.wait = 10 + this.rnd() * 6; p.mood = this.decor.get(p.f) ? 'heart' : ''; break;
+          p.state = 'sit'; p.wait = (10 + this.rnd() * 6) / (p.seat?.k ?? 1); p.mood = this.decor.get(p.f) ? 'heart' : ''; break;
         case 'food': break;
         case 'sit': if ((p.wait -= dt) <= 0) {
-          const tip = this.decor.get(p.f) ? Math.min(3, this.decor.get(p.f)) : 0;
+          const tip = this.decor.get(p.f) ? Math.min(4, Math.floor(this.decor.get(p.f) * .75)) : 0;
           this.pay(this.price + tip, p.f, p.x, p.z, tip > 0);   // the bill is paid at the table, with a tip if the floor is decorated
           p.seat.who = null; p.seat = null; this.stats.served++;
           const t = this.toilets.find(t => !t.who);
