@@ -855,17 +855,15 @@ const TUT = [
   { say: '어떤 가게일까?\n한 줄로 쓰거나, 아래 예시를 눌러 봐.', el: '#panel .chips', on: 'line' },
   { say: 'Claude가 짓는 중이야…\n건물이 올라가는 거 봐! 끼룩', on: 'built' },
   { say: '완공! 🎉\n저기 봐, 배가 손님을 싣고 와!', on: 'coin', boat: true },
-  { say: '첫 수입이야! 동전이 쌓였지?\n이제 가게를 눌러 볼래?', map: 'shop', on: 'info' },
-  { say: '[가게 안으로]를 눌러서\n안을 들여다봐!', el: '#go-inside', on: 'inside' },
+  { say: '첫 수입이야! 동전이 쌓였지?\n이제 가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
   { say: '잘했어! 손님을 받을수록 🎫 게이지가 차.\n다 차면 또 지을 수 있어. 섬을 키워 보자!', btn: '시작!' },
 ];
 // inside a shop for the first time: how to read the flow and what a fixture buys
 const TUT_IN = [
-  { say: '여기가 가게 안이야!\n아래 흐름도를 봐. 손님이 들어와서 → 주문 → 자리 → 계산하고 나가.', btn: '다음', at: 'flow' },
-  { say: () => { const d = watching?.flow?.data, n = d?.nodes?.[d.slow]; return d?.slow === 0 ? '빨간 「막힘」 칸이 흐름을 붙잡는 곳이야.\n지금은 가게보다 오는 손님이 적어. 배를 부르거나 가구를 늘리면 배가 빨리 와!' : `빨간 「막힘」 칸이 흐름을 붙잡는 곳이야.\n지금은 「${n?.label ?? '주문'}」 칸이 막혀서 손님을 더 못 받아.`; }, btn: '다음', at: 'slow' },
-  { say: '깜빡이는 + 에 마우스를 올려 봐.\n들이면 얼마나 늘어나는지 흐름도 아래에 미리 보여.', on: 'hover', at: 'ghost' },
-  { say: '좋아, 그걸 눌러서 들여 봐!', on: 'furnish', at: 'ghost' },
-  { say: '봐! 막힌 칸이 풀리면 받을 수 있는 손님이 늘어.\n손님이 늘면 수입도, 🎫 게이지도 빨리 차!', btn: '알겠어' },
+  { say: '여기가 가게 안이야!\n손님이 들어와서 주문하고, 자리에 앉아서 계산해.', btn: '다음' },
+  { say: () => watching?.view?.blocked?.size ? '빨간 김이 나는 곳이 막힌 곳이야.\n손님이 거기서 기다리고 있어!' : '지금은 막힌 곳이 없어.\n손님이 몰리면 막히는 곳에서 빨간 김이 나!', btn: '다음', at: 'slow' },
+  { say: '오른쪽 맨 위 버튼을 눌러\n가구를 들여 봐!', el: '#shopacts .act.buy', on: 'furnish' },
+  { say: '쿵! 가구가 들어왔어.\n가구가 늘면 손님을 더 받고, 손님이 늘면 🎫도 빨리 차!', btn: '알겠어' },
 ];
 const inStep = () => myDoc?.wallet?.tutIn ?? 99;
 const inTutOn = () => !!watching?.mine && inStep() < TUT_IN.length;
@@ -896,8 +894,9 @@ function guideArrow() {
   const a = $('garrow');
   if (inTutOn()) {
     const st = TUT_IN[inStep()]; let pt = null;
-    if (st.at === 'ghost') pt = watching.view.ghostPoint();
-    if ((st.at === 'flow' || st.at === 'slow') && watching.flow?.data) { const r = watching.flow.c.getBoundingClientRect(), d = watching.flow.data, i = st.at === 'slow' ? d.slow : 0, n = d.nodes.length; pt = [r.left + (60 + i * (920 - 120) / (n - 1)) / 920 * r.width, r.top + 2]; }
+    document.querySelectorAll('.glow').forEach(e => e.classList.remove('glow'));
+    if (st.at === 'slow') { const v = watching.view, i = [...(v.blocked ?? [])][0], f = i !== undefined && v.fx[i]; if (f && v.onFloor(f.y)) { const [x, y] = v.view.project(f.x, f.y + 1.4, f.z), r = v.top.getBoundingClientRect(); pt = [r.left + x * v.zoom, r.top + y * v.zoom]; } }
+    if (st.el) { const e = document.querySelector(st.el); if (e && e.offsetParent) { e.classList.add('glow'); const r = e.getBoundingClientRect(); pt = [r.left + r.width / 2, r.top - 4]; } }
     if (pt) { a.hidden = false; a.style.left = pt[0] + 'px'; a.style.top = pt[1] + 'px'; } else a.hidden = true;
     return;
   }
@@ -1199,12 +1198,12 @@ function openInside(key, { inPlace = false } = {}) {
   view.sim.setHelpers(helpersOf(p), levelsOf(p));
   const flow = new FlowView(); if (!inPlace) $('iflow').replaceChildren(flow.el);
   watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0, inPlace };
-  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop'); $('shopmore').hidden = true; watching.actKey = ''; view.onFloorChange = () => placeActs(); placeActs(); rebuild(); return; }
+  if (mineP && myDoc.wallet.tutIn === undefined) myDoc.wallet.tutIn = 0;   // the first time inside a shop of mine: the inside guide
+  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop'); $('shopmore').hidden = true; watching.actKey = ''; view.onFloorChange = () => placeActs(); placeActs(); rebuild(); guide(); return; }   // the first time inside, the guide's inside steps start here
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
   if (roleOf(n.type, n.levels).serves) $('iname').append(' ', el('span', { class: 'stars' }, starText(starsInfo(p).stars)));
   $('ihint').textContent = mineP ? '반투명 가구의 노란 + 를 누르면 들여요. 배 손님이 문에 줄을 서고, 앉아서 먹고, 테이블에서 돈을 내요.' : `${nameOf(p.owner)}의 가게예요. 구경만 할 수 있어요.`;
   $('istage').replaceChildren(view.el); $('inside').hidden = false;
-  if (mineP && myDoc.wallet.tutIn === undefined) myDoc.wallet.tutIn = 0;
   setTimeout(guide, 50);
   rebuild();
 }
