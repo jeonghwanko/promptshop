@@ -7,21 +7,33 @@
 <style>
   :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; --line:#d4c4a6; --accent:#3f7a74; --hot:#c0392b; --gold:#e3a72f; --sea:#3d7fa6;
           --f-disp:"Jua","Noto Sans KR",sans-serif; --f-ui:"Noto Sans KR",system-ui,sans-serif; }
-  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.55 var(--f-ui); padding:14px max(16px, env(safe-area-inset-left, 0px)); }
-  .wrap { max-width:1600px; margin:0 auto; display:flex; flex-direction:column; gap:10px; }
-  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
-  h1 { margin:0; font:400 28px/1.2 var(--f-disp); }
-  .who { font:400 18px var(--f-disp); color:var(--accent); }
-  .wallet { margin-left:auto; font:400 22px var(--f-disp); color:var(--gold); font-variant-numeric:tabular-nums; }
-  .wants { display:flex; gap:8px; flex-wrap:wrap; }
-  .want { display:flex; align-items:center; gap:6px; background:var(--card); border-radius:999px; padding:4px 12px 4px 6px; font-size:13px; }
-  .want .dot { width:18px; height:18px; border-radius:50%; display:inline-block; } .want b { font-variant-numeric:tabular-nums; }
+  html, body { height:100%; overflow:hidden; }
+  body { margin:0; background:var(--sea); color:var(--ink); font:14px/1.55 var(--f-ui); }
+  .mapbox { position:fixed; inset:0; overflow:auto; scrollbar-width:none; cursor:grab; touch-action:none; background:var(--sea); }
+  .mapbox::-webkit-scrollbar { display:none; } .mapbox.drag { cursor:grabbing; }
+  #map { display:block; image-rendering:pixelated; }
+  .hud { position:fixed; z-index:5; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
+  .hud > * { pointer-events:auto; }
+  .pill { background:rgba(251,246,236,.95); border-radius:14px; padding:6px 12px; box-shadow:0 3px 0 rgba(20,40,60,.35); display:flex; align-items:center; gap:8px; }
+  .tl { top:12px; left:12px; align-items:flex-start; } .tr { top:12px; right:12px; align-items:flex-end; }
+  .isle { font:400 20px var(--f-disp); } .isle small { font:400 13px var(--f-ui); color:var(--dim); margin-left:6px; }
+  .coins { font:400 24px var(--f-disp); color:#b07a12; font-variant-numeric:tabular-nums; } .coins i { font-style:normal; display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--gold); color:#6a4500; font:900 13px var(--f-ui); box-shadow:inset 0 -2px 0 #9a6f14; }
+  .rate { font-size:13px; color:var(--accent); font-weight:700; } .boatline { font-size:13px; }
+  .wants { display:flex; gap:6px; flex-wrap:wrap; max-width:min(560px, 60vw); }
+  .want { display:flex; align-items:center; gap:5px; background:rgba(251,246,236,.92); border-radius:999px; padding:2px 10px 2px 4px; font-size:12px; }
+  .want .dot { width:14px; height:14px; border-radius:50%; display:inline-block; } .want b { font-variant-numeric:tabular-nums; }
   .want.none { box-shadow:inset 0 0 0 2px var(--hot); } .want.none .tag { color:var(--hot); font-weight:700; }
-  .main { display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:14px; align-items:start; }
-  @media (max-width:980px) { .main { grid-template-columns:minmax(0, 1fr); } }
-  .mapbox { background:var(--sea); border-radius:16px; overflow:auto; min-width:0; max-height:80vh; }
-  #map { display:block; image-rendering:pixelated; cursor:pointer; }
-  .panel { background:var(--card); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0; }
+  .dock { position:fixed; z-index:7; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:6px; align-items:flex-end; background:rgba(46,36,26,.92); border-radius:18px; padding:8px; box-shadow:0 6px 0 rgba(0,0,0,.25); max-width:calc(100vw - 16px); overflow-x:auto; }
+  .dock button { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:64px; padding:6px 10px; background:transparent; box-shadow:none; color:#fbf1dc; font:700 12px var(--f-ui); border-radius:12px; }
+  .dock button .ic { font-size:22px; line-height:1; } .dock button.on { background:var(--gold); color:#3a2a00; }
+  .dock .sizes { display:flex; gap:4px; padding-right:6px; border-right:1px solid rgba(255,255,255,.2); margin-right:2px; } .dock .sizes[hidden] { display:none; }
+  .dock .sizes button { min-width:54px; background:rgba(255,255,255,.1); } .dock .sizes button.on { background:#fbf1dc; color:var(--ink); }
+  .toast { position:fixed; z-index:7; bottom:96px; left:50%; transform:translateX(-50%); background:rgba(46,36,26,.92); color:#fbf1dc; padding:7px 14px; border-radius:12px; font-size:13px; white-space:nowrap; }
+  .toast[hidden] { display:none; }
+  .panel { position:fixed; z-index:6; right:12px; top:84px; bottom:96px; width:360px; overflow:auto; background:var(--card); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; box-shadow:0 6px 0 rgba(20,40,60,.35); }
+  .panel[hidden] { display:none; }
+  .panel .x { position:sticky; top:0; align-self:flex-end; margin:-6px -6px -34px 0; z-index:1; padding:4px 10px; }
+  @media (max-width:760px) { .panel { left:8px; right:8px; top:auto; width:auto; max-height:52vh; } .wants { display:none; } }
   .panel h2 { margin:0; font:400 21px var(--f-disp); } .panel h3 { margin:4px 0 0; font:400 16px var(--f-disp); }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   input[type=text] { flex:1; min-width:0; font:15px var(--f-ui); padding:10px 11px; border-radius:10px; border:1px solid var(--line); background:#fbf6ec; color:var(--ink); }
@@ -53,14 +65,18 @@
 </style>
 <div class="inside" id="inside" hidden><div class="ibox"><div class="row"><h2 id="iname"></h2><button class="ghost" id="iclose">닫기</button></div><div class="note" id="ihint"></div><div class="iscroll" id="istage"></div><div class="istats" id="istats"></div></div></div>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
-<div class="wrap">
-  <header><h1>한 줄 군도</h1><span class="who" id="who"></span><button class="ghost" id="zoom">전체 보기</button><span class="wallet" id="wallet"></span></header>
-  <div class="wants" id="wants"></div>
-  <div class="main">
-    <div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
-    <aside class="panel" id="panel"></aside>
-  </div>
-</div>
+<div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
+<div class="hud tl"><div class="pill isle" id="who">한 줄 군도</div><div class="wants" id="wants"></div></div>
+<div class="hud tr"><div class="pill"><span class="coins" id="wallet"></span><span class="rate" id="rate"></span></div><div class="pill boatline" id="boat"></div></div>
+<aside class="panel" id="panel" hidden></aside>
+<div class="toast" id="toast" hidden></div>
+<nav class="dock" id="dock">
+  <div class="sizes" id="sizes" hidden></div>
+  <button id="d-build"><span class="ic">🏗️</span>짓기</button>
+  <button id="d-home"><span class="ic">🏝️</span>내 섬</button>
+  <button id="d-auto"><span class="ic">🛋️</span><span id="d-auto-t">자동</span></button>
+  <button id="zoom"><span class="ic">🗺️</span><span id="zoom-t">전체</span></button>
+</nav>
 <script type="module">
 import { lineReader } from './src/steps.js';
 import { Stage2 } from './src/v2/stage.js';
@@ -110,9 +126,10 @@ function rebuild() {
   if (sig !== roadSig) { roadSig = sig; sim.setArea({ w: world.w, d: world.d, isRoad: world.isRoad, lots: [] }); } else sim.A = { ...sim.A, isRoad: world.isRoad };
   const built = new Map(); for (const p of all) if (p.b) { const n = normalize(p.b.input), w = PLOT[p.size]; built.set(p.key, { type: n.type, levels: n.levels, owner: p.owner, stock: p.stock ?? START_STOCK, rates: ratesOf(p), watched: watching?.key === p.key, lot: { id: p.key, size: p.size, x: p.x, z: p.z, w, d: w, door: p.door } }); }
   sim.setBuildings(built);
-  $('who').textContent = mySlot ? `${mySlot}번 섬` : '';
+
   if (!scrolled) { scrolled = true; setTimeout(() => scrollToSlot(mySlot || 1), 50); }
-  if (!current) showHome();
+  if (!current && !mySlot && panel.hidden) showHome();
+  else if (mySlot && joinShown) closePanel();   // the join card goes away once my island is known
 }
 const fxCache = new Map();
 function fixturesOf(p) { const k = p.key + ':' + p.b.at; if (!fxCache.has(k)) { let f = []; try { f = buildSection(normalize(p.b.input)).fixtures; } catch {} fxCache.set(k, f); } return fxCache.get(k); }
@@ -140,12 +157,14 @@ async function resolveNames() { if (!user) return; const ids = [...owners.values
 const pr = islesProjection(), map = $('map'); map.width = pr.width; map.height = pr.height;
 // native pixels by default (crisp), scrolled to my island; "전체 보기" fits the whole archipelago
 let fit = false;
-const applyZoom = () => { map.style.width = fit ? '100%' : pr.width + 'px'; $('zoom').textContent = fit ? '가까이 보기' : '전체 보기'; };
+const applyZoom = () => { map.style.width = fit ? '100vw' : pr.width + 'px'; $('zoom-t').textContent = fit ? '가까이' : '전체'; $('zoom').classList.toggle('on', fit); };
 function scrollToSlot(s) { if (fit) return; const box = $('mapbox'), [cx, cz] = centerOf(s), [px, py] = pr.P(cx, cz); box.scrollTo({ left: px - box.clientWidth / 2, top: py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
 const sprites = new Map(), pops = [];
-let current = null, size = 'S', hover = null, building = null, drawn = [];
+let current = null, size = 'S', hover = null, building = null, drawn = [], buildMode = false;
+let watching = null, joinShown = false;   // the building whose inside is open; the join card is up
+const earned = [];           // [time, coins] my shops earned, for coins per minute
 function sprite(p) {
   const k = p.key + ':' + p.b.at, s = sprites.get(p.key); if (s && s.k === k) return s;
   try { const { canvas, anchor } = renderView(p.b.input, 'ext'); const n = { canvas, anchor, k, alpha: canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data }; sprites.set(p.key, n); return n; } catch { return null; }
@@ -161,7 +180,7 @@ function frame(t) {
       if (mine) { const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
       if (watching?.key === e.lot) watching.view.sim.spawn(); continue;
     }
-    if (mine) { myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
+    if (mine) { earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
@@ -241,7 +260,15 @@ requestAnimationFrame(frame);
 applyZoom(); $('zoom').onclick = () => { fit = !fit; applyZoom(); if (!fit) scrollToSlot(mySlot || 1); };
 let scrolled = false;
 function hud() {
-  $('wallet').textContent = myDoc ? `동전 ${myDoc.wallet.coins.toLocaleString('ko-KR')}` : '';
+  $('wallet').replaceChildren(el('i', {}, '¢'), myDoc ? myDoc.wallet.coins.toLocaleString('ko-KR') : '—');
+  const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
+  $('rate').textContent = myDoc ? `+${earned.reduce((a, e) => a + e[1], 0)}/분` : '';
+  const mine = mySlot ? allPlots().filter(p => p.slot === mySlot && p.b) : [];
+  $('who').replaceChildren(mySlot ? `${mySlot}번 섬` : '한 줄 군도', mySlot ? el('small', {}, `건물 ${mine.length} · 가구 ${mine.reduce((a, p) => a + ownedOf(p).size, 0)}`) : '');
+  if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot);
+    $('boat').textContent = !bp.shops ? '⛵ 가게를 지으면 배가 와요' : docked ? `⛵ 배가 들어와요 · ${docked.people}명` : `⛵ 다음 배 ${Math.max(0, Math.ceil(nb))}초 · ${bp.people}명`; $('boat').hidden = false; }
+  else $('boat').hidden = true;
+  dockState();
   const dm = sim.demand();
   $('wants').replaceChildren(...NEED_KEYS.map(k => { const d = dm[k], none = !d.served && d.waiting; return el('span', { class: 'want' + (none ? ' none' : '') }, el('span', { class: 'dot', style: `background:${NEEDS[k].color}` }), NEEDS[k].ko, el('b', {}, String(d.waiting)), none ? el('span', { class: 'tag' }, '· 군도에 없음') : null); }));
 }
@@ -283,24 +310,46 @@ setInterval(() => {
 const mapXY = (e) => { const r = map.getBoundingClientRect(); return [(e.clientX - r.left) * map.width / r.width, (e.clientY - r.top) * map.height / r.height]; };
 const takenSet = () => { const t = new Set(); for (const p of allPlots()) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) t.add(i + ',' + k); return t; };
 map.addEventListener('pointermove', (e) => {
-  if (!mySlot || building) { hover = null; return; }
+  if (!mySlot || building || !buildMode) { hover = null; return; }
   const [sx, sy] = mapXY(e), [fx, fz] = pr.inv(sx, sy), n = PLOT[size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2);
   hover = slotAt(Math.floor(fx), Math.floor(fz)) === mySlot ? { x, z, door: placePlot(world, mySlot, x, z, n, takenSet()) } : null;
 });
 map.addEventListener('pointerleave', () => { hover = null; });
 map.addEventListener('click', (e) => {
-  if (building) return;
+  if (building || dragged) return;
   const [sx, sy] = mapXY(e);
   for (const it of [...drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
     if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return showBuilding(it.key); }
   const [fx, fz] = pr.inv(sx, sy), s = slotAt(Math.floor(fx), Math.floor(fz));
-  if (s && s === mySlot && hover?.door) return startBuild(hover.x, hover.z, hover.door);
-  if (s) return showIsland(s);
+  if (buildMode) { if (s === mySlot && hover?.door) { setBuildMode(false); return startBuild(hover.x, hover.z, hover.door); } return toast(s === mySlot ? '길에 닿은 빈 땅을 고르세요' : '내 섬 땅을 누르세요', 1500); }
+  if (s && s !== mySlot) return showIsland(s);
+  if (!panel.hidden && current?.kind !== 'build') closePanel();
 });
+
+// ---------- game controls: drag to pan, the dock, build mode ----------
+let dragged = false;
+{ const box = $('mapbox'); let down = null;
+  box.addEventListener('pointerdown', (e) => { down = { x: e.clientX, y: e.clientY, l: box.scrollLeft, t: box.scrollTop }; dragged = false; });
+  addEventListener('pointermove', (e) => { if (!down) return; const dx = e.clientX - down.x, dy = e.clientY - down.y; if (!dragged && Math.hypot(dx, dy) > 6) { dragged = true; box.classList.add('drag'); } if (dragged) { box.scrollLeft = down.l - dx; box.scrollTop = down.t - dy; } });
+  addEventListener('pointerup', () => { down = null; box.classList.remove('drag'); setTimeout(() => { dragged = false; }, 0); }); }
+let toastT = 0;
+function toast(text, ms) { const t = $('toast'); t.textContent = text; t.hidden = !text; clearTimeout(toastT); if (ms) toastT = setTimeout(() => { t.hidden = !buildMode; if (buildMode) t.textContent = buildHint(); }, ms); }
+const buildHint = () => `${size} ${PLOT[size]}×${PLOT[size]} · ${COST[size]}동전 — 내 섬 땅을 누르세요 (초록이면 지을 수 있어요)`;
+function setBuildMode(on) {
+  buildMode = on && !!mySlot; $('d-build').classList.toggle('on', buildMode); $('sizes').hidden = !buildMode; hover = null;
+  if (buildMode) { $('sizes').replaceChildren(...Object.keys(PLOT).map(k => el('button', { class: k === size ? 'on' : '', on: { click: () => { size = k; setBuildMode(true); } } }, `${k} · ${COST[k]}`))); toast(buildHint()); scrollToSlot(mySlot); }
+  else toast('');
+}
+$('d-build').onclick = () => { if (!mySlot) return showHome(); setBuildMode(!buildMode); };
+$('d-home').onclick = () => { setBuildMode(false); panel.hidden || current ? (current ? showHome() : closePanel()) : showHome(); };
+$('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.manual = !myDoc.wallet.manual; save(true); dockState(); toast(myDoc.wallet.manual ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
+function dockState() { const auto = !!myDoc && !myDoc.wallet.manual; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = auto ? '자동 켬' : '자동 끔'; }
+addEventListener('keydown', (e) => { if (e.key === 'Escape' && buildMode) setBuildMode(false); });
 
 // ---------- panel ----------
 const panel = $('panel');
-const show = (...kids) => panel.replaceChildren(...kids.flat().filter(Boolean));
+const show = (...kids) => { panel.hidden = false; panel.replaceChildren(el('button', { class: 'ghost x', on: { click: closePanel } }, '✕'), ...kids.flat().filter(Boolean)); };
+function closePanel() { panel.hidden = true; current = null; joinShown = false; }
 function inviteCard() {
   const empty = []; for (let s = 1; s <= SLOTS; s++) if (!owners.has(s)) empty.push(s);
   if (!empty.length) return null;
@@ -320,8 +369,9 @@ function bridgeCards() {
 }
 function showHome(msg) {
   current = null;
+  joinShown = false;
   if (!mySlot) {
-    const can = db && me;
+    const can = db && me; joinShown = true;
     return show(el('h2', {}, '한 줄 군도'),
       el('p', { class: 'note' }, '친구 열 명이 섬 하나씩 맡아 한 줄로 건물을 짓고, 다리를 반씩 놓아 섬을 잇는 곳이에요. 다리가 이어지면 친구 섬 사람들이 건너와 내 가게에서 돈을 써요.'),
       can ? el('h3', {}, '빈 섬을 골라 들어오세요') : el('p', { class: 'note' }, 'claude.ai에서 이 페이지에 Contributor로 초대받으면 섬을 고를 수 있어요.'),
@@ -396,7 +446,6 @@ function manage(p) {
 }
 
 // ---------- inside a building: its own simulation, guests come from the map's queue ----------
-let watching = null;
 function openInside(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   const mineP = p.owner === me && !!myDoc?.plots[key], owned = ownedOf(p), n = normalize(p.b.input);
@@ -426,7 +475,7 @@ let istatT = 0;
 function stepInside(dt) {
   if (!watching) return;
   const paid = watching.view.frame(dt);
-  for (const e of paid) { watching.earned += e.n; if (watching.mine) { myDoc.wallet.coins += e.n; dirty = true; } }
+  for (const e of paid) { watching.earned += e.n; if (watching.mine) { earned.push([performance.now(), e.n]); myDoc.wallet.coins += e.n; dirty = true; } }
   if ((istatT += dt) < .3) return; istatT = 0;
   const door = sim.shops.get(watching.key)?.queue.length ?? 0, isim = watching.view.sim, p = allPlots().find(x => x.key === watching.key), r = p ? ratesOf(p) : null;
   const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, seats = isim.seats.length, used = isim.seats.filter(x => x.who).length;
@@ -515,7 +564,7 @@ if (db) {
     rebuild(); resolveNames();
   }, () => show(el('p', { class: 'err' }, '군도를 불러오지 못했어요.')));
 } else { docs = new Map(Object.entries(ISLES_SEED)); rebuild(); }
-showHome();
+if (!db) showHome();   // without a database there is nothing to wait for
 // ?open=<plot key> opens a building's inside at once (for checks)
 { const k = new URLSearchParams(location.search).get('open'); if (k) setTimeout(() => { showBuilding(k); openInside(k); }, 300); }
 </script>
