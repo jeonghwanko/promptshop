@@ -191,8 +191,11 @@
   .toast { background:#2e241a; color:#fbf1dc; border-radius:14px; padding:8px 16px; font:400 16px var(--f-disp); box-shadow:0 0 0 3px #fbf1dc, 0 4px 0 3px rgba(20,30,40,.4); }
   .gbub { border-radius:18px; box-shadow:inset 0 0 0 3px #2e241a, 0 5px 0 rgba(20,30,40,.35); font:400 16px var(--f-disp); }
   .gbub::before { border-right-color:#2e241a; }
-  .celebrate { border-radius:22px; box-shadow:inset 0 0 0 4px #2e241a, inset 0 -8px 0 #b47d14, 0 8px 0 rgba(20,30,40,.4), 0 0 0 9999px rgba(0,0,0,.18); }
-  .celebrate span { font:400 16px var(--f-disp); }
+  .celebrate { top:96px; transform:translateX(-50%); background:none !important; box-shadow:none !important; padding:0; border-radius:0; pointer-events:none; text-align:center; white-space:nowrap; animation:celebIn 2.4s cubic-bezier(.2,1.4,.4,1) forwards; }
+  .celebrate b { display:flex; align-items:center; justify-content:center; gap:8px; font:400 38px var(--f-disp); color:#ffe08a; -webkit-text-stroke:6px #2e241a; paint-order:stroke fill; filter:drop-shadow(0 4px 0 rgba(20,30,40,.35)); }
+  .celebrate b .pxi { width:44px; height:44px; filter:drop-shadow(0 0 0 #2e241a); }
+  .celebrate span { display:block; margin-top:2px; font:400 18px var(--f-disp); color:#fff; -webkit-text-stroke:4px #2e241a; paint-order:stroke fill; }
+  @keyframes celebIn { 0% { opacity:0; transform:translate(-50%, -24px) scale(.7); } 12% { opacity:1; transform:translate(-50%, 0) scale(1.08); } 20% { transform:translate(-50%, 0) scale(1); } 80% { opacity:1; transform:translate(-50%, 0); } 100% { opacity:0; transform:translate(-50%, -14px); } }
   .cards { background:rgba(15,25,35,.62); }
   .cards h2 { font:400 30px var(--f-disp); color:#fff; -webkit-text-stroke:5px #2e241a; paint-order:stroke fill; text-shadow:none; display:flex; align-items:center; gap:8px; }
   .cards h2 img { width:36px; height:36px; image-rendering:pixelated; }
@@ -385,7 +388,7 @@ function G() { const w = myDoc.wallet; w.permits ??= 1; w.served ??= 0; w.prevAt
   if (w.nextAt - w.prevAt > permitGap(w.earnedP)) w.nextAt = w.prevAt + permitGap(w.earnedP);   // islands from before the shorter gaps
   // guests already past the mark (after the gaps got shorter) are paid out at once
   let got = 0; while (w.served >= w.nextAt) { w.permits++; w.earnedP++; w.prevAt = w.nextAt; w.nextAt = w.prevAt + permitGap(w.earnedP); got++; }
-  if (got) { dirty = true; setTimeout(() => celebrate(`🎫 허가증 ${got}장!`, '짓기를 눌러 새 건물을 올려요'), 0); }
+  if (got) { dirty = true; setTimeout(() => celebrate(`🎫 허가증 +${got}`, ''), 0); }
   return w; }
 const levelOf = (served) => LEVELS.reduce((i, l, k) => served >= l.at ? k : i, 0);
 const sizesOpen = (lv) => ['S', 'M', 'L'].slice(0, Math.min(3, lv + 1));
@@ -890,9 +893,9 @@ function openCards() {
   box.hidden = false; tutEvent('cards');
 }
 let celebT = 0;
-function celebrate(title, sub) {
+function celebrate(title, sub) {   // words and an icon drop in at the top centre and fade: no plate, no dimming, nothing to press
   document.querySelector('.celebrate')?.remove(); clearTimeout(celebT);
-  const c = el('div', { class: 'celebrate' }, el('b', {}, title), el('span', {}, sub)); document.body.append(c); celebT = setTimeout(() => c.remove(), 2600);
+  const c = el('div', { class: 'celebrate', 'data-icon-size': '40' }, el('b', {}, title), sub ? el('span', {}, sub) : null); document.body.append(c); celebT = setTimeout(() => c.remove(), 2400);
 }
 $('d-home').onclick = () => { setBuildMode(false); if (panel.hidden || current) showHome(); else closePanel(); };   // open my island; a second press closes it
 $('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.autoInvest = !myDoc.wallet.autoInvest; save(true); dockState(); toast(!myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
@@ -1493,7 +1496,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(u, d))])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
+window.__isles = { celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
