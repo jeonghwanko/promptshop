@@ -1,6 +1,6 @@
 // The world as a grid of neighbourhoods: each cell is 0.05° of longitude by 0.05° of latitude (about 5 km),
 // numbered X (west → east) and Y (north → south). The same place is always the same neighbourhood.
-import { COUNTRIES } from './world-data.js';
+import { COUNTRIES, SCALE } from './world-data.js';
 import { CITIES } from './cities.js';
 
 export const CELL = 0.05, XN = Math.round(360 / CELL), YN = Math.round(180 / CELL);
@@ -10,7 +10,7 @@ export const cellCenter = (X, Y) => [90 - (Y + .5) * CELL, X * CELL - 180 + CELL
 export const cellPoint = (X, Y, u, v) => [90 - (Y + v) * CELL, X * CELL - 180 + u * CELL];
 
 // country polygons with bounding boxes, in degrees
-const POLYS = COUNTRIES.map(c => ({ n: c.n, ko: c.ko, rings: c.p.map(r => { const pts = []; for (let i = 0; i < r.length; i += 2) pts.push([r[i] / 10, r[i + 1] / 10]); return pts; }) }))
+const POLYS = COUNTRIES.map(c => ({ n: c.n, ko: c.ko, rings: c.p.map(r => { const pts = []; for (let i = 0; i < r.length; i += 2) pts.push([r[i] / SCALE, r[i + 1] / SCALE]); return pts; }) }))
   .map(c => ({ ...c, bb: c.rings.flat().reduce((b, [x, y]) => [Math.min(b[0], x), Math.min(b[1], y), Math.max(b[2], x), Math.max(b[3], y)], [999, 999, -999, -999]) }));
 function inRing(lng, lat, r) {
   let inside = false;
@@ -77,7 +77,10 @@ export function drawLand(g, P, w, h, { land = '#8cbf6a', ice = '#e8eef2', coast 
     if (bx < 0 || ax > w || by < 0 || ay > h) continue;
     for (const r of c.rings) for (const p of pieces(r)) {
       if (p.length < 3) continue;
-      g.beginPath(); p.forEach(([lng, lat], i) => { const [x, y] = P(lng, lat); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+      // points closer than a pixel to the last one drawn are skipped: the detailed outline costs little when zoomed out
+      let lx = 1e9, ly = 1e9, k = 0; g.beginPath();
+      for (const [lng, lat] of p) { const [x, y] = P(lng, lat); if (k && Math.abs(x - lx) < .8 && Math.abs(y - ly) < .8) continue; k++ ? g.lineTo(x, y) : g.moveTo(x, y); lx = x; ly = y; }
+      if (k < 3) continue; g.closePath();
       g.fillStyle = c.n === 'Antarctica' ? ice : land; g.fill(); g.strokeStyle = coast; g.lineWidth = 1; g.stroke();
     }
   }

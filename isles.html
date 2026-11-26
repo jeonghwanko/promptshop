@@ -619,6 +619,7 @@ function setView(cx, cy, k) {   // view centred on map point (cx, cy) in world u
   drawWorld();
 }
 function drawWorld() {
+  const t0 = performance.now();
   const c = $('wmap'), vw = innerWidth, vh = innerHeight, W = Math.ceil(vw / PIX), H = Math.ceil(vh / PIX);
   if (c.width !== W || c.height !== H) { c.width = W; c.height = H; }
   Object.assign(c.style, { left: 0, top: 0, width: W * PIX + 'px', height: H * PIX + 'px' });
@@ -626,6 +627,7 @@ function drawWorld() {
   g.fillStyle = '#4a8db3'; for (let y = 0; y < H; y += 6) for (let x = (y / 6) % 2 ? 3 : 0; x < W; x += 12) g.fillRect(x, y, 2, 1);
   // the world repeats sideways: draw it three times, one world-width apart
   for (const shift of [-360, 0, 360]) drawLand(g, (lng, lat) => [(vw / 2 + ((lng + 180) - wv.cx + shift) * wv.k) / PIX, (vh / 2 + ((90 - lat) - wv.cy) * wv.k) / PIX], W, H);
+  window.__drawMs = performance.now() - t0;
   drawSpots();
 }
 function clusters() {   // merge boards whose spots fall within 64 px of each other on screen
