@@ -55,6 +55,7 @@
   .isleb .nm { display:flex; flex-direction:column; align-items:flex-start; line-height:1.15; } .isleb .nm small { font:400 12px var(--f-disp); color:#e6d3ad; }
   .isleb .tk { display:flex; align-items:center; gap:3px; font:400 20px var(--f-disp); color:#ffd166; } .isleb .tk img { width:24px; height:24px; image-rendering:pixelated; }
   .isleb .tk.got { animation:pop2 .5s; } @keyframes pop2 { 40% { transform:scale(1.4); } }
+  .coinb[hidden] { display:none; } .rb[hidden] { display:none; }
   .coinb { position:relative; display:flex; align-items:center; gap:6px; padding:4px 16px 4px 6px; border-radius:30px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); }
   .coinb .cic img { width:36px; height:36px; image-rendering:pixelated; display:block; }
   .coinb b { font:400 28px var(--f-disp); color:#ffd166; font-variant-numeric:tabular-nums; min-width:2ch; text-align:right; }
@@ -156,6 +157,66 @@
   .istats { display:flex; gap:14px; flex-wrap:wrap; font-size:13px; } .istats b { font-size:16px; } .istats .bad b { color:var(--hot); } .istats span { color:var(--dim); font-size:12px; }
   .iscroll { overflow:auto; max-width:100%; } .istats[hidden] { display:none; }
   .slots { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; } .slots button { padding:8px 0; font-size:13px; }
+
+  /* ===== game skin: dark-outlined chunky pieces, Jua words, pixel icons ===== */
+  .pxi.inl { width:1.15em; height:1.15em; vertical-align:-.2em; image-rendering:pixelated; }
+  button { font:400 16px var(--f-disp); padding:9px 16px; border-radius:14px; background:var(--accent); color:#fff;
+           box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #2a524e, 0 3px 0 rgba(20,30,40,.4); }
+  button:active:not(:disabled) { transform:translateY(2px); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -2px 0 #2a524e, 0 1px 0 rgba(20,30,40,.4); }
+  button.gold { background:var(--gold); color:#3a2a00; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #b47d14, 0 3px 0 rgba(20,30,40,.4); }
+  button.gold:active:not(:disabled) { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -2px 0 #b47d14, 0 1px 0 rgba(20,30,40,.4); }
+  button.ghost { background:#fbf1dc; color:var(--ink); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #d9c49a, 0 3px 0 rgba(20,30,40,.4); }
+  button.ghost:active:not(:disabled) { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -2px 0 #d9c49a, 0 1px 0 rgba(20,30,40,.4); }
+  button.warn { background:var(--hot); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #7a2418, 0 3px 0 rgba(20,30,40,.4); }
+  button:disabled { opacity:1; filter:grayscale(.85) brightness(.92); }
+  .xb { width:40px; height:40px; padding:0; border-radius:50%; display:grid; place-items:center; background:#fbf1dc; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -4px 0 #d9c49a, 0 3px 0 rgba(20,30,40,.4); }
+  .xb img { width:22px; height:22px; image-rendering:pixelated; }
+  .panel { background:#f6ead2; border-radius:22px; padding:0 14px 14px; gap:10px; box-shadow:inset 0 0 0 3px #2e241a, 0 6px 0 rgba(20,30,40,.4); }
+  .panel { bottom:auto; max-height:calc(100vh - 220px); } .slots button { font-size:20px; padding:12px 0; }
+  .panel .ph { position:sticky; top:0; z-index:1; display:flex; align-items:center; gap:10px; margin:0 -14px; padding:12px 12px 10px 16px; background:#2e241a; color:#fbf1dc; border-radius:20px 20px 0 0; }
+  .panel .ph h2 { flex:1; color:#fbf1dc; font:400 21px var(--f-disp); } .panel .ph small { font:400 13px var(--f-disp); color:#e6d3ad; }
+  .panel h3 { font:400 15px var(--f-disp); color:var(--dim); margin:6px 0 -4px; }
+  .card { background:#fffaf0; border-radius:14px; padding:10px 12px; box-shadow:inset 0 0 0 2px #d9c49a; font-size:14px; }
+  .card.alert { box-shadow:inset 0 0 0 3px var(--gold), 0 0 0 3px rgba(227,167,47,.25); }
+  .stats3 { display:grid; grid-template-columns:repeat(3, 1fr); gap:8px; }
+  .stat { display:flex; flex-direction:column; align-items:center; gap:2px; padding:10px 4px 8px; background:#fffaf0; border-radius:14px; box-shadow:inset 0 0 0 2px #d9c49a; }
+  .stat img { width:32px; height:32px; image-rendering:pixelated; } .stat b { font:400 20px var(--f-disp); line-height:1.1; } .stat small { font:400 12px var(--f-disp); color:var(--dim); }
+  .tile { display:flex; align-items:center; gap:12px; } .tile > img { width:40px; height:40px; image-rendering:pixelated; flex:none; }
+  .tile .tt { flex:1; display:flex; flex-direction:column; } .tile .tt b { font:400 18px var(--f-disp); } .tile .tt small { font:400 13px var(--f-disp); color:var(--dim); }
+  .tile .pr { display:inline-flex; align-items:center; gap:4px; } .tile .pr img { width:20px; height:20px; image-rendering:pixelated; }
+  .lvbar { height:10px; border-radius:6px; background:#e6d8bb; box-shadow:inset 0 0 0 2px #2e241a; overflow:hidden; margin-top:4px; } .lvbar i { display:block; height:100%; background:#ffd166; box-shadow:inset 0 -3px 0 #d9a52a; }
+  .nb { display:flex; flex-wrap:wrap; gap:6px; } .nb span { font:400 14px var(--f-disp); padding:5px 10px; border-radius:10px; background:#efe3c8; color:var(--dim); } .nb span.ok { background:#d8ecd6; color:#2f6b3a; }
+  .quote { font:400 18px var(--f-disp); background:#fffaf0; border-radius:14px; padding:10px 12px; box-shadow:inset 0 0 0 2px #d9c49a; }
+  .chips button { background:#fbf1dc; color:var(--ink); font:400 15px var(--f-disp); padding:6px 12px; box-shadow:inset 0 0 0 2px #2e241a, inset 0 -3px 0 #d9c49a; }
+  .toast { background:#2e241a; color:#fbf1dc; border-radius:14px; padding:8px 16px; font:400 16px var(--f-disp); box-shadow:0 0 0 3px #fbf1dc, 0 4px 0 3px rgba(20,30,40,.4); }
+  .gbub { border-radius:18px; box-shadow:inset 0 0 0 3px #2e241a, 0 5px 0 rgba(20,30,40,.35); font:400 16px var(--f-disp); }
+  .gbub::before { border-right-color:#2e241a; }
+  .celebrate { border-radius:22px; box-shadow:inset 0 0 0 4px #2e241a, inset 0 -8px 0 #b47d14, 0 8px 0 rgba(20,30,40,.4), 0 0 0 9999px rgba(0,0,0,.18); }
+  .celebrate span { font:400 16px var(--f-disp); }
+  .cards { background:rgba(15,25,35,.62); }
+  .cards h2 { font:400 30px var(--f-disp); color:#fff; -webkit-text-stroke:5px #2e241a; paint-order:stroke fill; text-shadow:none; display:flex; align-items:center; gap:8px; }
+  .cards h2 img { width:36px; height:36px; image-rendering:pixelated; }
+  .rcard { width:212px; min-height:236px; background:#fbf1dc; border-radius:22px; padding:18px 14px 14px; gap:8px; box-shadow:inset 0 0 0 4px #2e241a, inset 0 -8px 0 #d9c49a, 0 6px 0 rgba(0,0,0,.35); }
+  .rcard .big { width:64px; height:64px; display:grid; place-items:center; border-radius:50%; background:#fff; box-shadow:inset 0 0 0 3px #2e241a; font-size:34px; }
+  .rcard .big img { width:40px; height:40px; } .rcard b { font:400 20px var(--f-disp); } .rcard small { font:400 13px var(--f-disp); }
+  .rcard .need { display:inline-flex; align-items:center; gap:4px; font:400 15px var(--f-disp); color:var(--hot); } .rcard .need img { width:20px; height:20px; image-rendering:pixelated; }
+  .rcard .prize { display:inline-flex; align-items:center; gap:4px; background:var(--gold); color:#3a2a00; border-radius:12px; padding:4px 12px; font:400 15px var(--f-disp); box-shadow:inset 0 0 0 2px #2e241a; }
+  .rcard .prize img { width:18px; height:18px; image-rendering:pixelated; }
+  .rcard.free { background:#eef3f2; box-shadow:inset 0 0 0 4px #2e241a, inset 0 -8px 0 #c5d8d4, 0 6px 0 rgba(0,0,0,.35); } .rcard.free .prize { background:#d4e4e1; color:var(--accent); }
+  .world .wtop .plate { display:flex; align-items:center; gap:10px; padding:6px 16px 6px 8px; border-radius:30px; background:rgba(46,36,26,.86); color:#fbf1dc; font:400 20px var(--f-disp); box-shadow:0 4px 0 rgba(20,30,40,.35); }
+  .world .wtop .plate img { width:32px; height:32px; image-rendering:pixelated; } .world .wtop .plate small { font:400 14px var(--f-disp); color:#e6d3ad; }
+  .wzoom button { width:46px; height:46px; border-radius:14px; background:#fbf1dc; color:var(--ink); font:400 26px var(--f-disp); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -4px 0 #d9c49a, 0 3px 0 rgba(20,30,40,.4); }
+  .world .wcard { background:#f6ead2; border-radius:22px; box-shadow:inset 0 0 0 3px #2e241a, 0 6px 0 rgba(0,0,0,.35); }
+  .world .wcard h2 { font:400 22px var(--f-disp); } .world .wcard .note { font:400 14px var(--f-disp); }
+  .world .wcard canvas { box-shadow:inset 0 0 0 2px #2e241a; border:2px solid #2e241a; }
+  .wrow { font:400 15px var(--f-disp); box-shadow:inset 0 0 0 2px #d9c49a; border-radius:12px; }
+  .spot .tag { font:400 15px var(--f-disp); box-shadow:inset 0 0 0 2px #2e241a, 0 2px 0 rgba(0,0,0,.3); }
+  .ibox { background:#f6ead2; border-radius:22px; box-shadow:inset 0 0 0 3px #2e241a, 0 6px 0 rgba(0,0,0,.35); }
+  .act { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #d9c49a, 0 4px 0 rgba(0,0,0,.3); font:400 16px var(--f-disp); } .act small { font:400 13px var(--f-disp); }
+  .act.buy { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #e0b452, 0 4px 0 rgba(0,0,0,.3); }
+  .act:active:not(:disabled) { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -2px 0 #d9c49a, 0 1px 0 rgba(0,0,0,.3); }
+  .act .price { font:400 18px var(--f-disp); }
+  @media (max-width:760px) { .panel { top:auto; bottom:124px; max-height:52vh; } .rcard { width:min(212px, 44vw); min-height:200px; } }
 </style>
 <div class="inside" id="inside" hidden><div class="ibox"><div class="row"><h2 id="iname"></h2><button class="ghost" id="iclose">닫기</button></div><div class="note" id="ihint"></div><div class="iscroll" id="istage"></div><div id="iflow"></div><div class="istats" id="istats" hidden></div></div></div>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
@@ -165,7 +226,7 @@
 <aside class="panel" id="panel" hidden></aside>
 <div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><div class="shopacts" id="shopacts"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
 <div class="world" id="world" hidden><canvas class="wmap" id="wmap"></canvas><div id="spots"></div>
-  <div class="wtop"><div class="pill">세계</div><div class="pill" id="wcount"></div><span class="grow"></span><button class="gold" id="wnew">새 군도 만들기</button><button class="ghost" id="wclose" style="background:#fbf6ec">돌아가기</button></div>
+  <div class="wtop"><div class="plate" data-icon-size="32">🌏<span>세계</span><small id="wcount"></small></div><span class="grow"></span><button class="gold" id="wnew">새 군도</button><button class="xb" id="wclose"></button></div>
   <div class="wzoom"><button id="wplus">＋</button><button id="wminus">－</button></div><div class="wcard" id="wcard" hidden></div></div>
 <div class="toast" id="toast" hidden></div>
 <div class="cards" id="cards" hidden></div>
@@ -201,7 +262,7 @@ import { pixelIcons, iconCanvas, iconEl, EMOJI } from './src/ui/icons.js';
 
 const $ = (id) => document.getElementById(id);
 // the game skin: ?theme=wood|sea to compare, remembered per browser
-{ const q = new URLSearchParams(location.search).get('theme'); if (q) { applyTheme(q); pixelIcons(document.body); } }   // the skin is on hold: only with ?theme= while the concept is redone
+{ const q = new URLSearchParams(location.search).get('theme'); if (q) applyTheme(q); pixelIcons(document.body); }   // emoji in the game's words become pixel icons everywhere   // the skin is on hold: only with ?theme= while the concept is redone
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
@@ -213,12 +274,12 @@ const LAND_COST = [80, 200, 450, 900], LAND_LEVEL = [0, 1, 2, 3], PLOTS_PER_LAND
 const maxPlots = () => MAX_PLOTS + PLOTS_PER_LAND * (myDoc?.land ?? 0);
 function landCard() {
   const k = myDoc.land ?? 0;
-  if (k >= LAND_MAX) return el('div', { class: 'card' }, el('span', {}, `🌱 땅 ${k}/${LAND_MAX}`, el('div', { class: 'note' }, '섬을 끝까지 넓혔어요')));
-  const lv = levelOf(G().served), need = LAND_LEVEL[k], cost = LAND_COST[k];
+  if (k >= LAND_MAX) return el('div', { class: 'card tile' }, iconEl('sprout', 40, ''), el('span', { class: 'tt' }, el('b', {}, `땅 ${k}/${LAND_MAX}`), el('small', {}, '끝까지 넓혔어요')));
+  const lv = levelOf(G().served), need = LAND_LEVEL[k], cost = LAND_COST[k], locked = lv < need;
   setLand(mySlot, k); const now0 = landSize(mySlot); setLand(mySlot, k + 1); const gain = landSize(mySlot) - now0; setLand(mySlot, k);
-  const b = el('button', { class: 'gold', on: { click: () => widen() } }, `🌱 땅 넓히기 · ${cost}동전`);
-  b.disabled = lv < need || myDoc.wallet.coins < cost;
-  return el('div', { class: 'card' + (!b.disabled ? ' alert' : '') }, el('span', {}, `🌱 땅 ${k}/${LAND_MAX}`, el('div', { class: 'note' }, lv < need ? `Lv.${need + 1} ${LEVELS[need].name}부터 넓힐 수 있어요` : `섬이 한 바퀴 넓어져요 · 땅 +${gain}칸 · 건물 +${PLOTS_PER_LAND}채`)), b);
+  const b = el('button', { class: 'gold', on: { click: () => widen() } }, el('span', { class: 'pr' }, locked ? iconEl('lock', 20, '') : iconEl('coin', 20, ''), locked ? `Lv.${need + 1}` : String(cost)));
+  b.disabled = locked || myDoc.wallet.coins < cost;
+  return el('div', { class: 'card tile' + (!b.disabled ? ' alert' : '') }, iconEl('sprout', 40, ''), el('span', { class: 'tt' }, el('b', {}, `땅 넓히기 ${k}/${LAND_MAX}`), el('small', {}, `+${gain}칸 · 건물 +${PLOTS_PER_LAND}`)), b);
 }
 // the tiles of an island right now
 function tilesOf(slot) { const [cx, cz] = centerOf(slot), out = []; for (let z = cz - 14; z <= cz + 14; z++) for (let x = cx - 14; x <= cx + 14; x++) if (slotAt(x, z) === slot) out.push([x, z]); return out; }
@@ -485,7 +546,7 @@ let shownCoins = null, shownPermits = null;
 function hud() {
   const coins = myDoc ? myDoc.wallet.coins : null;
   if (coins !== shownCoins) { const cb = $('coinb'); cb.classList.remove('up', 'down'); if (shownCoins != null && coins != null) { void cb.offsetWidth; cb.classList.add(coins > shownCoins ? 'up' : 'down'); setTimeout(() => cb.classList.remove('down'), 400); }
-    shownCoins = coins; $('wallet').textContent = coins == null ? '—' : coins.toLocaleString('ko-KR'); }
+    $('coinb').hidden = coins == null; shownCoins = coins; $('wallet').textContent = coins == null ? '—' : coins.toLocaleString('ko-KR'); }
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
   const per = earned.reduce((a, e) => a + e[1], 0); $('rate').textContent = myDoc && per ? `+${per}/분` : '';
   if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), p = Math.min(1, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt));
@@ -739,12 +800,12 @@ function openCards() {
     const r = need ? REQ[need] : null, wait = need ? dm[need].waiting : 0;
     const c = el('button', { class: 'rcard' + (need ? '' : ' free'), on: { click: () => { card = { need }; box.hidden = true; setBuildMode(true); tutEvent('card'); } } },
       el('span', { class: 'big' }, r ? r.icon : '✏️'), el('b', {}, r ? `“${r.ko}”` : '마음대로'), el('small', {}, r ? r.sub : '무엇이든 한 줄로'),
-      r ? el('span', { class: 'need' }, wait ? `손님 ${wait}명이 기다려요` : have.has(need) ? '더 있으면 좋겠대요' : '섬에 아직 없어요') : null,
-      el('span', { class: 'prize' }, r ? `들어주면 +${REQ_BONUS}동전 · 손님 무리` : '보너스 없음'));
+      r ? el('span', { class: 'need' }, iconEl('people', 20, ''), wait ? `${wait}명 기다림` : have.has(need) ? '더 원해요' : '섬에 없음') : null,
+      r ? el('span', { class: 'prize' }, iconEl('coin', 18, ''), `+${REQ_BONUS} · 손님 무리`) : el('span', { class: 'prize' }, '보너스 없음'));
     c.style.animationDelay = i * 90 + 'ms'; return c;
   };
-  box.replaceChildren(el('h2', {}, `🎫 ${w.permits}장 — 무엇을 지을까요?`), el('div', { class: 'row3' }, ...picks.map(deal), deal(null, 2)),
-    el('button', { class: 'ghost', style: 'background:#fbf6ec', on: { click: () => { box.hidden = true; } } }, '나중에'));
+  box.replaceChildren(el('h2', {}, iconEl('ticket', 36, ''), `${w.permits} · 무엇을 지을까?`), el('div', { class: 'row3' }, ...picks.map(deal), deal(null, 2)),
+    el('button', { class: 'ghost', on: { click: () => { box.hidden = true; } } }, '나중에'));
   box.hidden = false; tutEvent('cards');
 }
 let celebT = 0;
@@ -802,23 +863,24 @@ function dropMove(t) {
 
 // ---------- panel ----------
 const panel = $('panel');
-const show = (...kids) => { panel.hidden = false; panel.replaceChildren(el('button', { class: 'ghost x', on: { click: closePanel } }, '✕'), ...kids.flat().filter(Boolean)); };
+const xbtn = (fn) => { const b = el('button', { class: 'xb', on: { click: fn } }); b.append(iconEl('close', 22, '')); return b; };
+const show = (...kids) => { panel.hidden = false; const list = kids.flat().filter(Boolean), h = list[0]?.tagName === 'H2' ? list.shift() : el('h2', {});   // the title sits on a dark strip with the close button
+  panel.replaceChildren(el('div', { class: 'ph' }, h, xbtn(closePanel)), ...list); panel.scrollTop = 0; };
 function closePanel() { panel.hidden = true; current = null; joinShown = false; }
 function inviteCard() {
   const empty = []; for (let s = 1; s <= SLOTS; s++) if (!owners.has(s)) empty.push(s);
   if (!empty.length) return null;
-  return el('div', { class: 'card' }, el('span', {}, `빈 섬 ${empty.length}개 — 친구를 불러 같이 지어요`), el('span', { class: 'note' }, '이 페이지의 공유 메뉴에서 친구를 Contributor로 초대하고, 친구가 열면 빈 섬을 골라요.'));
+  return el('div', { class: 'card tile' }, iconEl('people', 40, ''), el('span', { class: 'tt' }, el('b', {}, `빈 섬 ${empty.length}개`), el('small', {}, '공유 메뉴로 친구 초대')));
 }
 function bridgeCards() {
   if (!mySlot) return [];
   return neighbours(mySlot).map(n => {
     const uid = owners.get(n), id = bridgeId(mySlot, n), h = world.bridges.get(id), mineHalf = mySlot < n ? h?.a : h?.b, theirs = mySlot < n ? h?.b : h?.a;
-    const who = uid ? `${n}번 섬 · ${nameOf(uid)}` : `${n}번 섬 · 빈 섬`;
-    if (!uid) return el('div', { class: 'card' }, el('span', {}, who), el('span', { class: 'note' }, '친구가 들어오면 다리를 놓을 수 있어요'));
-    if (mineHalf && theirs) return el('div', { class: 'card' }, el('span', {}, who), el('b', {}, '다리 연결됨'));
-    if (mineHalf) return el('div', { class: 'card' }, el('span', {}, who), el('span', { class: 'note' }, '내 반쪽 완성 · 친구의 반쪽을 기다려요'));
-    const btn = el('button', { class: 'gold', on: { click: () => halfBridge(n) } }, theirs ? `나머지 반쪽 놓기 · ${BRIDGE}` : `반쪽 놓기 · ${BRIDGE}`); btn.disabled = myDoc.wallet.coins < BRIDGE;
-    return el('div', { class: 'card' + (theirs ? ' alert' : '') }, el('span', {}, who, theirs ? el('div', { class: 'note' }, `${nameOf(uid)}가 반쪽을 놓았어요!`) : null), btn);
+    if (!uid) return el('span', {}, `${n}번 · 빈 섬`);
+    if (mineHalf && theirs) return el('span', { class: 'ok' }, `${n}번 · ${nameOf(uid)} ✓`);
+    if (mineHalf) return el('span', {}, `${n}번 · ${nameOf(uid)} · 반쪽`);
+    const btn = el('button', { class: 'gold', on: { click: () => halfBridge(n) } }, el('span', { class: 'pr' }, iconEl('coin', 20, ''), String(BRIDGE))); btn.disabled = myDoc.wallet.coins < BRIDGE;
+    return el('div', { class: 'card tile' + (theirs ? ' alert' : '') }, iconEl('island', 40, ''), el('span', { class: 'tt' }, el('b', {}, `${n}번 · ${nameOf(uid)}`), el('small', {}, theirs ? '반쪽이 와 있어요' : '다리 반쪽')), btn);
   });
 }
 function showHome(msg) {
@@ -827,19 +889,17 @@ function showHome(msg) {
   if (!mySlot) {
     const can = db && me; joinShown = true;
     return show(el('h2', {}, boardName || '한 줄 군도'),
-      el('p', { class: 'note' }, '친구 열 명이 섬 하나씩 맡아 한 줄로 건물을 짓고, 다리를 반씩 놓아 섬을 잇는 곳이에요. 다리가 이어지면 친구 섬 사람들이 건너와 내 가게에서 돈을 써요.'),
-      can ? el('h3', {}, '빈 섬을 골라 들어오세요') : el('p', { class: 'note' }, 'claude.ai에서 이 페이지에 Contributor로 초대받으면 섬을 고를 수 있어요.'),
+      can ? el('h3', {}, '내 섬 고르기') : el('p', { class: 'note' }, '초대받으면 섬을 고를 수 있어요'),
       can ? el('div', { class: 'slots' }, Array.from({ length: SLOTS }, (_, i) => i + 1).map(s => { const b = el('button', { class: owners.has(s) ? 'ghost' : '', on: { click: () => join(s) } }, String(s)); b.disabled = owners.has(s); return b; })) : null,
       msg ? el('div', { class: 'err' }, msg) : null);
   }
-  const mine = Object.keys(myDoc.plots).length;
-  show(el('h2', {}, `${mySlot}번 섬 · 내 섬`),
-    (() => { const w = G(), lv = levelOf(w.served), nx = LEVELS[lv + 1]; return el('div', { class: 'card' }, el('span', {}, `Lv.${lv + 1} ${LEVELS[lv].name} · 받은 손님 ${w.served}명`, el('div', { class: 'note' }, nx ? `손님 ${nx.at - w.served}명 더 받으면 ${nx.name} — ${nx.size !== LEVELS[lv].size ? nx.size + ' 크기가 열려요' : '번화가!'}` : '최고 단계예요')),
-      el('span', {}, `🎫 ${w.permits}`, el('div', { class: 'note' }, `다음까지 ${w.nextAt - w.served}명`))); })(),
-    el('div', { class: 'note' }, `내 건물 ${mine}/${maxPlots()}`), boatCard(), el('div', { class: 'card' }, el('span', {}, !myDoc.wallet.autoInvest ? '가구는 직접 들여요' : '가구가 자동으로 들어와요', el('div', { class: 'note' }, '재료 값은 남겨 두고, 수입을 가장 많이 올리는 가구부터')),
-      el('button', { class: 'ghost', on: { click: () => { myDoc.wallet.autoInvest = !myDoc.wallet.autoInvest; save(true); showHome(); } } }, !myDoc.wallet.autoInvest ? '자동으로' : '직접 하기')),
+  const mine = Object.keys(myDoc.plots).length, w = G(), lv = levelOf(w.served), bp = boatPlan(mySlot), pct = Math.min(100, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt) * 100);
+  const stat = (ic, big, small) => el('div', { class: 'stat' }, iconEl(ic, 32, ''), el('b', {}, big), el('small', {}, small));
+  show(el('h2', {}, `${mySlot}번 섬 `, el('small', {}, `Lv.${lv + 1} ${LEVELS[lv].name}`)),
+    el('div', { class: 'card tile' }, iconEl('ticket', 40, ''), el('span', { class: 'tt' }, el('b', {}, `허가증 ${w.permits}`), el('div', { class: 'lvbar' }, Object.assign(el('i'), { style: `width:${pct}%` })), el('small', {}, `손님 ${w.nextAt - w.served}명 더`))),
+    el('div', { class: 'stats3' }, stat('people', w.served.toLocaleString('ko-KR'), '받은 손님'), stat('boat', bp.shops ? `${bp.every}초` : '—', bp.shops ? `${bp.people}명씩` : '가게 없음'), stat('door', `${mine}/${maxPlots()}`, '건물')),
     landCard(), msg ? el('div', { class: 'err' }, msg) : null,
-    el('h3', {}, '이웃 섬과 다리'), bridgeCards(), inviteCard());
+    el('h3', {}, '이웃'), el('div', { class: 'nb' }, bridgeCards().filter(x => x.tagName === 'SPAN')), ...bridgeCards().filter(x => x.tagName !== 'SPAN'), inviteCard());
 }
 function boatCard() {
   const bp = boatPlan(mySlot);
@@ -861,7 +921,7 @@ async function halfBridge(n) {
 }
 function showIsland(s) {
   const uid = owners.get(s);
-  if (!uid) return show(el('h2', {}, `${s}번 섬 · 빈 섬`), el('p', { class: 'note' }, '아직 아무도 살지 않아요. 친구를 초대하면 이 섬에서 짓기 시작해요.'), inviteCard(), mySlot ? null : el('button', { on: { click: () => join(s) } }, '이 섬에 살기'), el('button', { class: 'ghost', on: { click: () => showHome() } }, '돌아가기'));
+  if (!uid) return show(el('h2', {}, `${s}번 섬 · 빈 섬`), inviteCard(), mySlot ? null : el('button', { on: { click: () => join(s) } }, '이 섬에 살기'), el('button', { class: 'ghost', on: { click: () => showHome() } }, '돌아가기'));
   if (s === mySlot) return showHome();
   const ps = allPlots().filter(p => p.slot === s && p.b);
   show(el('h2', {}, `${s}번 섬 · ${nameOf(uid)}`), el('div', { class: 'note' }, `건물 ${ps.length}채`),
@@ -877,13 +937,13 @@ function showBuilding(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return showHome();
   if (p.owner === me) setTimeout(() => tutEvent('info'), 0);
   current = { kind: 'info', key };
-  const n = normalize(p.b.input), role = roleOf(n.type, n.levels), shop = sim.shops.get(key);
-  const what = [role.serves ? `${NEEDS[role.serves].ko}을(를) 채움` : null, role.source ? `사람 +${role.source}` : null].filter(Boolean).join(' · ') || '구경거리';
-  show(el('h2', {}, n.name || TYPE_KO[n.type] || '건물'),
-    el('div', { class: 'note' }, `${TYPE_KO[n.type] ?? n.type} · ${n.levels}층 · ${p.slot}번 섬 · ${nameOf(p.owner)}`),
-    el('div', { class: 'note' }, what, shop?.serves ? ` · 줄 ${shop.queue.length}/${shop.cap} · 받은 손님 ${shop.served}` : ''),
-    el('div', { class: 'quote' }, `“${p.b.line}”`), manage(p), el('div', { class: 'pics' }, renderView(p.b.input, 'ext').canvas, section(p.b.input, ownedOf(p))),
-    el('div', { class: 'row' }, me && (p.owner === me || isOwner) ? el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거') : null, el('button', { class: 'ghost', on: { click: () => showHome() } }, '닫기')));
+  const n = normalize(p.b.input), role = roleOf(n.type, n.levels), mineP = p.owner === me, st = role.serves ? starsInfo(p).stars : 0;
+  show(el('h2', {}, n.name || TYPE_KO[n.type] || '건물', ' ', el('small', {}, `${nameOf(p.owner)} · ${n.levels}층`)),
+    st ? el('div', { class: 'stars' }, starText(st)) : null,
+    el('div', { class: 'quote' }, `“${p.b.line}”`), el('div', { class: 'pics' }, renderView(p.b.input, 'ext').canvas),
+    el('div', { class: 'row' }, el('button', { class: 'gold', id: mineP ? 'go-inside' : null, on: { click: () => { if (mineP) { closePanel(); openShop(p.key); } else openInside(p.key); } } }, mineP ? '가게 안으로' : '안 구경하기'),
+      mineP ? el('button', { class: 'ghost', on: { click: () => startMove(p.key) } }, '↔ 옮기기') : null,
+      me && (mineP || isOwner) ? el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거') : null));
 }
 // running my shop: stock, and the way inside where the furniture is set up
 function manage(p) {
@@ -1244,7 +1304,7 @@ function openCluster(c) {
   // the list of its boards: free islands first, then the busiest
   const list = [...c.list].sort((a, b) => (mineIn(b) - mineIn(a)) || ((b.n ?? 0) < 10) - ((a.n ?? 0) < 10) || (b.n ?? 0) - (a.n ?? 0) || (b.bld ?? 0) - (a.bld ?? 0));
   const card = $('wcard'); card.hidden = false;
-  card.replaceChildren(el('h2', {}, `군도 ${list.length.toLocaleString('ko-KR')}개`), el('div', { class: 'note' }, '빈 섬 있는 곳, 친구 많은 곳부터'),
+  card.replaceChildren(el('h2', {}, `군도 ${list.length.toLocaleString('ko-KR')}개`), 
     el('div', { class: 'wlist' }, list.slice(0, 60).map(b => el('button', { class: 'wrow' + (mineIn(b) ? ' mine' : ''), on: { click: () => showBoard(b) } }, el('span', {}, b.name), el('small', {}, `${b.n ?? 0}/10 · 건물 ${b.bld ?? 0}`)))),
     list.length > 60 ? el('div', { class: 'note' }, `외 ${list.length - 60}개 — 더 확대해 보세요`) : null,
     el('button', { class: 'ghost', on: { click: () => { card.hidden = true; } } }, '닫기'));
@@ -1255,9 +1315,8 @@ async function showBoard(b) {
   const sh = b.demo ? { joined: new Set(), bridges: new Map(), taken: new Set(), buildings: 0, owners: new Map(), mine: false } : boardShape(await boardEntries(b.id));
   const wd = makeIsles(sh.joined, sh.bridges), g0 = drawIsles(wd, pr, { taken: sh.taken });
   const th = document.createElement('canvas'); th.width = 560; th.height = Math.round(560 * g0.height / g0.width); th.getContext('2d').drawImage(g0, 0, 0, th.width, th.height);
-  card.replaceChildren(el('h2', {}, b.name), el('div', { class: 'note' }, `${placeLabel(b.lat, b.lng).text} · 친구 ${sh.joined.size || b.n || 0}/10 · 건물 ${sh.buildings || b.bld || 0}채${sh.mine ? ' · 내 섬이 있어요' : ''}`), th,
-    el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기 있어요 · 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 군도예요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '들어가서 섬 고르기' : '구경하기'),
-      el('button', { class: 'ghost', on: { click: () => { card.hidden = true; } } }, '닫기')));
+  card.replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, b.name), xbtn(() => { card.hidden = true; })), el('div', { class: 'note' }, placeLabel(b.lat, b.lng).text), el('div', { class: 'nb' }, el('span', {}, `친구 ${sh.joined.size || b.n || 0}/10`), el('span', {}, `건물 ${sh.buildings || b.bld || 0}`), sh.mine ? el('span', { class: 'ok' }, '내 섬') : null), th,
+    el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기로 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 군도예요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '섬 고르기' : '구경하기')));
 }
 async function openWorld() {
   setBuildMode(false); $('world').hidden = false; $('wcard').hidden = true; placing = null;
@@ -1266,7 +1325,7 @@ async function openWorld() {
   setView(here.lng + 180, 90 - here.lat, Math.max(innerWidth / 360, innerHeight / 140) * 1.6);
 }
 function closeWorld() { $('world').hidden = true; placing = null; }
-$('wclose').onclick = closeWorld; $('d-world').onclick = openWorld; $('who').onclick = openWorld;
+$('wclose').append(iconEl('close', 22, '')); $('wclose').onclick = closeWorld; $('d-world').onclick = openWorld; $('who').onclick = openWorld;
 addEventListener('resize', () => { if (!$('world').hidden && wv) setView(wv.cx, wv.cy, wv.k); });
 $('wnew').onclick = () => { if (!db || !me) return; placing = {}; $('wcard').hidden = true; drawSpots(); };
 $('wplus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k * 2); $('wminus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k / 2);
