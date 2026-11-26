@@ -235,6 +235,18 @@
   .festp img { width:22px; height:22px; image-rendering:pixelated; display:block; } .festp .nd { display:flex; align-items:center; gap:2px; font-size:15px; } .festp .cd { min-width:42px; color:#ffe08a; font-size:20px; text-align:center; }
   .festp .bar { width:90px; height:10px; border-radius:6px; background:#5a4a3a; overflow:hidden; } .festp .bar i { display:block; height:100%; background:#4fbf6b; } .festp .bar i.lost { background:#e2685a; float:right; }
   .festp.soon { animation:nudge 1.2s infinite; } .festp.here .cd { color:#7ee08f; }
+  /* world map: voxel island tokens with dark name plates */
+  .world .wzoom.zoomb { position:absolute; right:12px; top:70px; margin:0; gap:0; } .world .wzoom .zb { width:44px; height:44px; background:none; color:#fbf1dc; font:700 28px/1 var(--f-ui); box-shadow:none; border-radius:0; }
+  .spot { gap:0; } .spot .vx { display:block; image-rendering:pixelated; filter:drop-shadow(0 4px 0 rgba(10,30,50,.35)); transition:transform .12s; } .spot:hover .vx { transform:translateY(-3px); }
+  .spot .tag { background:rgba(46,36,26,.88); color:#fbf1dc; box-shadow:0 2px 0 rgba(0,0,0,.3); border-radius:10px; margin-bottom:2px; } .spot .tag small { color:#e6d3ad; }
+  .spot.mine .tag { background:var(--gold); color:#3a2a00; box-shadow:inset 0 0 0 2px #2e241a, 0 2px 0 rgba(0,0,0,.3); } .spot.mine .tag small { color:#6a4500; } .spot.here .tag { outline:none; box-shadow:0 0 0 2px #fff, 0 2px 0 rgba(0,0,0,.3); }
+  .spot.dot .vx { width:22px; height:auto; } .spot.dot .tag { display:none; } .spot.dot:hover .tag { display:block; }
+  .bubble { width:auto !important; height:auto !important; border:0; border-radius:0; background:none !important; padding:0; box-shadow:none !important; display:flex; flex-direction:column; align-items:center; }
+  .bubble .vx { display:block; image-rendering:pixelated; filter:drop-shadow(0 4px 0 rgba(10,30,50,.35)); }
+  .bubble b { position:absolute; top:-6px; right:-10px; min-width:24px; height:24px; display:grid; place-items:center; padding:0 6px; border-radius:12px; background:#fbf1dc; color:var(--ink); font:400 15px var(--f-disp); box-shadow:inset 0 0 0 2px #2e241a; }
+  .bubble.mine b { background:var(--gold); } .bubble .where { position:static; margin-top:2px; background:rgba(46,36,26,.88); color:#fbf1dc; font:400 12px var(--f-disp); }
+  .actinfo { width:240px; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:16px; background:#f6ead2; box-shadow:inset 0 0 0 3px #2e241a, 0 4px 0 rgba(0,0,0,.3); }
+  .actinfo b { font:400 19px var(--f-disp); } .actinfo small { font:400 13px var(--f-disp); color:var(--dim); } .actinfo q { font:400 15px var(--f-disp); color:var(--ink); quotes:'“' '”'; }
   .zoomb { display:flex; flex-direction:column; margin-top:26px; border-radius:22px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); overflow:hidden; }
   .zb { width:44px; height:44px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; font:700 28px/1 var(--f-ui); display:grid; place-items:center; }
   .zb + .zb { border-top:1px solid rgba(251,241,220,.2); } .zb:hover { background:rgba(255,255,255,.1); } .zb:active:not(:disabled) { transform:none; box-shadow:none; background:rgba(255,255,255,.18); } .zb:disabled { filter:none; color:rgba(251,241,220,.3); } body.inshop .zoomb { opacity:0; pointer-events:none; }
@@ -263,7 +275,7 @@
 <div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><div class="shopacts" id="shopacts"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
 <div class="world" id="world" hidden><canvas class="wmap" id="wmap"></canvas><div id="spots"></div>
   <div class="wtop"><div class="plate" data-icon-size="32">🌏<span>세계</span><small id="wcount"></small></div><span class="grow"></span><button class="gold" id="wnew">새 군도</button><button class="xb" id="wclose"></button></div>
-  <div class="wzoom"><button id="wplus">＋</button><button id="wminus">－</button></div><div class="wcard" id="wcard" hidden></div></div>
+  <div class="wzoom zoomb"><button class="zb" id="wplus" aria-label="가까이">+</button><button class="zb" id="wminus" aria-label="멀리">−</button></div><div class="wcard" id="wcard" hidden></div></div>
 <div class="toast" id="toast" hidden></div>
 <div class="cards" id="cards" hidden></div>
 <div class="guide" id="guide" hidden><div class="gbird" data-icon-size="64">🐦</div><div class="gbub"><div class="gname">끼룩이</div><div id="gtext"></div><div class="grow2" id="gbtns"></div></div></div>
@@ -703,6 +715,7 @@ $('coinb').querySelector('.cic').replaceChildren(iconEl('coin', 36, ''));
 let shownCoins = null, shownPermits = null;
 function hud() {
   const coins = myDoc ? myDoc.wallet.coins : null;
+  $('coinb').hidden = coins == null;
   if (coins !== shownCoins) { const cb = $('coinb'); cb.classList.remove('up', 'down'); if (shownCoins != null && coins != null) { void cb.offsetWidth; cb.classList.add(coins > shownCoins ? 'up' : 'down'); setTimeout(() => cb.classList.remove('down'), 400); }
     $('coinb').hidden = coins == null; shownCoins = coins; $('wallet').textContent = coins == null ? '—' : coins.toLocaleString('ko-KR'); }
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
@@ -1104,7 +1117,7 @@ function showBuilding(key) {
   show(el('h2', {}, n.name || TYPE_KO[n.type] || '건물', ' ', el('small', {}, `${nameOf(p.owner)} · ${n.levels}층`)),
     st ? el('div', { class: 'stars' }, starText(st)) : null,
     el('div', { class: 'quote' }, `“${p.b.line}”`), el('div', { class: 'pics' }, renderView(p.b.input, 'ext').canvas),
-    el('div', { class: 'row' }, el('button', { class: 'gold', id: mineP ? 'go-inside' : null, on: { click: () => { if (mineP) { closePanel(); openShop(p.key); } else openInside(p.key); } } }, mineP ? '가게 안으로' : '안 구경하기'),
+    el('div', { class: 'row' }, el('button', { class: 'gold', id: mineP ? 'go-inside' : null, on: { click: () => { closePanel(); openShop(p.key); } } }, mineP ? '가게 안으로' : '안 구경하기'),
       mineP ? el('button', { class: 'ghost', on: { click: () => startMove(p.key) } }, '↔ 옮기기') : null,
       me && (mineP || isOwner) ? el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거') : null));
 }
@@ -1240,7 +1253,9 @@ function renderActs(w, p) {
   if (w.extending) return;   // the extension form is showing
   const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok]));
   if (key === w.actKey) return; w.actKey = key;
-  const box = $('shopacts'); box.replaceChildren(...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
+  const box = $('shopacts'), info = w.mine ? null : (() => { const n = normalize(p.b.input), st = roleOf(n.type, n.levels).serves ? starsInfo(p).stars : 0;   // someone else's shop: whose it is, its line, and nothing to buy
+    return el('div', { class: 'actinfo' }, el('b', {}, n.name || TYPE_KO[n.type] || '건물'), el('small', {}, `${nameOf(p.owner)}의 가게 · ${n.levels}층`), st ? el('span', { class: 'stars' }, starText(st)) : null, el('q', {}, p.b.line)); })();
+  box.replaceChildren(...(info ? [info] : []), ...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
       a.cost !== undefined ? el('span', { class: 'price' }, typeof a.cost === 'number' ? iconEl('coin', 18) : '', String(a.cost)) : null);
     b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; };
     if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
@@ -1440,7 +1455,7 @@ function drawSpots() {
   for (const c of clusters().sort((a, b) => a.x - b.x)) {
     if (c.list.length === 1) {
       const b = c.list[0], btn = el('button', { class: 'spot' + (mineIn(b) ? ' mine' : '') + (b.id === BOARD ? ' here' : ''), on: { click: (e) => { e.stopPropagation(); showBoard(b); } } },
-        el('span', { class: 'tag' }, b.name, el('small', {}, `${b.n ?? 0}/10`)), el('span', { class: 'pin' }));
+        el('span', { class: 'tag' }, b.name, el('small', {}, `${b.n ?? 0}/10`)), voxelEl(mineIn(b) ? 'isleMine' : 'isle', 3));
       btn.style.left = c.x + 'px'; btn.style.top = c.y + 'px'; box.append(btn);
       // far away, a lone board is a dot (its name shows on hover); close up, or if it is mine or here, it is labelled
       if (wv.k < wv.kMin * 6 && !mineIn(b) && b.id !== BOARD) { btn.classList.add('dot'); continue; }
@@ -1452,10 +1467,10 @@ function drawSpots() {
     const where = wv.k < wv.kMin * 4 ? (countryAt(lat, lng)?.ko ?? '바다') : (placeLabel(lat, lng).city?.ko ?? countryAt(lat, lng)?.ko ?? '바다');
     const size = Math.round(34 + Math.min(30, Math.log2(n) * 6));
     const btn = el('button', { class: 'bubble' + (mine ? ' mine' : '') + (here ? ' here' : ''), on: { click: (e) => { e.stopPropagation(); openCluster(c); } } },
-      el('b', {}, n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n)), el('span', { class: 'where' }, where));
-    Object.assign(btn.style, { left: c.x + 'px', top: c.y + 'px', width: size + 'px', height: size + 'px' }); box.append(btn);
+      voxelEl('isles', 3), el('b', {}, n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n)), el('span', { class: 'where' }, where));
+    Object.assign(btn.style, { left: c.x + 'px', top: c.y + 'px' }); box.append(btn);
   }
-  if (placing?.lat !== undefined) { const [x, y] = wv.toPx(placing.lat, placing.lng), s = el('div', { class: 'spot new' }, el('span', { class: 'tag' }, '새 군도'), el('span', { class: 'pin' })); s.style.left = x + 'px'; s.style.top = y + 'px'; box.append(s); }
+  if (placing?.lat !== undefined) { const [x, y] = wv.toPx(placing.lat, placing.lng), s = el('div', { class: 'spot new' }, el('span', { class: 'tag' }, '새 군도'), voxelEl('isleMine', 3)); s.style.left = x + 'px'; s.style.top = y + 'px'; box.append(s); }
   $('wcount').textContent = placing ? '새 군도를 세울 곳을 누르세요' : `군도 ${wboards.length.toLocaleString('ko-KR')}개 · 친구 ${wboards.reduce((t, b) => t + (b.n ?? 0), 0).toLocaleString('ko-KR')}명`;
 }
 function zoomTo(lat, lng, k, ms = 280) {   // glide the view
@@ -1479,8 +1494,13 @@ async function showBoard(b) {
   const card = $('wcard'); card.hidden = false;
   const go = () => { const q = new URLSearchParams(location.search); if (b.id === 'main') q.delete('board'); else q.set('board', b.id); q.delete('world'); location.search = q.toString(); };
   const sh = b.demo ? { joined: new Set(), bridges: new Map(), taken: new Set(), buildings: 0, owners: new Map(), mine: false } : boardShape(await boardEntries(b.id));
-  const wd = makeIsles(sh.joined, sh.bridges), g0 = drawIsles(wd, pr, { taken: sh.taken });
-  const th = document.createElement('canvas'); th.width = 560; th.height = Math.round(560 * g0.height / g0.width); th.getContext('2d').drawImage(g0, 0, 0, th.width, th.height);
+  const mySlotThere = [...(sh.owners ?? [])].find(([, u]) => u === me)?.[0] ?? 0;
+  const wd = makeIsles(sh.joined, sh.bridges), g0 = drawIsles(wd, pr, { taken: sh.taken, mine: mySlotThere });
+  const th = document.createElement('canvas'); th.width = 560; th.height = Math.round(560 * g0.height / g0.width); const tg = th.getContext('2d'); tg.drawImage(g0, 0, 0, th.width, th.height);
+  { const k = th.width / g0.width; tg.textAlign = 'center';   // every island numbered; mine ringed in gold
+    for (let sl = 1; sl <= SLOTS; sl++) { const [cx, cz] = centerOf(sl), [px, py] = pr.P(cx, cz), x = px * k, y = py * k, me0 = sl === mySlotThere;
+      if (me0) { tg.strokeStyle = '#ffcf3f'; tg.lineWidth = 3; tg.beginPath(); tg.ellipse(x, y, 34, 18, 0, 0, 7); tg.stroke(); }
+      tg.font = '400 13px Jua, sans-serif'; tg.lineWidth = 3; tg.strokeStyle = '#2e241a'; const lab = me0 ? '내 섬' : sh.joined.has(sl) ? String(sl) : ''; if (!lab) continue; tg.strokeText(lab, x, y + 5); tg.fillStyle = me0 ? '#ffe08a' : '#fff'; tg.fillText(lab, x, y + 5); } }
   card.replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, b.name), xbtn(() => { card.hidden = true; })), el('div', { class: 'note' }, placeLabel(b.lat, b.lng).text), el('div', { class: 'nb' }, el('span', {}, `친구 ${sh.joined.size || b.n || 0}/10`), el('span', {}, `건물 ${sh.buildings || b.bld || 0}`), sh.mine ? el('span', { class: 'ok' }, '내 섬') : null), th,
     el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기로 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 군도예요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '섬 고르기' : '구경하기')));
 }
@@ -1579,6 +1599,6 @@ window.__isles = { fest: (sec = 3) => { nextFest = performance.now() / 1000; set
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
-{ const k = new URLSearchParams(location.search).get('open'); if (k) setTimeout(() => { showBuilding(k); openInside(k); }, 300); }
+{ const k = new URLSearchParams(location.search).get('open'); if (k) setTimeout(() => openShop(k), 1500); }
 </script>
 </html>

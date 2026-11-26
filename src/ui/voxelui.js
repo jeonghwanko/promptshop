@@ -48,7 +48,21 @@ const MODELS = {
     v.box(3, 2, 4, 5, 10, 4, PAL.c5); v.box(0, 5, 4, 8, 7, 4, PAL.c5); return v.list(); },
   minus() { const v = builder(); tok(v, 'minus', 9);
     v.box(0, 4, 4, 8, 6, 4, PAL.c5); return v.list(); },
+  // world-map markers: a small island on a dark base; mine flies a gold flag; a pile for a crowd of boards
+  isle() { return isleModel(false); },
+  isleMine() { return isleModel(true); },
+  isles() { const v = builder(); slab(v, 12, '#2c3560', '#1f2540');
+    for (const [ox, oz, h] of [[1, 1, 0], [6, 2, 1], [3, 6, 0]]) { v.box(ox, 2, oz, ox + 4, 2 + h, oz + 4, '#e8d39a'); v.box(ox + 1, 3 + h, oz + 1, ox + 3, 3 + h, oz + 3, '#6cbd57'); v.put(ox + 2, 4 + h, oz + 2, '#e2743b'); }
+    return v.list(); },
 };
+function isleModel(mine) {
+  const v = builder(); slab(v, 9, '#2c3560', '#1f2540');
+  v.box(1, 2, 1, 7, 2, 7, (x, y, z) => (x === 1 || z === 1 || x === 7 || z === 7) ? '#e8d39a' : '#6cbd57');
+  v.box(2, 3, 2, 3, 4, 3, '#f4ede2'); v.box(2, 5, 2, 3, 5, 3, '#e2743b');   // a little house
+  v.box(5, 3, 5, 5, 5, 5, '#8a5a34'); v.box(4, 6, 4, 6, 6, 6, '#4f9f45');   // a tree
+  if (mine) { v.box(6, 3, 2, 6, 10, 2, '#3a2418'); v.box(7, 8, 2, 9, 10, 2, '#ffcf3f'); }
+  return v.list();
+}
 
 const cache = new Map();
 /** The data URL of a voxel button picture (rendered once per palette). */
