@@ -19,10 +19,11 @@ export class FlowView {
   preview(text) { this.previewText = text; }
   /** What fixes the bottleneck: { title, button, onClick, disabled, note } — redrawn only when it changes */
   action(a) {
-    const k = JSON.stringify([a?.title, a?.button, a?.disabled, a?.note]); if (k === this.barKey) return; this.barKey = k; this.bar.replaceChildren();
+    const k = JSON.stringify([a?.title, a?.button, a?.disabled, a?.note, a?.button2, a?.disabled2]); if (k === this.barKey) return; this.barKey = k; this.bar.replaceChildren();
     if (!a) return;
     const t = document.createElement('b'); t.textContent = a.title; t.style.color = '#c0392b'; this.bar.append(t);
     if (a.button) { const b = document.createElement('button'); b.textContent = a.button; b.className = 'gold fixbtn'; b.disabled = !!a.disabled; b.onclick = a.onClick; this.bar.append(b); }
+    if (a.button2) { const b = document.createElement('button'); b.textContent = a.button2; b.className = 'fixbtn'; b.disabled = !!a.disabled2; b.onclick = a.onClick2; this.bar.append(b); }
     if (a.note) { const n = document.createElement('span'); n.textContent = a.note; n.style.color = '#7a6a55'; n.style.fontSize = '13px'; this.bar.append(n); }
   }
   pop(nodeIndex, text) { this.flash.push({ i: nodeIndex, text, t: 0 }); }

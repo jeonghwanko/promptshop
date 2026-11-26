@@ -139,7 +139,7 @@
 import { lineReader } from './src/steps.js';
 import { Stage2 } from './src/v2/stage.js';
 import { renderView } from './src/v2/render.js';
-import { emptyBuilding, applyStep, buildPrompt } from './src/v2/steps.js';
+import { emptyBuilding, applyStep, buildPrompt, extendPrompt, applyExtension } from './src/v2/steps.js';
 import { check, missingParts, revisePrompt } from './src/v2/check.js';
 import { normalize } from './src/v2/spec.js';
 import { TYPE_KO } from './src/v2/catalog.js';
@@ -523,6 +523,45 @@ function guideArrow() {
 let lastTops = {};
 setInterval(guideArrow, 120);
 
+// ---------- extension: one more floor on top of a full shop, from one line ----------
+const EXT_IDEAS = { food: ['2층에 창가 자리', '루프탑 테라스', '주방 넓히기'], cafe: ['2층 다락 좌석', '루프탑 테라스', '빵 굽는 주방 늘리기'], shop: ['2층 매장 넓히기', '계산대 늘리기', '창고 한 층'], fun: ['2층 관람석', '놀이방 한 층', '휴게실'], rest: ['객실 한 층 더', '루프탑 라운지', '스파 층'] };
+function startExtend(key) {
+  const p = allPlots().find(x => x.key === key); if (!p?.b || p.owner !== me) return;
+  if (G().permits <= 0) return toast(`허가증이 있어야 증축해요 · 다음까지 손님 ${G().nextAt - G().served}명`, 2200);
+  const n = normalize(p.b.input), role = roleOf(n.type, n.levels), ideas = EXT_IDEAS[role.serves] ?? ['한 층 더 올리기', '루프탑 테라스', '2층 휴게실'];
+  current = { kind: 'build' };
+  const input = el('input', { type: 'text', maxlength: '60', placeholder: '예: ' + ideas[0] }), go = el('button', {}, '한 층 올리기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
+  show(el('h2', {}, `🏗️ ${n.name || TYPE_KO[n.type]} 증축`), el('p', { class: 'note' }, `지금 ${n.levels}층 → ${n.levels + 1}층. 새 층을 한 줄로 써 주세요. 허가증 1장을 써요.`),
+    el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; run(); } } }, t))), err, log,
+    el('button', { class: 'ghost', on: { click: () => showBuilding(key) } }, '취소'));
+  const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
+  async function run() {
+    const line = input.value.trim() || ideas[0]; err.textContent = ''; log.replaceChildren();
+    if (bad(line)) { err.textContent = '그 표현으로는 지을 수 없어요.'; return; }
+    if (!sample) { err.textContent = '이 화면에서는 Claude를 부를 수 없어요.'; return; }
+    go.disabled = true; note('…', '설계 중');
+    const steps = [];
+    try {
+      const rd = lineReader((st) => { steps.push(st); note({ floor: '층', fixture: '가구', order: '순서' }[st.step] ?? st.step, st.note || st.name || ''); });
+      await sample(extendPrompt(line, p.b.input), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd.push(delta) }); rd.end();
+      const next = applyExtension(p.b.input, steps); if (!next) throw { code: 'nothing' };
+      // keep what was bought: the same fixture (floor, zone, kind, n-th of its kind) in the new layout
+      const oldFx = fixturesOf(p), newFx = buildSection(normalize(next)).fixtures, keyOf = (list, i) => { const f = list[i]; let k = 0; for (let j = 0; j < i; j++) if (list[j].fi === f.fi && list[j].zone === f.zone && list[j].kind === f.kind) k++; return `${f.fi}|${f.zone}|${f.kind}|${k}`; };
+      const newIndex = new Map(newFx.map((_, i) => [keyOf(newFx, i), i])), own = new Set();
+      let refund = 0;
+      for (const i of ownedOf(p)) { const j = newIndex.get(keyOf(oldFx, i)) ?? newFx.findIndex((f, jj) => !own.has(jj) && f.kind === oldFx[i]?.kind && f.fi === oldFx[i]?.fi); if (j >= 0) own.add(j); else refund += costOf(oldFx[i]?.kind); }
+      if (refund) { myDoc.wallet.coins += refund; note('정리', `자리가 바뀐 가구 값 ${refund}동전을 돌려받았어요`); }
+      const mp = myDoc.plots[key]; mp.b = { ...mp.b, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size;
+      G().permits--; rebuild(); await save(true);
+      const nn = normalize(next);
+      note('완공', `${nn.levels}층 · 새 가구 ${newFx.length - own.size}개`);
+      celebrate('🏗️ 증축 완공!', `${nn.name || TYPE_KO[nn.type]} ${nn.levels}층 · 새 자리를 채워 보세요`);
+      setTimeout(() => { showBuilding(key); openInside(key); }, 900);
+    } catch (e) { err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : '증축하지 못했어요. 다시 눌러 주세요.'; go.disabled = false; }
+  }
+  go.onclick = run; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
+}
+
 // ---------- request cards: what the island wants, dealt when there is a permit to spend ----------
 let card = null;
 function openCards() {
@@ -645,6 +684,8 @@ function showBuilding(key) {
 function manage(p) {
   const n = normalize(p.b.input), role = roleOf(n.type, n.levels), r = ratesOf(p), owned = ownedOf(p).size, total = fxTotal(p), mineP = p.owner === me;
   const out = [];
+  if (mineP && owned >= total) out.push(el('div', { class: 'card alert' }, el('span', {}, '가구를 다 채웠어요!', el('div', { class: 'note' }, '한 줄로 한 층을 올리면 새 자리가 생겨요')),
+    el('button', { class: 'gold', on: { click: () => startExtend(p.key) } }, `🏗️ 증축 · 🎫1`)));
   out.push(el('div', { class: 'card' }, el('span', {}, `가구 ${owned}/${total}`, role.serves ? el('div', { class: 'note' }, `자리 ${r.seats} · 주문 창구 ${r.counters} · 조리 ${r.cooks} · 꾸밈 ${r.decor} — ${r.slow === 'seat' ? '자리가' : '주문이'} 막혀요`) : null),
     el('button', { class: mineP ? 'gold' : '', id: mineP ? 'go-inside' : null, on: { click: () => openInside(p.key) } }, mineP ? '가게 안으로' : '안 구경하기')));
   if (role.serves && mineP) {
@@ -709,12 +750,13 @@ function fixAction(w, p, fc) {
   const fx = fixturesOf(p), up = nextUp(fx, ownedOf(p), undefined, p.b.input.order), track = slow === 1 ? 'order' : 'seat', i = up[track];
   if (i !== undefined) { const f = fx[i], c = costOf(f.kind), name = FIX_INFO[f.kind]?.[0] ?? f.kind;
     return w.flow.action({ title: slow === 1 ? '주문이 밀려요' : '자리가 모자라요', button: `＋ ${name} 들이기 · ${c}동전`, disabled: myDoc.wallet.coins < c, onClick: () => { if (w.view.buyIndex(i)) { w.view.onHover?.(-1); } }, note: myDoc.wallet.coins < c ? `동전 ${c - myDoc.wallet.coins}개 더 필요해요` : '' }); }
+  const ext = { button2: `🏗️ 증축 · 🎫${G().permits}`, disabled2: G().permits <= 0, onClick2: () => { closeInside(); startExtend(p.key); } };
   if (slow === 1) { const h = helpersOf(p), c = helperCost(h);
-    if (h >= HELPER_MAX) return w.flow.action({ title: '주문이 밀려요', note: '알바도 다 뽑았어요 — 옆에 가게를 하나 더 지어 손님을 나눠 보세요' });
-    return w.flow.action({ title: '주문이 밀려요', button: `🧑‍🍳 알바 고용 · ${c}동전`, disabled: myDoc.wallet.coins < c, note: `가구는 다 채웠어요 · 알바가 서면 주문이 빨라져요 (${h}/${HELPER_MAX})`,
+    if (h >= HELPER_MAX) return w.flow.action({ title: '주문이 밀려요', ...ext, button: null, note: '알바도 다 뽑았어요 — 한 층 올려 주방을 넓혀 보세요' });
+    return w.flow.action({ title: '주문이 밀려요', ...ext, button: `🧑‍🍳 알바 고용 · ${c}동전`, disabled: myDoc.wallet.coins < c, note: `가구는 다 채웠어요 · 알바가 서면 주문이 빨라져요 (${h}/${HELPER_MAX})`,
       onClick: () => { if (myDoc.wallet.coins < c) return; const a = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h), b = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h + 1);
         myDoc.wallet.coins -= c; myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); w.flow.pop(1, `+${(b.order - a.order).toFixed(1)}명/분`); toast('🧑‍🍳 알바가 왔어요!', 1500); } }); }
-  return w.flow.action({ title: '자리가 모자라요', note: '자리를 다 채웠어요 — 더 큰 가게를 지어 보세요' });
+  return w.flow.action({ title: '자리가 모자라요', button: ext.button2, disabled: ext.disabled2, onClick: ext.onClick2, note: G().permits > 0 ? '한 줄로 한 층을 올리면 새 자리가 생겨요' : `🎫가 있어야 증축해요 · 다음까지 손님 ${G().nextAt - G().served}명` });
 }
 let istatT = 0;
 function stepInside(dt) {

@@ -2,7 +2,7 @@
 // the first line picks a type and a style (a complete default building appears at once),
 // later lines override parts, and each override drops into place.
 import { TYPES, STYLES, TYPE_KO, STYLE_KO } from './catalog.js';
-import { GROUNDS, RHYTHMS, ICONS, HEROES, PROPS, MASS_SHAPES } from './spec.js';
+import { GROUNDS, RHYTHMS, ICONS, HEROES, PROPS, MASS_SHAPES, normalize } from './spec.js';
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
 import { ZONE_NAMES, FIXTURE_NAMES, zoneFixtures } from './interior.js';
@@ -103,4 +103,42 @@ Make it recognisable at a glance. Rules that help:
 - Pick the inside zones for the actual activity (a boxing gym has "ring", a ballpark has "diamond" and "stands", a library has "stacks" and "reading").
 
 Write every "note" in the same language as the description, under 20 characters, saying what that line builds.`;
+}
+
+// ---------- extending a building: one more floor on top, from one line ----------
+/** The prompt for an extension: the model writes only the new floor, its special fixtures and the order to furnish it. */
+export function extendPrompt(request, input, floorCount) {
+  const lv = input.levels ?? 1, floors = input.floors?.length ? input.floors : normalize(input).floors;
+  return `You extend an existing building in an isometric pixel-art game by adding ONE new floor on top.
+The building: ${JSON.stringify({ name: input.name, type: input.type, levels: lv, floors: floors.map(f => ({ range: f.range, name: f.name, zones: f.zones })) })}
+The owner asks for: "${request}"
+
+Output ONLY JSON Lines, one JSON object per line, no other text, no code fences:
+1. {"step":"floor","range":[${lv + 1},${lv + 1}],"name":"<short floor name, same language as the request>","zones":[{"zone":"<zone>","weight":<0.3-5>}, ...],"note":"..."}
+   Pick zones for what the owner asked (more seats = seating/dining/lounge, a terrace = seating or lounge, more kitchen = kitchen and counter, rooms = guest_rooms).
+   Zones, each with the furniture it already comes with: ${ZONE_NAMES.map(z => `${z}(${zoneFixtures(z).join(',')})`).join(' ')}
+2. Optional 0-3 lines {"step":"fixture","floor":${floors.length},"zone":"<a zone on the new floor>","kind":"<fixture>","pattern":"back|left|rows|center|corner|front|cells","count":<n>,"note":"..."}
+   Fixtures: ${FIXTURE_NAMES.join(' ')}
+3. One line {"step":"order","kinds":["<fixture>", ...],"note":"..."}: the order in which the owner furnishes the NEW floor, using the furniture of its zones, most useful first.
+Write every "note" in the same language as the request, under 20 characters.`;
+}
+/** Apply extension lines to a copy of the input. Returns the new input, or null if no floor came. */
+export function applyExtension(input, steps) {
+  const out = JSON.parse(JSON.stringify(input)), lv = out.levels ?? 1;
+  // a building that kept the type's default floors gets them written out, so the new one can go on top
+  if (!out.floors?.length) out.floors = normalize(input).floors.map(f => ({ range: f.range, name: f.name, zones: f.zones, fixtures: f.fixtures ?? [] }));
+  { const top = Math.max(...out.floors.map(f => f.range[1])); if (top < lv) out.floors[out.floors.length - 1].range[1] = lv; }
+  let added = null; const newKinds = [];
+  for (const s of steps) {
+    if (s?.step === 'floor' && !added && out.floors.length < 8 && Array.isArray(s.zones) && s.zones.length) {
+      added = { range: [lv + 1, lv + 1], name: typeof s.name === 'string' ? s.name.slice(0, 12) : `${lv + 1}층`, zones: s.zones.filter(z => ZONE_NAMES.includes(z?.zone ?? z)).slice(0, 5), fixtures: [] };
+      if (!added.zones.length) added = null; else out.floors.push(added);
+    } else if (s?.step === 'fixture' && added && FIXTURE_NAMES.includes(s.kind) && added.fixtures.length < 3) {
+      added.fixtures.push({ zone: added.zones.some(z => (z.zone ?? z) === s.zone) ? s.zone : (added.zones[0].zone ?? added.zones[0]), kind: s.kind, pattern: s.pattern ?? 'rows', count: Math.min(6, +s.count || 2) });
+    } else if (s?.step === 'order' && Array.isArray(s.kinds)) newKinds.push(...s.kinds.filter(k => FIXTURE_NAMES.includes(k)));
+  }
+  if (!added) return null;
+  out.levels = lv + 1;
+  out.order = [...new Set([...(out.order ?? []), ...newKinds])];
+  return out;
 }
