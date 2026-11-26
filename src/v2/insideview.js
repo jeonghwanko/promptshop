@@ -85,8 +85,10 @@ export class InsideView {
     g.clearRect(0, 0, this.top.width, this.top.height);
     if (this.coins) this.fx.forEach((f, i) => {
       if (this.owned.has(i)) return; const [x, y] = P(f.x, f.y + .55, f.z), cx = Math.round(x), cy = Math.round(y), ok = this.coins() >= costOf(f.kind);
-      g.fillStyle = i === this.hot ? '#ffffff' : ok ? '#e3b448' : 'rgba(160,150,130,.7)'; g.fillRect(cx - 2, cy - 2, 5, 5);
-      g.fillStyle = '#2e241a'; g.fillRect(cx, cy - 1, 1, 3); g.fillRect(cx - 1, cy, 3, 1);
+      // suggested fixtures blink larger
+      const big = this.suggest?.has(f.kind) && Math.sin(performance.now() / 160) > -.3, r = big ? 4 : 2;
+      g.fillStyle = i === this.hot ? '#ffffff' : ok ? (big ? '#ffd23a' : '#e3b448') : 'rgba(160,150,130,.7)'; g.fillRect(cx - r, cy - r, r * 2 + 1, r * 2 + 1);
+      g.fillStyle = '#2e241a'; g.fillRect(cx, cy - r + 1, 1, r * 2 - 1); g.fillRect(cx - r + 1, cy, r * 2 - 1, 1);
     });
     const list = [];
     for (const s of sim.staff) { const [x, y] = P(s.x, sim.floorY(s.f), s.z); list.push({ x, y, s }); }

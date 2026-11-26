@@ -74,7 +74,7 @@ import { buildSection } from './src/v2/interior.js';
 import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
-import { shopRates } from './src/v2/inside.js';
+import { shopRates, bestNext, FIX_INFO } from './src/v2/inside.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
@@ -121,6 +121,7 @@ const fxTotal = (p) => fixturesOf(p).length;
 function ownedOf(p) {
   const d = p.owner === me && myDoc?.plots[p.key] ? myDoc.plots[p.key] : p;
   if (Array.isArray(d.own)) return new Set(d.own);
+  if (d.fx === undefined) return new Set(startingFixtures(fixturesOf(p)));   // never furnished: a counter and a table
   return new Set(Array.from({ length: Math.min(fxTotal(p), d.fx ?? 1) }, (_, i) => i));
 }
 const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1);
@@ -394,6 +395,12 @@ function stepInside(dt) {
   const door = sim.shops.get(watching.key)?.queue.length ?? 0, isim = watching.view.sim, p = allPlots().find(x => x.key === watching.key), r = p ? ratesOf(p) : null;
   const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, seats = isim.seats.length, used = isim.seats.filter(x => x.who).length;
   const cell = (label, v, bad) => `<div class="${bad ? 'bad' : ''}"><span>${label}</span><br><b>${v}</b></div>`;
+  if (watching.mine && r) {   // what to do next: the fixtures that would raise income the most blink
+    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1);
+    watching.view.suggest = new Set(k);
+    const names = k.map(x => FIX_INFO[x]?.[0] ?? x).slice(0, 3).join('·'), t = (nextBoat.get(p.slot) ?? 0) - performance.now() / 1000;
+    $('ihint').textContent = (k.length ? `깜빡이는 ${names}을(를) 들이면 수입이 가장 많이 올라요.` : '가구를 다 채웠어요.') + (t > 0 ? ` · 다음 배 ${Math.ceil(t)}초` : '');
+  }
   $('istats').innerHTML = cell('문 앞 줄', door) + cell('안에서 기다림', q, q >= 5) + cell('자리', `${used}/${seats}`, seats && used === seats)
     + cell('놓친 손님 (줄·자리)', `${isim.stats.lostLine} · ${isim.stats.lostSeat}`, isim.stats.lostLine + isim.stats.lostSeat > 0) + cell('지금 번 돈', watching.earned)
     + (r ? cell('막히는 곳', r.slow === 'seat' ? '자리' : '주문') : '');

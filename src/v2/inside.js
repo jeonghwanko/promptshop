@@ -44,7 +44,16 @@ export function shopRates(fixtures, owned, baseCoin = 3) {
   const order = counters ? counters / st : seats ? 1 / st : .3 + browse * .08;
   const seat = seats ? seats / 13 : Infinity;
   const rate = Math.min(order, seat);
-  return { interval: Math.max(.5, .46 / rate), cap: 3 + 2 * counters + Math.floor(seats / 4), price: baseCoin + Math.min(3, decor), seats, counters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
+  return { interval: Math.max(.5, .46 / rate), cap: 3 + 2 * counters + Math.floor(seats / 4), price: baseCoin + Math.min(3, decor) + Math.floor(browse / 2), seats, counters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
+}
+
+/** Unbought fixtures that would raise income (price per guest ÷ seconds per guest) the most, by kind. */
+export function bestNext(fixtures, owned, baseCoin = 3) {
+  const rev = (set) => { const r = shopRates(fixtures, set, baseCoin); return r.price / r.interval; }, now = rev(owned);
+  const gain = new Map();
+  fixtures.forEach((f, i) => { if (owned.has(i)) return; const g = rev(new Set([...owned, i])) - now; if (g > (gain.get(f.kind) ?? 0)) gain.set(f.kind, g); });
+  const best = Math.max(0, ...gain.values());
+  return best > 0 ? [...gain].filter(([, g]) => g >= best * .8).map(([k]) => k) : [];
 }
 
 const SPEED = 1.5, LIFT = 2.4, PRICE = 4;
