@@ -9,8 +9,9 @@ export class Stage {
   /** @param {'ext'|'int'} view */
   constructor(view, { width, height, lift } = {}) {
     this.view = view;
-    this.W = width ?? (view === 'ext' ? 260 : 300); this.H = height ?? (view === 'ext' ? 250 : 260);
-    const LIFT = lift ?? (view === 'ext' ? 0.68 : 0.6);
+    // a fixed frame big enough for the largest building, so a stall looks small and a hall looks big
+    this.W = width ?? (view === 'ext' ? 420 : 460); this.H = height ?? (view === 'ext' ? 380 : 330);
+    const LIFT = lift ?? (view === 'ext' ? 0.76 : 0.6);
     this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
     this.renderer.setPixelRatio(1); this.renderer.setSize(this.W, this.H, false);
     this.renderer.setClearColor(0x000000, 0);
@@ -32,7 +33,7 @@ export class Stage {
     const scene = new THREE.Scene();
     const sun = new THREE.DirectionalLight(0xfff4e6, 1.9);
     sun.position.set(-1.25, 2.2, 0.35).multiplyScalar(20); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
-    Object.assign(sun.shadow.camera, { left: -8, right: 8, top: 8, bottom: -8, near: 1, far: 80 }); sun.shadow.bias = -0.0015;
+    Object.assign(sun.shadow.camera, { left: -10, right: 10, top: 10, bottom: -10, near: 1, far: 80 }); sun.shadow.bias = -0.0015;
     scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
     if (this.view === 'ext') {
       const g = new THREE.Mesh(new THREE.PlaneGeometry(40, 40), new THREE.ShadowMaterial({ opacity: 0.28 }));

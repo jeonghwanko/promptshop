@@ -83,7 +83,7 @@ async function pump() {
 }
 function replay(spec) { reset(); const my = ++run; $('name').textContent = ''; for (const s of specToSteps(spec)) enqueue(s, my); }
 
-const EXAMPLES = ['밤에만 여는 청록 기와 포장마차 라멘집', '고양이가 주인인 작은 2층 북카페', '네온 간판 번쩍이는 격투 굿즈 상점', '비 오는 날만 여는 우산 수리점', '할머니가 하는 떡볶이 분식집'];
+const EXAMPLES = ['역대 챔피언들의 장갑과 벨트를 전시하는 넓은 전시장', '옥상에 돔이 있는 4층짜리 오래된 백화점', '겨울 골목의 작은 붕어빵 노점', '밤에만 여는 청록 기와 포장마차 라멘집', '고양이가 주인인 작은 2층 북카페', '네온 간판 번쩍이는 격투 굿즈 상점', '비 오는 날만 여는 우산 수리점', '할머니가 하는 떡볶이 분식집'];
 for (const ex of EXAMPLES) { const b = document.createElement('button'); b.textContent = ex; b.onclick = () => { $('line').value = ex; build(); }; $('chips').append(b); }
 
 const sample = (await window.claude?.use?.('sample')?.catch?.(() => null)) ?? null;
@@ -110,6 +110,6 @@ async function build() {
 }
 $('go').onclick = build; $('line').addEventListener('keydown', (e) => { if (e.key === 'Enter') build(); });
 $('stop').onclick = () => ctl?.abort();
-replay(SPECS.ramen);   // the page opens on a replay of an example build
+replay(SPECS.expo);   // the page opens on a replay of an example build
 </script>
 </html>

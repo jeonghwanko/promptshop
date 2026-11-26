@@ -71,7 +71,7 @@ export function makeBuilder(scene, section) {
   // ---------- exterior ----------
   function exterior(s) {
     if (!s || !Array.isArray(s.size) || !s.wall) return;
-    const floors = s.floors === 2 ? 2 : 1;
+    const floors = Math.min(4, Math.max(1, Math.round(s.floors ?? 1)));
     const [W, D] = s.size, hw = W / 2, hd = D / 2, FH = 1.55, H = FH * floors, base = .12;
     enter('base');
     const trim = mat(s.trim ?? '#3a2a1e');
@@ -101,15 +101,33 @@ export function makeBuilder(scene, section) {
       box(.04, .04, .04, mat(0xe8c060), W * .32 + .17, base + .55, hd + .05);
     }
     if (front.type === 'door') { box(.5, 1.2, .04, mat(front.door ?? '#6b4a2a'), 0, base, hd + .01); }
+    if (front.type === 'curtain') {
+      // full-height glass wall with mullions on every floor, glass doors in the middle
+      const gl = mat(0xbfe3ee, { emissive: s.night ? 0x6a5020 : 0x2a4a55 });
+      box(W - .12, H - .1, .03, gl, 0, base + .05, hd + .01);
+      const n = Math.max(3, Math.round(W / .45));
+      for (let i = 0; i <= n; i++) box(.05, H - .1, .05, trim, -hw + .06 + i * (W - .12) / n, base + .05, hd + .03);
+      for (let f = 0; f <= floors; f++) box(W - .1, .06, .06, trim, 0, base + Math.min(H - .11, f * FH), hd + .03);
+      box(.9, 1.15, .035, mat(0x7fa8b4, { emissive: 0x1a2a30 }), 0, base, hd + .04);
+    }
+    if (front.type === 'portico') {
+      // a row of columns in front, carrying a flat canopy; doors behind
+      const n = Math.max(3, Math.round(W / .75)), ch = Math.min(H, 2.2), cm = mat(front.door ?? '#efe6d6');
+      box(W + .3, .1, .9, mat(shade(front.door ?? '#efe6d6', .85)), 0, 0, hd + .4);
+      for (let i = 0; i < n; i++) cyl(.09, .1, ch, cm, -hw + .15 + i * (W - .3) / (n - 1), .1, hd + .65, 10);
+      box(W + .36, .14, 1.0, cm, 0, .1 + ch, hd + .42);
+      box(.7, 1.2, .04, mat(0x4a3a2a), 0, base, hd + .01); box(.7, 1.2, .04, mat(0x4a3a2a), W * .3, base, hd + .01); box(.7, 1.2, .04, mat(0x4a3a2a), -W * .3, base, hd + .01);
+    }
     // side windows
     enter('base');
     for (let f = 0; f < floors; f++) {
       const y = base + f * FH + .55;
-      for (const zz of (D > 1.7 ? [-hd * .45, hd * .35] : [0])) {
+      const ns = Math.max(1, Math.round(D / 1.0));
+      for (const zz of Array.from({ length: ns }, (_, i) => -hd + (i + .5) * D / ns)) {
         box(.03, .5, .42, mat(0xbfe3ee, { emissive: s.night ? 0x6a4a20 : 0x203a44 }), hw + .01, y, zz);
         box(.05, .06, .5, trim, hw + .02, y - .03, zz); box(.05, .06, .5, trim, hw + .02, y + .5, zz); box(.05, .5, .05, trim, hw + .02, y, zz);
       }
-      if (f > 0) { box(W + .08, .08, D + .08, trim, 0, base + f * FH - .04, 0); for (const xx of [-hw * .5, hw * .5]) { box(.42, .5, .03, mat(0xbfe3ee, { emissive: 0x203a44 }), xx, y, hd + .01); box(.5, .06, .05, trim, xx, y - .03, hd + .02); } }
+      if (f > 0) { box(W + .08, .08, D + .08, trim, 0, base + f * FH - .04, 0); if (front.type !== 'curtain') for (const xx of Array.from({ length: Math.max(2, Math.round(W / .9)) }, (_, i) => -hw + (i + .5) * W / Math.max(2, Math.round(W / .9)))) { box(.42, .5, .03, mat(0xbfe3ee, { emissive: 0x203a44 }), xx, y, hd + .01); box(.5, .06, .05, trim, xx, y - .03, hd + .02); } }
     }
     // roof
     enter('roof');
@@ -127,10 +145,52 @@ export function makeBuilder(scene, section) {
       box(W + .36, .08, D + .36, mat(shade(rc, .7)), 0, top - .04, 0);
     } else if (r.type === 'flat') {
       box(W + .1, .3, D + .1, mat(rc), 0, top, 0); box(W + .2, .06, D + .2, mat(shade(rc, 1.4)), 0, top + .3, 0);
+    } else if (r.type === 'barrel') {
+      // vaulted roof along x; the lower half of the cylinder is hidden inside the body
+      const m = new THREE.Mesh(new THREE.CylinderGeometry(hd + .12, hd + .12, W + .2, 20), texMat(T.shingle(rc), 6, 2)); m.rotation.z = Math.PI / 2; m.scale.set(1, 1, 1); m.position.set(0, top - .02, 0);
+      const g = new THREE.Group(); g.add(m); g.scale.y = .55; g.position.y = top * .45; add(g); m.castShadow = m.receiveShadow = true;
+    } else if (r.type === 'sawtooth') {
+      // factory roof: repeated teeth with glazing on the steep side
+      const n = Math.max(2, Math.round(W / 1.1)), tw = W / n, rise = .55;
+      for (let i = 0; i < n; i++) {
+        const sh = new THREE.Shape(); sh.moveTo(0, 0); sh.lineTo(tw, 0); sh.lineTo(tw, rise); sh.closePath();
+        const m = new THREE.Mesh(new THREE.ExtrudeGeometry(sh, { depth: D + .1, bevelEnabled: false }), mat(rc)); m.position.set(-hw + i * tw, top, -hd - .05); add(m);
+        box(.03, rise - .08, D - .1, mat(0xbfe3ee, { emissive: 0x2a4a55 }), -hw + (i + 1) * tw + .02, top + .02, 0);
+      }
+    } else if (r.type === 'dome') {
+      box(W + .1, .16, D + .1, mat(shade(rc, .8)), 0, top, 0);
+      const rr = Math.min(W, D) * .42; cyl(rr * .92, rr * .92, .3, wallMat(s.wall, 2, .3), 0, top + .16, 0, 20);
+      const m = new THREE.Mesh(new THREE.SphereGeometry(rr, 20, 10, 0, Math.PI * 2, 0, Math.PI / 2), mat(rc)); m.position.set(0, top + .46, 0); add(m);
+      cyl(.05, .05, .35, mat(0xe8c060), 0, top + .44 + rr, 0, 6);
     } else if (r.type === 'shed') {
       const m = new THREE.Mesh(new THREE.BoxGeometry(W + .4, .09, D + .4), texMat(T.roofTile(rc), W, 1)); m.rotation.x = .25; m.position.set(0, top + .2, 0); add(m);
     }
+    // wings: extra blocks attached to the left, right or back of the main body
+    (s.wings ?? []).forEach((wg, i) => {
+      enter('wing:' + i);
+      const w = wg.w, d = wg.d, fl = Math.min(4, Math.max(1, wg.floors ?? 1)), h = FH * fl;
+      const cx = wg.side === 'left' ? -hw - w / 2 + .02 : wg.side === 'right' ? hw + w / 2 - .02 : (wg.offset ?? 0);
+      const cz = wg.side === 'back' ? -hd - d / 2 + .02 : hd - d / 2 - (wg.inset ?? 0);
+      const wm = wallMat(wg.wall ?? s.wall, w * 1.4, h * .9);
+      box(w + .1, base, d + .1, mat(shade((wg.wall ?? s.wall).color, .55)), cx, 0, cz);
+      box(w, h, d, wm, cx, base, cz);
+      const gl = mat(0xbfe3ee, { emissive: s.night ? 0x6a4a20 : 0x203a44 });
+      for (let f = 0; f < fl; f++) {
+        const y = base + f * FH + .55;
+        for (let k = 0, n = Math.max(1, Math.round(w / .9)); k < n; k++) box(.42, .5, .03, gl, cx - w / 2 + (k + .5) * w / n, y, cz + d / 2 + .01);
+        for (let k = 0, n = Math.max(1, Math.round(d / 1.0)); k < n; k++) box(.03, .5, .42, gl, cx + w / 2 + .01, y, cz - d / 2 + (k + .5) * d / n);
+      }
+      const wt = base + h, wr = wg.roof ?? 'flat', wc = wg.roofColor ?? rc;
+      if (wr === 'hip') { const m = new THREE.Mesh(new THREE.ConeGeometry(.5 * Math.SQRT2, .7, 4, 1), texMat(T.shingle(wc), 3, 2)); m.rotation.y = Math.PI / 4; m.scale.set(w + .3, 1, d + .3); m.position.set(cx, wt + .35, cz); add(m); }
+      else if (wr === 'gable') { const span = d / 2 + .15, rise = .5, ang = Math.atan2(rise, span); for (const sg of [1, -1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(w + .3, .08, Math.hypot(span, rise)), texMat(T.roofTile(wc), w, 1)); m.position.set(cx, wt + rise / 2, cz + sg * span / 2); m.rotation.x = sg * ang; add(m); } }
+      else { box(w + .08, .24, d + .08, mat(wc), cx, wt, cz); box(w + .16, .05, d + .16, mat(shade(wc, 1.4)), cx, wt + .24, cz); }
+    });
     enter('decor');
+    if (Array.isArray(s.banners)) s.banners.slice(0, 5).forEach((c, i, a) => {
+      // tall cloth banners hung on the front wall
+      const x = -hw + (i + .5) * W / a.length, bh = Math.min(H - .6, 1.6);
+      box(.34, bh, .03, mat(c), x, base + H - bh - .3, hd + .06); box(.42, .04, .05, trim, x, base + H - .3, hd + .07);
+    });
     if (s.chimney) { box(.28, .7, .28, texMat(T.brick('#8a4a3a'), .6, 1), hw * .45, top + .1, -hd * .3); }
     if (s.neon) { const n = glowMat(s.neon); box(W + .02, .04, .04, n, 0, top - .12, hd + .04); box(.04, .04, D, n, hw + .04, top - .12, 0); }
     // awning
@@ -184,6 +244,16 @@ export function makeBuilder(scene, section) {
       enter('item:' + i);
       const [x, z] = it.at && Array.isArray(it.at) ? at(...it.at) : [0, 0];
       switch (it.type) {
+        case 'pedestal': { box(.5, .75, .5, mat(0xf2eee6), x, 0, z); const c = mat(it.color); const k = i % 3;
+          if (k === 0) ball(.18, c, x, .95, z); else if (k === 1) box(.26, .36, .26, c, x, .75, z); else { const m = new THREE.Mesh(new THREE.ConeGeometry(.17, .45, 8), c); m.position.set(x, .97, z); add(m); }
+          break; }
+        case 'partition': { const g = new THREE.Group(); cur.add(g); g.position.set(x, 0, z); if (it.rot === 90) g.rotation.y = Math.PI / 2;
+          const m = new THREE.Mesh(new THREE.BoxGeometry(it.len ?? 1.4, 1.6, .1), mat(it.color)); m.position.y = .8; g.add(m);
+          const fr = new THREE.Mesh(new THREE.BoxGeometry(.5, .4, .02), mat(0xffffff)); fr.position.set(0, 1.0, .06); g.add(fr);
+          g.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); break; }
+        case 'frame': { const p = onWall(it.wall, it.at); const ft = tex(12, 9, (g2) => { g2.fillStyle = it.color; g2.fillRect(0, 0, 12, 9); g2.fillStyle = '#fff7e6'; g2.fillRect(2, 5, 4, 3); g2.fillStyle = shade(it.color, .6); g2.fillRect(7, 1, 4, 5); });
+          const m = new THREE.Mesh(new THREE.BoxGeometry(.8, .6, .03), [0, 0, 0, 0, 0, 0].map((_, j) => j === 4 ? mat(0xffffff, { map: ft }) : mat(0x3a2a1e)));
+          m.position.set(p.x + (it.wall === 'x' ? .02 : 0), 1.3, p.z + (it.wall === 'z' ? .02 : 0)); m.rotation.y = p.rx; add(m); break; }
         case 'stove': box(.7, .8, .55, mat(0x7c8288), x, 0, z); box(.72, .05, .57, mat(0x3a3d42), x, .8, z); cyl(.2, .18, .3, mat(0xc0c4c8), x, .85, z, 10); cyl(.19, .19, .02, mat(0xf3e2b8), x, 1.13, z, 10); break;
         case 'counter': { const L = it.len, rot = it.rot === 90; const g = new THREE.Group(); cur.add(g); g.position.set(x, 0, z); if (rot) g.rotation.y = Math.PI / 2;
           const m1 = new THREE.Mesh(new THREE.BoxGeometry(L, .95, .5), texMat(T.plank(it.color), L * 1.5, 1)); m1.position.y = .475; g.add(m1);

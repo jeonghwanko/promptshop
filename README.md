@@ -2,13 +2,11 @@
 
 **One line of text → a shop spec (JSON) → a pixel-art isometric shop, outside and inside.**
 
-| “A teal-tiled ramen stall that only opens at night” | |
-| --- | --- |
-| ![ramen exterior](docs/img/ramen-ext.png) | ![ramen interior](docs/img/ramen-int.png) |
-| **“A tiny two-floor book café run by a cat”** | |
-| ![book café exterior](docs/img/bookcafe-ext.png) | ![book café interior](docs/img/bookcafe-int.png) |
-| **“A fight-merch shop with a flashing neon sign”** | |
-| ![merch shop exterior](docs/img/goods-ext.png) | ![merch shop interior](docs/img/goods-int.png) |
+![six buildings of different sizes, from a street stall to an exhibition hall](docs/img/lineup.png)
+
+![interiors: a stall, a department store floor, an exhibition hall](docs/img/lineup-int.png)
+
+Each building above came from one line, for example *“a wide exhibition hall showing the gloves and belts of past champions”* or *“a small fish-shaped-bread stall in a winter alley”*. The model chooses the size, the number of floors, wings, roof and front from the description.
 
 ## Why specs, not images
 
@@ -83,7 +81,7 @@ To generate specs with an LLM, give it [SPEC.md](SPEC.md) and a one-line descrip
 This is an early prototype. Known limits:
 
 - Sign text is unreadable at this pixel size. Show the shop name as a label outside the picture.
-- The part library is small: 4 roof types, 3 fronts, about 25 props and furniture pieces. Quality grows with the library.
+- The part library is still small: 7 roof types, 5 fronts, wings, about 30 props and furniture pieces. Quality grows with the library.
 - There is no outline or palette-reduction pass yet.
 
 Contributions of new parts are welcome. Keep the camera, the light and the tile size unchanged.
