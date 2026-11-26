@@ -39,6 +39,13 @@ export async function removeOthers(p) {
   try { await ref.update(mark); } catch { const cur = await ref.get(); await ref.set({ ...(cur.data() ?? {}), ...mark }); }
 }
 
+/** One step of the first session, for the funnel (scripts/funnel.mjs): one small doc per player and board. */
+const T0 = Date.now();
+export function track(event, data = {}) {
+  if (!db || !me) return;
+  const ref = db.doc(`log/${BOARD}~${me}`), entry = { [`${Date.now()}_${event}`]: { ...data, s: Math.round((Date.now() - T0) / 1000) } };
+  ref.update(entry).catch(() => ref.set(entry).catch(() => {}));
+}
 async function resolveNames() { if (!user) return; const ids = [...S.owners.values()].filter(u => !u.startsWith('seed')); if (!ids.length) return; const ps = await user.profiles(ids); for (const id of ids) S.names[id] = ps[id]?.name || '친구'; }
 // keep this board's summary on the world map up to date (friends, buildings, who)
 let lastSummary = '';

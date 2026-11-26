@@ -12,6 +12,10 @@ export const me = user ? await user.id() : null, isOwner = user ? await user.isO
 // which board (ten islands of one group of friends) this page shows; the first board keeps the old collection name
 export const BOARD = new URLSearchParams(location.search).get('board') || 'main';
 export const COL = BOARD === 'main' ? 'i' : 'i-' + BOARD;
+/** The island of the friend whose invite link opened this page (0: none). */
+export const FROM = +(new URLSearchParams(location.search).get('from') ?? 0) || 0;
+/** ?pick=grid shows the old number buttons for choosing an island (to compare with choosing on the map). */
+export const PICK = new URLSearchParams(location.search).get('pick') === 'grid' ? 'grid' : 'map';
 
 // the map canvas and its projection
 export const pr = islesProjection(), map = $('map'); map.width = pr.width; map.height = pr.height;

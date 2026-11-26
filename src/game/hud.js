@@ -50,6 +50,8 @@ export function festHud() {
   else { const lost = fest.people.filter(p => p.mood === 2 && !p.festServed).length;
     b.replaceChildren(ic, el('span', { class: 'cd' }, `${fest.served}/${fest.total}`), el('span', { class: 'bar' }, Object.assign(el('i'), { style: `width:${fest.served / fest.total * 100}%` }), Object.assign(el('i', { class: 'lost' }), { style: `width:${lost / fest.total * 100}%` }))); }
 }
+/** A small mark on 내 섬: something new there (a friend moved in next door). Gone when it is opened. */
+export function markHome() { const b = $('d-home'); if (!b.querySelector('.badge')) b.append(el('span', { class: 'badge' }, '!')); }
 function dockState() { const auto = !!S.myDoc && !!S.myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !S.myDoc; }
 
 let shownCoins = null, shownPermits = null;
@@ -90,7 +92,7 @@ export function initHud() {
     nextBoat.set(S.mySlot, 0); S.callReady = performance.now() / 1000 + 25; toast('📣 뿌우— 배를 불렀어요!', 1400); hud();
   });
   $('d-build').onclick = () => { if (!S.mySlot) return showHome(); if (S.buildMode) return setBuildMode(false); openCards(); };
-  $('d-home').onclick = () => { setBuildMode(false); if ($('panel').hidden || S.current) showHome(); else closePanel(); };   // open my island; a second press closes it
+  $('d-home').onclick = () => { $('d-home').querySelector('.badge')?.remove(); setBuildMode(false); if ($('panel').hidden || S.current) showHome(); else closePanel(); };   // open my island; a second press closes it
   $('d-auto').onclick = () => { if (!S.myDoc || !canWrite()) return; S.myDoc.wallet.autoInvest = !S.myDoc.wallet.autoInvest; save(true); dockState(); toast(!S.myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
   $('festp').onclick = () => { if (S.watching) closeInside(); scrollToSlot(S.mySlot); };
 }

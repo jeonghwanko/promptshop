@@ -3,20 +3,21 @@
 import { applyTheme } from '../ui/theme.js';
 import { pixelIcons } from '../ui/icons.js';
 import { setVoxelPalette } from '../ui/voxelui.js';
-import { centerOf } from '../v2/isles.js';
+import { centerOf, neighbours } from '../v2/isles.js';
 import { el } from './ui.js';
-import { S, db, me, sim } from './state.js';
-import { hooks, allPlots, ratesOf, servesOf } from './model.js';
-import { initPersist, WRITER } from './persist.js';
+import { S, db, me, sim, FROM } from './state.js';
+import { hooks, allPlots, ratesOf, servesOf, tilesOf } from './model.js';
+import { initPersist, WRITER, track } from './persist.js';
 import { initCamera, startZoom, applyZoom, scrollToSlot, toScreen } from './camera.js';
-import { drawMap } from './mapview.js';
-import { initHud, toast, celebrate } from './hud.js';
+import { drawMap, riseLand } from './mapview.js';
+import { initHud, toast, celebrate, markHome } from './hud.js';
 import { initEconomy, takeEvents, stepBoats, stepFest, festSoon } from './economy.js';
-import { initGuide, guide, tutOn, inTutOn, tutEvent } from './guide.js';
-import { show, showHome, showBuilding, closePanel, panelOpen } from './panel.js';
+import { initGuide, guide, tutOn, inTutOn, tutEvent, pickSpot } from './guide.js';
+import { show, showHome, showBuilding, showIsland, closePanel, panelOpen } from './panel.js';
 import { initShop, openShop, closeInside, stepInside } from './shop.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { initInput } from './input.js';
+import { inviteLink } from './invite.js';
 import { setBuildMode, startExtend } from './build.js';
 import { dustSite } from './mapfx.js';
 import { initWorld, openWorld } from './world.js';
@@ -37,8 +38,21 @@ hooks.yielded = () => {   // another tab plays this island now: this one stops a
 };
 hooks.live = () => { const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // a shop of mine opened while waiting: open it again as mine
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };
-hooks.rebuilt = () => {
-  if (!S.scrolled) { S.scrolled = true; S.zoom = startZoom(S.mySlot || 1); applyZoom(); setTimeout(() => scrollToSlot(S.mySlot || 1), 50); }
+let seen = null;   // the islands taken when the map was last rebuilt
+hooks.rebuilt = (oldGround) => {
+  if (!S.scrolled) {   // the first view: my island; invited, the inviter's; else the whole archipelago to choose from
+    S.scrolled = true; const at = S.mySlot || (FROM && S.owners.has(FROM) ? FROM : 0) || pickSpot() || 1;   // (choosing: the island the guide points at, big enough to read)
+    S.zoom = S.mySlot ? startZoom(at) : 1; applyZoom(); setTimeout(() => scrollToSlot(at), 50);
+    track('arrive', { from: FROM, has: !!S.mySlot, taken: S.owners.size });
+  }
+  // a friend took an island: it rises from the sea, and 내 섬 gets a mark (no window)
+  const now0 = new Set(S.owners.keys());
+  if (seen && S.mySlot) for (const s of now0) if (!seen.has(s) && s !== S.mySlot && !S.landAnim) {
+    riseLand(oldGround, tilesOf(s), centerOf(s)); markHome(); track('friend_joined', { slot: s, next: neighbours(S.mySlot).includes(s) });
+  }
+  seen = now0;
+  { const c = S.current; if (c?.kind === 'island' && S.owners.get(c.slot) !== c.uid && panelOpen()) showIsland(c.slot); }   // the island on the panel changed hands
+  if (!S.mySlot) guide();   // choosing an island: the guide follows who took which
   if (!S.current && !S.mySlot && !panelOpen()) showHome();
   else if (S.mySlot && S.joinShown) closePanel();   // the join card goes away once my island is known
   if (S.myDoc && S.mySlot && !S.guided) { S.guided = true; const w = S.myDoc.wallet, none = !Object.keys(S.myDoc.plots).length;
@@ -74,7 +88,7 @@ window.__isles = {
   site: (x, z, sz, on) => { if (on) S.building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { dustSite({ x, z, size: sz }); S.building = null; } },
   get watching() { return S.watching; }, get myDoc() { return S.myDoc; }, get zoom() { return S.zoom; },
   startMove, tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: cancelMove,
-  openShop, close: closeInside, extend: startExtend, centerOf, S, writer: WRITER,
+  openShop, close: closeInside, extend: startExtend, centerOf, neighbours, S, writer: WRITER, scrollToSlot, guide, inviteLink,
 };
 // ?world=1 opens the world map at once; ?open=<plot key> opens a building's inside at once (for checks)
 if (q.get('world')) setTimeout(openWorld, 600);

@@ -49,13 +49,14 @@ await ev(`__isles.close()`); await sleep(600);
 const z0 = await ev(`__isles.zoom`); await ev(`document.getElementById('zout').click()`); await sleep(300); check('zoom out', (await ev(`__isles.zoom`)) < z0, `${z0} → ${await ev(`__isles.zoom`)}`);
 await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 500, y: 400, deltaX: 0, deltaY: -120 }); await sleep(300); check('wheel zoom in', (await ev(`__isles.zoom`)) === z0);
 // long press → move mode
+await ev(`__isles.scrollToSlot(1)`); await sleep(900);
 const pt = JSON.parse(await ev(`JSON.stringify(__isles.screenOf('1_18_13'))`));
 await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt[0], y: pt[1] }); await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pt[0], y: pt[1], button: 'left', clickCount: 1 }); await sleep(800); await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pt[0], y: pt[1], button: 'left', clickCount: 1 }); await sleep(300);
 check('long press moves', (await ev(`document.getElementById('toast').textContent`)).includes('옮길'));
 await ev(`__isles.cancel()`); await sleep(300);
 // festival
 await ev(`__isles.fest(3)`); await sleep(1500); check('festival coming', (await ev(`JSON.stringify(__isles.festState)`)).includes('coming'), await ev(`document.getElementById('festp').textContent`));
-await sleep(4000); check('festival landed', (await ev(`JSON.stringify(__isles.festState)`)).includes('here'));
+await sleep(4000); { const fs0 = await ev(`JSON.stringify(__isles.festState)`); check('festival landed', fs0.includes('here'), fs0 + ' ' + await ev(`__isles.S.role`)); }
 // panel, cards, world
 await ev(`document.getElementById('d-home').click()`); await sleep(500); check('home panel', await ev(`!document.getElementById('panel').hidden && document.querySelectorAll('#panel .stat').length === 3`)); await shot('home');
 await ev(`document.querySelector('#panel .xb').click()`); await sleep(300);
@@ -83,4 +84,4 @@ check('auto furnish', (await ev(fxSig)) !== f0); await ev(`__isles.myDoc.wallet.
 // construction site and celebration render without errors
 await ev(`__isles.site(11,10,'S',true)`); await sleep(600); await ev(`__isles.site(11,10,'S',false)`); await ev(`__isles.celebrate('테스트','')`); await sleep(800);
 check('no errors', errs.length === 0, errs.slice(0, 3).join(' || '));
-chrome.kill(); await new Promise(r => setTimeout(r, 500)); del('i-qarg/qa-x'); del('boards/qarg'); process.exit(errs.length ? 1 : 0);
+chrome.kill(); await new Promise(r => setTimeout(r, 500)); del('i-qarg/qa-x'); del('boards/qarg'); del('log/qarg~qa-x'); process.exit(errs.length ? 1 : 0);

@@ -103,7 +103,11 @@ export function stepFest(dt) {
 }
 function festServed(e) { const fest = S.fest; if (!fest || e.fest !== fest.id) return; const tip = fest.tip; fest.served++; fest.tips += tip; earn(tip); pops.push({ key: e.lot, text: `🎉+${tip}`, mine: true, t: -.2 }); flyCoinNow(e.lot); S.dirty = true; }
 /** For checks: the festival boat comes now and lands in `sec` seconds. */
-export function festSoon(sec = 3) { S.nextFest = performance.now() / 1000; setTimeout(() => { const f = S.fest; if (f) { f.arrive = performance.now() / 1000 + sec; f.t0 = f.arrive - FEST.warn; } }, 100); }
+export function festSoon(sec = 3) {
+  S.nextFest = performance.now() / 1000;
+  const t = setInterval(() => { const f = S.fest; if (!f) return; clearInterval(t); f.arrive = performance.now() / 1000 + sec; f.t0 = f.arrive - FEST.warn; }, 50);   // once the boat exists
+  setTimeout(() => clearInterval(t), 5000);
+}
 
 // ---------- furniture comes in by itself (when the owner turns it on) ----------
 // every 3 s, the next piece (of any shop) that raises income most per coin, keeping enough for the next batch of supplies

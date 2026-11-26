@@ -8,14 +8,16 @@ import { renderView } from '../v2/render.js';
 import { iconEl } from '../ui/icons.js';
 import { START_COINS, BRIDGE, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, LEVELS, levelOf } from './rules.js';
 import { $, el, xbtn } from './ui.js';
-import { S, db, me, isOwner, now, canWrite } from './state.js';
+import { S, db, me, isOwner, now, canWrite, FROM, PICK } from './state.js';
 import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild } from './model.js';
-import { save, createMine, removeOthers } from './persist.js';
-import { scrollToSlot } from './camera.js';
+import { save, createMine, removeOthers, track } from './persist.js';
+import { scrollToSlot, startZoom, applyZoom } from './camera.js';
 import { toast, celebrate } from './hud.js';
 import { guide } from './guide.js';
 import { openShop } from './shop.js';
 import { startMove } from './move.js';
+import { riseLand } from './mapview.js';
+import { inviteCard } from './invite.js';
 
 const panel = () => $('panel');
 /** Fill the panel: the first child, when it is an h2, is the title on the dark strip with the close button. */
@@ -24,11 +26,6 @@ export const show = (...kids) => { const p = panel(); p.hidden = false; const li
 export function closePanel() { panel().hidden = true; S.current = null; S.joinShown = false; }
 export const panelOpen = () => !panel().hidden;
 
-function inviteCard() {
-  const empty = []; for (let s = 1; s <= SLOTS; s++) if (!S.owners.has(s)) empty.push(s);
-  if (!empty.length) return null;
-  return el('div', { class: 'card tile' }, iconEl('people', 40, ''), el('span', { class: 'tt' }, el('b', {}, `빈 섬 ${empty.length}개`), el('small', {}, '공유 메뉴로 친구 초대')));
-}
 function bridgeCards() {
   const { mySlot } = S; if (!mySlot) return [];
   return neighbours(mySlot).map(n => {
@@ -36,7 +33,7 @@ function bridgeCards() {
     if (!uid) return el('span', {}, `${n}번 · 빈 섬`);
     if (mineHalf && theirs) return el('span', { class: 'ok' }, `${n}번 · ${nameOf(uid)} ✓`);
     if (mineHalf) return el('span', {}, `${n}번 · ${nameOf(uid)} · 반쪽`);
-    const btn = el('button', { class: 'gold', on: { click: () => halfBridge(n) } }, el('span', { class: 'pr' }, iconEl('coin', 20, ''), String(BRIDGE))); btn.disabled = S.myDoc.wallet.coins < BRIDGE;
+    const cost = halfCost(n), btn = el('button', { class: 'gold', on: { click: () => halfBridge(n) } }, cost ? el('span', { class: 'pr' }, iconEl('coin', 20, ''), String(cost)) : '무료'); btn.disabled = S.myDoc.wallet.coins < cost;
     return el('div', { class: 'card tile' + (theirs ? ' alert' : '') }, iconEl('island', 40, ''), el('span', { class: 'tt' }, el('b', {}, `${n}번 · ${nameOf(uid)}`), el('small', {}, theirs ? '반쪽이 와 있어요' : '다리 반쪽')), btn);
   });
 }
@@ -56,17 +53,18 @@ async function widen() {
   const old = S.ground;   // the coast as it was, shown while the new ring rises
   myDoc.wallet.coins -= cost; myDoc.land = k + 1; rebuild(); save(true);
   const [cx, cz] = centerOf(mySlot), fresh = tilesOf(mySlot).filter(t => !was.has(t + ''));
-  // new land rises from the sea, from the old coast outward, like a wave going round the island
-  const d0 = Math.min(...fresh.map(([x, z]) => Math.hypot(x - cx, z - cz)));
-  const a = S.landAnim = { old, t: 0, tiles: fresh.map(([x, z]) => ({ x, z, at: (Math.hypot(x - cx, z - cz) - d0) * .35 + ((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * .9 + Math.random() * .08, splashed: false })) };
-  a.end = Math.max(...a.tiles.map(t => t.at)) + .5;
+  const end = riseLand(old, fresh, [cx, cz]);
   closePanel(); scrollToSlot(mySlot); toast('🌱 땅이 솟아올라요…', 1600);
-  setTimeout(() => { celebrate('🌱 땅이 넓어졌어요!', `땅 +${fresh.length}칸 · 이제 건물 ${maxPlots()}채까지`); }, a.end * 1000 + 100);
+  setTimeout(() => { celebrate('🌱 땅이 넓어졌어요!', `땅 +${fresh.length}칸 · 이제 건물 ${maxPlots()}채까지`); }, end * 1000 + 100);
 }
 
 export function showHome(msg) {
   S.current = null; S.joinShown = false;
   const { myDoc, mySlot } = S;
+  if (!mySlot && PICK === 'map') {   // islands are chosen on the map (the guide points at one); nothing to list here
+    if (msg) toast(msg, 2000);
+    return guide();
+  }
   if (!mySlot) {
     const can = db && me; S.joinShown = true;
     return show(el('h2', {}, S.boardName || '한 줄 군도'),
@@ -85,17 +83,28 @@ export function showHome(msg) {
 }
 async function join(s) {
   if (S.owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');
-  await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0 } });
-  closePanel(); scrollToSlot(s); guide();
+  const byInviter = !!FROM && S.owners.has(FROM) && neighbours(s).includes(FROM);
+  track('pick', { slot: s, from: FROM, nextToInviter: byInviter, pick: PICK });
+  // invited next to a friend: my half of the bridge to them is free, so we are joined in the first session
+  await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0, ...(byInviter ? { freeHalf: FROM } : {}) } });
+  closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide();
 }
+/** What my half of the bridge to island n costs: free to the friend who invited me, once. */
+const halfCost = (n) => S.myDoc?.wallet?.freeHalf === n ? 0 : BRIDGE;
 async function halfBridge(n) {
   const { myDoc } = S; if (!canWrite()) return;
-  if (myDoc.wallet.coins < BRIDGE) return showHome(`다리 반쪽에는 ${BRIDGE} 동전이 필요해요.`);
-  myDoc.wallet.coins -= BRIDGE; myDoc.half = { ...myDoc.half, [n]: now() }; rebuild(); await save(true); showHome();
+  const cost = halfCost(n);
+  if (myDoc.wallet.coins < cost) return showHome(`다리 반쪽에는 ${cost} 동전이 필요해요.`);
+  myDoc.wallet.coins -= cost; delete myDoc.wallet.freeHalf; myDoc.half = { ...myDoc.half, [n]: now() }; rebuild(); await save(true);
+  track('bridge_half', { to: n, free: !cost, done: !!S.docs.get(S.owners.get(n))?.half?.[S.mySlot] }); showHome();
 }
 export function showIsland(s) {
-  const uid = S.owners.get(s);
-  if (!uid) return show(el('h2', {}, `${s}번 섬 · 빈 섬`), inviteCard(), S.mySlot ? null : el('button', { on: { click: () => join(s) } }, '이 섬에 살기'), el('button', { class: 'ghost', on: { click: () => showHome() } }, '돌아가기'));
+  const uid = S.owners.get(s); S.current = { kind: 'island', slot: s, uid };
+  if (!uid) {   // an empty island: live here (no island yet), or call a friend to it
+    const by = FROM && neighbours(s).includes(FROM) && S.owners.get(FROM);
+    return show(el('h2', {}, `${s}번 섬`, by ? el('small', {}, ` · ${nameOf(by)} 옆`) : null),
+      S.mySlot ? inviteCard() : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
+  }
   if (s === S.mySlot) return showHome();
   const ps = allPlots().filter(p => p.slot === s && p.b);
   show(el('h2', {}, `${s}번 섬 · ${nameOf(uid)}`), el('div', { class: 'note' }, `건물 ${ps.length}채`),

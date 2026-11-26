@@ -19,7 +19,7 @@ Each layer may use the layers below it, never the ones above.
 | Game model | `src/game/model.js` | What the saved islands mean now: plots, fixtures, rates, the wallet's permits and level; `rebuild()` turns the docs into the map and the walkers' buildings. It tells the screens through `hooks` | DOM |
 | Saving | `src/game/persist.js`, `src/game/lease.js` | Saving my doc, loading the board, the board summary; which tab may write my island | DOM |
 | Running | `src/game/economy.js` | Payments from the walkers' events, boats, the festival, VIP guests, restocking, furniture coming in by itself | DOM other than through the HUD |
-| Screens | `src/game/camera.js`, `mapview.js`, `hud.js`, `guide.js`, `panel.js`, `shop.js`, `build.js`, `move.js`, `input.js`, `world.js`, `ui.js` | The camera and zoom; drawing the map each frame; the HUD and messages; the guide; the side panel; the open shop and its buttons; build mode, Claude building, extending; moving a building; pointer and keys; the world map; DOM helpers | — |
+| Screens | `src/game/camera.js`, `mapview.js`, `hud.js`, `guide.js`, `panel.js`, `invite.js`, `shop.js`, `build.js`, `move.js`, `input.js`, `world.js`, `ui.js` | The camera and zoom; drawing the map each frame; the HUD and messages; the guide (choosing an island, the first loop, the invite); the side panel; the invite link and card; the open shop and its buttons; build mode, Claude building, extending; moving a building; pointer and keys; the world map; DOM helpers | — |
 | Start | `src/game/main.js` | Puts the pieces together: calls each `init…()`, sets the model's hooks, runs the frame loop, the debug hook | — |
 
 ## Rules of thumb
@@ -45,4 +45,13 @@ Each layer may use the layers below it, never the ones above.
 - `node scripts/check-isles.mjs` (with `node scripts/dev.mjs 5300` running): copies the dev island to a throwaway board and drives the main paths in headless Chrome: guide, shop, buying, floors, zoom, long press, moving a building, festival, panel, cards, world map, a refused board name, widening land, furniture coming in by itself. Every line must say PASS.
 - `node scripts/check-tabs.mjs`: several tabs on one island — a stale holder, the answer and handing over unsaved changes, the watcher writing nothing, an old copy written over, a closed tab, a shop opened while waiting, two tabs at once, a removal that sticks.
 - `node scripts/check-lease.mjs`: the one-writer rule as a table and same-term races, without a browser.
+- `node scripts/check-invite.mjs [shots dir]`: the first session with a friend — choosing an island on the map, the invite step and link, the friend landing next to the inviter, the free half bridge, the inviter seeing them arrive, the funnel log.
+- `node scripts/funnel.mjs [db.json] [board]`: the first-session funnel from the logs `track()` writes (`log/<board>~<user>`).
 - `tests/render-hash.html`: a hash of every building, cut-away and voxel button. Use it before and after a change to the renderer that should change no pixel.
+
+## The first session
+
+- A page without an island shows no list: the guide points at an island on the map (next to the inviter with `?from=`, else one with three neighbours) and the island's card has one button, "이 섬에 살기". `?pick=grid` brings back the number buttons, to compare.
+- The guide's last step points at an empty island next door; its card holds the invite link (`?board=<id>&from=<my island>`), shared with the phone's share sheet or copied.
+- A friend who moves in next to the inviter gets their first half bridge to the inviter free (`wallet.freeHalf`). The inviter sees the island rise and a mark on 내 섬; nothing pops up.
+- `track(event)` logs the steps for the funnel: arrive, pick, tut (each guide step), invite_open, invite_copy, friend_joined, bridge_half.

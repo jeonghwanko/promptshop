@@ -264,3 +264,8 @@
 .handoff { position:fixed; inset:0; z-index:60; display:grid; place-items:center; background:rgba(20,28,40,.55); }
 .handoff > div { display:flex; flex-direction:column; align-items:center; gap:14px; padding:22px 30px; border-radius:18px; background:#2e241a; color:#fff7e6; box-shadow:0 6px 0 #1a130c; }
 .handoff b { font:400 22px "Jua", "Noto Sans KR", sans-serif; }
+/* the invite card: what the friend will see, and one button */
+.invitecard { flex-direction:column; align-items:stretch; gap:8px; }
+.invitecard .invpic { width:100%; height:auto; border-radius:10px; background:#3f7fb0; image-rendering:auto; }
+.invitecard b { font:400 18px var(--f-disp); text-align:center; }
+.invitecard input { width:100%; font-size:12px; }

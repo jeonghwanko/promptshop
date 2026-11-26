@@ -72,4 +72,4 @@ fs.writeFileSync(`${dir}/mod.json`, JSON.stringify({ [String(plot.b.at)]: key })
 await sleep(5000); await P.ev(`__isles.S.dirty = true`); await sleep(7000);
 check('removal sticks', !(key in stored().plots) && !(await P.ev(`'${key}' in __isles.myDoc.plots`)));
 check('no errors', errs.length === 0, errs.slice(0, 3).join(' || '));
-chrome.kill(); await sleep(500); api('DELETE', DOC); api('DELETE', `i-${BOARD}/_mod`); fs.rmSync(dir, { recursive: true, force: true });
+chrome.kill(); await sleep(500); api('DELETE', DOC); api('DELETE', `i-${BOARD}/_mod`); api('DELETE', `log/${BOARD}~${ME}`); fs.rmSync(dir, { recursive: true, force: true });

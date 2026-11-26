@@ -12,7 +12,8 @@ import { S, me, pr, sim } from './state.js';
 /** What the screens do when the model says something: set once by main.js, so this file needs no screen. */
 export const hooks = {
   celebrate: (title, sub) => {},
-  rebuilt: () => {},
+  /** The map was rebuilt from the docs; oldGround is the islands as drawn before. */
+  rebuilt: (oldGround) => {},
   /** The first-visit guide is running (with `inside`: or the inside-a-shop guide). Nothing pops up on its own then. */
   guiding: (inside) => false,
   /** Something the guide waits for happened ('coin', …). */
@@ -80,7 +81,7 @@ export function rebuild() {
     const da = S.docs.get(owners.get(s)), dbb = S.docs.get(owners.get(n));
     bridges.set(bridgeId(s, n), { a: !!da?.half?.[n], b: !!dbb?.half?.[s] });
   }
-  const world = S.world = makeIsles(joined, bridges);
+  const world = S.world = makeIsles(joined, bridges), oldGround = S.ground;
   const all = allPlots();
   S.ground = drawIsles(world, pr, { taken: takenSet(), mine: S.mySlot });
   // reset the walkers only when the road network changes (an island joined, a bridge finished)
@@ -89,5 +90,5 @@ export function rebuild() {
   const built = new Map(); for (const p of all) if (p.b) { const n = normalize(p.b.input), w = PLOT[p.size]; built.set(p.key, { type: n.type, levels: n.levels, owner: p.owner, stock: p.stock ?? START_STOCK, rates: ratesOf(p), watched: S.watching?.key === p.key, lot: { id: p.key, size: p.size, x: p.x, z: p.z, w, d: w, door: p.door } }); }
   sim.setBuildings(built);
 
-  hooks.rebuilt();
+  hooks.rebuilt(oldGround);
 }

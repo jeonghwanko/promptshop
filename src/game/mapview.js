@@ -1,11 +1,11 @@
 // Drawing the archipelago each frame: the ground (or new land rising), buildings, walkers, boats and the building site
 // sorted by depth, then island labels, floating words, stars, empty-stock marks and what my pier's guests cannot find.
-import { SLOTS, centerOf, PLOT, dockOf } from '../v2/isles.js';
+import { SLOTS, centerOf, PLOT, dockOf, neighbours } from '../v2/isles.js';
 import { renderView } from '../v2/render.js';
 import { drawPerson } from '../v2/townview.js';
 import { iconCanvas, EMOJI } from '../ui/icons.js';
 import { START_STOCK } from './rules.js';
-import { S, me, pr, map, g, sim, pops, boats, splash } from './state.js';
+import { S, me, pr, map, g, sim, pops, boats, splash, FROM } from './state.js';
 import { allPlots, starsInfo, servesOf, nameOf } from './model.js';
 import { site, drawSite, drawFestBoat, drawBoat } from './mapfx.js';
 import { mapXY } from './camera.js';
@@ -29,6 +29,13 @@ export function buildingAt(e) { const [sx, sy] = mapXY(e);
     if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return it.key; }
   return null; }
 
+/** New land rises from the sea, from `center` outward like a wave going round; `old` is the ground as it was. Returns when it ends (s). */
+export function riseLand(old, tiles, [cx, cz]) {
+  if (!tiles.length) return 0;
+  const d0 = Math.min(...tiles.map(([x, z]) => Math.hypot(x - cx, z - cz)));
+  const a = S.landAnim = { old, t: 0, tiles: tiles.map(([x, z]) => ({ x, z, at: (Math.hypot(x - cx, z - cz) - d0) * .35 + ((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * .9 + Math.random() * .08, splashed: false })) };
+  return a.end = Math.max(...a.tiles.map(t => t.at)) + .5;
+}
 function drawLandAnim(dt) {   // old coast, then each new tile rising into place, with spray
   const a = S.landAnim; a.t += dt;
   g.drawImage(a.old, 0, 0);
@@ -76,15 +83,20 @@ export function drawMap(dt) {
   { const sb = building ?? site.done ?? site.pending; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
       items.push({ d: sb.x + sb.z - .01, draw: () => drawSite(g, pr, 'back', building) }, { d: sb.x + sb.z + n + .02, draw: () => drawSite(g, pr, 'front', building) }); } else site.parts.length = 0; }
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
-  // island labels: owner names, empty slots invite (map words would be blown up behind an open shop)
+  // island labels: owner names; empty islands invite a friend (mine known) or ask to be chosen (no island yet: the
+  // ones next to the friend who sent the link glow, else every free one does, softly)
   g.textAlign = 'center';
+  const pulse = (Math.sin(performance.now() / 260) + 1) / 2, near = FROM && S.owners.has(FROM) ? neighbours(FROM) : null;
   for (let s = 1; s <= SLOTS && !zoomShop; s++) {
     const [cx, cz] = centerOf(s), [lx, ly] = pr.P(cx - 4, cz - 4), uid = S.owners.get(s);
-    const label = uid ? `${s} · ${nameOf(uid)}` : `${s} · 빈 섬`;
+    const label = uid ? `${s} · ${nameOf(uid)}` : `${s} · 빈 섬`, choose = !uid && !mySlot && S.scrolled && (!near || near.includes(s));
     g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(label).width + 14;
-    g.fillStyle = uid === me ? '#e3a72f' : uid ? 'rgba(46,36,26,.85)' : 'rgba(255,255,255,.75)'; g.beginPath(); g.roundRect(lx - w / 2, ly - 30, w, 20, 8); g.fill();
+    g.fillStyle = uid === me ? '#e3a72f' : uid ? 'rgba(46,36,26,.85)' : choose ? `rgba(255,${205 + 30 * pulse | 0},${110 + 60 * pulse | 0},${near ? .95 : .55 + .35 * pulse})` : 'rgba(255,255,255,.75)'; g.beginPath(); g.roundRect(lx - w / 2, ly - 30, w, 20, 8); g.fill();
     g.fillStyle = uid && uid !== me ? '#fff7e6' : '#2e241a'; g.fillText(label, lx, ly - 15);
-    if (!uid) { g.font = '400 11px "Noto Sans KR", sans-serif'; g.fillStyle = 'rgba(255,255,255,.9)'; const [mx, my] = pr.P(cx + .5, cz + .5); g.fillText('+ 친구 초대', mx, my); }
+    if (!uid && mySlot) {   // tap it: the invite card
+      const [mx, my] = pr.P(cx + .5, cz + .5); g.font = '400 13px "Jua", "Noto Sans KR", sans-serif'; const t = '+ 친구 초대', tw = g.measureText(t).width + 18;
+      g.fillStyle = 'rgba(46,36,26,.78)'; g.beginPath(); g.roundRect(mx - tw / 2, my - 15, tw, 22, 11); g.fill(); g.fillStyle = '#fff7e6'; g.fillText(t, mx, my + 1);
+    }
   }
   g.font = '900 12px "Noto Sans KR", sans-serif';
   for (const p of pops) { const tp = tops[p.key]; if (!tp || zoomShop) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;

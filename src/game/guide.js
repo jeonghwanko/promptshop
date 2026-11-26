@@ -1,11 +1,12 @@
 // The first visit: 끼룩이 walks a new owner through one whole loop, one step at a time,
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
-import { centerOf, placePlot, PLOT } from '../v2/isles.js';
+import { SLOTS, centerOf, placePlot, PLOT, neighbours } from '../v2/isles.js';
 import { $, el } from './ui.js';
-import { S, me, pr, nextBoat, canWrite } from './state.js';
-import { allPlots, takenSet } from './model.js';
-import { save } from './persist.js';
-import { toScreen } from './camera.js';
+import { S, db, me, pr, nextBoat, canWrite, FROM, PICK } from './state.js';
+import { allPlots, takenSet, nameOf } from './model.js';
+import { save, track } from './persist.js';
+import { toScreen, scrollToSlot, applyZoom } from './camera.js';
+import { emptyNeighbours } from './invite.js';
 
 const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람들이 첫 가게를 기다리고 있어!', btn: '좋아!' },
@@ -16,7 +17,9 @@ const TUT = [
   { say: 'Claude가 짓는 중이야…\n건물이 올라가는 거 봐! 끼룩', on: 'built' },
   { say: '완공! 🎉\n저기 봐, 배가 손님을 싣고 와!', on: 'coin', boat: true },
   { say: '첫 수입이야! 동전이 쌓였지?\n이제 가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
-  { say: '잘했어! 손님을 받을수록 🎫 게이지가 차.\n다 차면 또 지을 수 있어. 섬을 키워 보자!', btn: '시작!' },
+  // the last step: a friend next door, so the first session ends on the bridge (the card that opens has the link)
+  { say: () => emptyNeighbours().length ? '잘했어! 🎫이 다 차면 또 지을 수 있어.\n옆 섬이 비었네. 친구를 불러 다리를 놓자!' : '잘했어! 손님을 받을수록 🎫 게이지가 차.\n다 차면 또 지을 수 있어. 섬을 키워 보자!',
+    btn: () => emptyNeighbours().length ? '나중에' : '시작!', map: 'invite', on: 'invite' },
 ];
 // inside a shop for the first time: how to read the flow and what a fixture buys
 const TUT_IN = [
@@ -27,12 +30,27 @@ const TUT_IN = [
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
-const setStep = (field, n) => { if (!canWrite()) return; S.myDoc.wallet[field] = n; S.dirty = true; save(true); guide(); };
+const setStep = (field, n) => { if (!canWrite()) return; S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n }); guide(); };
+const say = (v) => typeof v === 'function' ? v() : v;
+
+// before I have an island: choose one on the map. Invited: next to the friend who sent the link.
+const inviter = () => FROM && S.owners.get(FROM);
+const pickWords = () => { const by = inviter(); return by ? `${nameOf(by)} 옆 섬을 눌러!\n이웃이 되면 다리를 놓을 수 있어.` : '끼룩! 살 섬을 하나 골라 눌러 봐.'; };
+export const picking = () => !S.mySlot && PICK === 'map' && !!db && !!me && S.scrolled;
+/** The island the guide points at while choosing: one next to the inviter, else one with three neighbours, else any. */
+export function pickSpot() {
+  const free = (s) => !S.owners.has(s);
+  if (inviter()) { const n = neighbours(FROM).find(free); if (n) return n; }
+  for (const s of [3, 8, 2, 4, 7, 9]) if (free(s)) return s;
+  for (let s = 1; s <= SLOTS; s++) if (free(s)) return s;
+  return 0;
+}
 export function tutInEvent(name) { if (inTutOn() && TUT_IN[inStep()].on === name) setStep('tutIn', inStep() + 1); }
 const tutStep = () => S.myDoc?.wallet?.tut ?? 99;
 export const tutOn = () => !!S.mySlot && tutStep() < TUT.length;
 export function tutEvent(name) { if (tutOn() && TUT[tutStep()].on === name) setStep('tut', tutStep() + 1); }
 
+let panned = -1;
 /** Show the current step. */
 export function guide() {
   const g = $('guide'); document.querySelectorAll('.glow').forEach(e => e.classList.remove('glow'));
@@ -42,9 +60,14 @@ export function guide() {
       el('button', { class: 'skip', on: { click: () => setStep('tutIn', 99) } }, '건너뛰기')].filter(Boolean));
     return;
   }
+  if (picking()) {
+    g.hidden = !pickSpot(); $('gtext').textContent = pickWords(); $('gbtns').replaceChildren();
+    return;
+  }
   if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
-  const st = TUT[tutStep()]; g.hidden = false; $('gtext').textContent = st.say;
-  $('gbtns').replaceChildren(...[st.btn ? el('button', { class: 'gold', on: { click: () => setStep('tut', tutStep() + 1) } }, st.btn) : null,
+  const st = TUT[tutStep()]; g.hidden = false; $('gtext').textContent = say(st.say);
+  if (st.map === 'invite' && panned !== tutStep()) { panned = tutStep(); const n = emptyNeighbours()[0]; if (n) setTimeout(() => { if (S.zoom > 1) { S.zoom = 1; applyZoom(); } scrollToSlot(n); }, 300); }   // once, as the step starts; near enough to see my island too
+  $('gbtns').replaceChildren(...[st.btn ? el('button', { class: 'gold', on: { click: () => setStep('tut', tutStep() + 1) } }, say(st.btn)) : null,
     tutStep() < TUT.length - 1 ? el('button', { class: 'skip', on: { click: () => setStep('tut', 99) } }, '건너뛰기') : null].filter(Boolean));
   if (st.boat && S.mySlot) nextBoat.set(S.mySlot, 0);   // the first boat comes at once
 }
@@ -59,6 +82,9 @@ function guideArrow() {
     document.querySelectorAll('.glow').forEach(e => e.classList.remove('glow'));
     if (st.at === 'slow') { const v = S.watching.view, i = [...(v.blocked ?? [])][0], f = i !== undefined && v.fx[i]; if (f && v.onFloor(f.y)) { const [x, y] = v.view.project(f.x, f.y + 1.4, f.z), r = v.top.getBoundingClientRect(); pt = [r.left + x * v.zoom, r.top + y * v.zoom]; } }
     pt = atEl(st.el) ?? pt;
+  } else if (picking()) {   // the island to choose: over its name on the map (the words follow the inviter's name as it arrives)
+    $('gtext').textContent = pickWords();
+    const s = pickSpot(); if (s) { const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx - 4, cz - 4)); pt = [x, y - 34]; }
   } else if (tutOn()) {
     const st = TUT[tutStep()], n = PLOT[S.size];
     pt = atEl(st.el);
@@ -67,6 +93,7 @@ function guideArrow() {
         for (let d = 1; d < 6 && !S.tutSpot; d++) for (const [dx, dz] of [[1, 1], [-n, 1], [1, -n], [-n, -n]]) { const door = placePlot(S.world, S.mySlot, cx + dx * d, cz + dz * d, n, taken); if (door) { S.tutSpot = { x: cx + dx * d, z: cz + dz * d, door }; break; } } }
       if (S.tutSpot) { const [x, y] = toScreen(...pr.P(S.tutSpot.x + n / 2, S.tutSpot.z + n / 2)); pt = [x, y - 10]; }
     }
+    if (st.map === 'invite') { const n = emptyNeighbours()[0]; if (n) { const [cx, cz] = centerOf(n), [x, y] = toScreen(...pr.P(cx + .5, cz + .5)); pt = [x, y - 16]; } }
     if (st.map === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && S.lastTops[p.key]; if (tp) { const [x, y] = toScreen(tp[0], tp[1]); pt = [x, y - 8]; } }
   }
   if (!pt) { a.hidden = true; return; }
