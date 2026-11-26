@@ -113,7 +113,8 @@ The building spec is short text. With a Haiku-class model one building costs abo
 - 1.4 stacked cross-section: done.
 - 1.5 quality loop: done. First run: 60/60 built without errors, no repairs or follow-ups needed, 44/60 judged "what I asked for" (73%). Every failure had the right type but the wrong look. After adding landmark silhouettes, loud cues for small shops and activity zones, the 16 failures were re-run: 10 now pass, so the combined result is 54/60 (90%, target 80%). The remaining misses (stone library, modern gallery, villa with a pool, market hall, post office) got a materials rule, a sculpture, an outdoor pool and a fish icon.
 
-- Stage 2, first version: shared town with 13 lots in four sizes, lot-aware prompt, per-person building limit (3), info panel with outside and cross-section, walkers that stop at buildings, word filter, report and demolish. Lot prices, night lights and user-registered catalogue entries are next.
+- Stage 2, first version: shared town with 13 lots in four sizes, lot-aware prompt, info panel with outside and cross-section, word filter, report and demolish.
+- Stage 2, second version (after "building one is fun, placing it is 'what is this?'"): build in place on the map, and a visible town simulation. People carry wants in speech bubbles, a bar shows what the town lacks, houses/stations/hotels bring people, shops serve one want each, customers walk the roads to the nearest shop with room and queue at the door, and coins go to the owner. Opening a shop the town lacks draws a crowd at once. Coins open M/L/XL lots. Five buildings per person. Next: whether this loop is fun; then upkeep and floor upgrades, reactions between players, night lights last.
 
 ## Decisions (2026-11-26)
 

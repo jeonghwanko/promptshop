@@ -5,16 +5,21 @@
 <title>promptshop — town</title>
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap">
 <style>
-  :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; --line:#d4c4a6; --accent:#3f7a74; --hot:#c0392b;
+  :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; --line:#d4c4a6; --accent:#3f7a74; --hot:#c0392b; --gold:#e3a72f;
           --f-disp:"Jua","Noto Sans KR",sans-serif; --f-ui:"Noto Sans KR",system-ui,sans-serif; }
-  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.55 var(--f-ui); padding:16px max(16px, env(safe-area-inset-left, 0px)); }
-  .wrap { max-width:1500px; margin:0 auto; display:flex; flex-direction:column; gap:12px; }
-  header { display:flex; align-items:baseline; gap:14px; flex-wrap:wrap; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.55 var(--f-ui); padding:14px max(16px, env(safe-area-inset-left, 0px)); }
+  .wrap { max-width:1500px; margin:0 auto; display:flex; flex-direction:column; gap:10px; }
+  header { display:flex; align-items:center; gap:14px; flex-wrap:wrap; }
   h1 { margin:0; font:400 28px/1.2 var(--f-disp); }
-  .sub { color:var(--dim); }
-  .main { display:grid; grid-template-columns:minmax(0, 1fr) 340px; gap:14px; align-items:start; }
+  .wallet { margin-left:auto; font:400 22px var(--f-disp); color:var(--gold); font-variant-numeric:tabular-nums; }
+  .wants { display:flex; gap:8px; flex-wrap:wrap; }
+  .want { display:flex; align-items:center; gap:6px; background:var(--card); border-radius:999px; padding:4px 12px 4px 6px; font-size:13px; }
+  .want .dot { width:18px; height:18px; border-radius:50%; display:inline-block; }
+  .want b { font-variant-numeric:tabular-nums; }
+  .want.none { box-shadow:inset 0 0 0 2px var(--hot); } .want.none .tag { color:var(--hot); font-weight:700; }
+  .main { display:grid; grid-template-columns:minmax(0, 1fr) 330px; gap:14px; align-items:start; }
   @media (max-width:980px) { .main { grid-template-columns:minmax(0, 1fr); } }
-  .mapbox { background:#9cc786; border-radius:16px; overflow:auto; min-width:0; }
+  .mapbox { background:#9cc786; border-radius:16px; overflow:auto; min-width:0; max-height:78vh; }
   #map { display:block; image-rendering:pixelated; cursor:pointer; }
   .panel { background:var(--card); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:10px; min-width:0; }
   .panel h2 { margin:0; font:400 21px var(--f-disp); }
@@ -25,25 +30,26 @@
   button:disabled { opacity:.45; cursor:default; }
   button.ghost { background:transparent; color:var(--ink); box-shadow:inset 0 0 0 1px var(--line); }
   button.warn { background:var(--hot); box-shadow:0 3px 0 #7a2418; }
+  button.gold { background:var(--gold); box-shadow:0 3px 0 #9a6f14; color:#3a2a00; }
   button:focus-visible, input:focus-visible { outline:2px solid var(--ink); outline-offset:2px; }
   .chips { display:flex; gap:6px; flex-wrap:wrap; } .chips button { background:#fbf6ec; color:var(--ink); box-shadow:none; font-weight:400; padding:5px 9px; font-size:13px; }
-  .preview canvas { image-rendering:pixelated; width:100%; height:auto; display:block; background:#efe5d2; border-radius:10px; }
-  .log { font-size:12px; color:var(--dim); max-height:150px; overflow:auto; display:flex; flex-direction:column; gap:1px; }
+  .log { font-size:12px; color:var(--dim); max-height:170px; overflow:auto; display:flex; flex-direction:column; gap:1px; }
   .log b { color:var(--accent); margin-right:6px; }
-  .err { color:var(--hot); font-size:13px; }
-  .note { color:var(--dim); font-size:13px; }
+  .err { color:var(--hot); font-size:13px; } .note { color:var(--dim); font-size:13px; }
   .pics { display:flex; flex-direction:column; gap:8px; }
   .pics canvas { image-rendering:pixelated; max-width:100%; height:auto; display:block; margin:0 auto; }
   .secwrap { position:relative; margin-left:56px; } .secwrap canvas { max-width:100%; }
   .secwrap .lab { position:absolute; transform:translate(-100%, -50%); white-space:nowrap; background:var(--ink); color:#fff7e6; padding:0 5px; border-radius:6px; font-size:11px; }
   .secwrap .lab b { color:#e3b448; }
   .quote { font:400 16px var(--f-disp); }
+  .stat { font-size:13px; } .stat b { font-variant-numeric:tabular-nums; }
 </style>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <div class="wrap">
-  <header><h1>한 줄 마을</h1><span class="sub" id="count">빈 부지를 눌러 한 줄로 건물을 지으세요.</span></header>
+  <header><h1>한 줄 마을</h1><span class="note" id="count"></span><span class="wallet" id="wallet"></span></header>
+  <div class="wants" id="wants" aria-label="마을 사람들이 지금 원하는 것"></div>
   <div class="main">
-    <div class="mapbox"><canvas id="map"></canvas></div>
+    <div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
     <aside class="panel" id="panel"></aside>
   </div>
 </div>
@@ -56,32 +62,41 @@ import { check, missingParts, revisePrompt } from './src/v2/check.js';
 import { normalize } from './src/v2/spec.js';
 import { TYPE_KO } from './src/v2/catalog.js';
 import { SEED } from './examples/town-seed.js';
-import { LOTS, makeProjection, drawGround, lotAtPixel, makeWalkers, stepWalkers, drawWalker } from './src/v2/town.js';
+import { LOTS, makeProjection, drawGround, lotAtPixel } from './src/v2/town.js';
+import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
-const me = user ? await user.id() : null;
-const isOwner = user ? await user.isOwner() : false;
-const MAX_PER_PERSON = 3;
+const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
+const MAX_PER_PERSON = 5, PRICE = { S: 0, M: 40, L: 150, XL: 500 };
 const BAD = ['시발', '씨발', '병신', '좆', '개새', 'fuck', 'shit', 'bitch', 'nigger', 'nazi', '섹스', 'sex'];
 const bad = (t) => BAD.some(w => (t ?? '').toLowerCase().includes(w));
 
 // ---------- state ----------
 const pr = makeProjection(230), map = $('map'); map.width = pr.width; map.height = pr.height;
-map.style.width = '100%'; map.style.maxWidth = pr.width * 2 + 'px';   // fit the column; never more than 2× pixels
+map.style.width = '100%'; map.style.minWidth = pr.width + 'px'; map.style.maxWidth = pr.width * 2 + 'px';
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
-let buildings = new Map();      // lotId → { input, line, at, author }
-const sprites = new Map();      // lotId → { canvas, anchor, key, alpha }
-let ground = drawGround(pr), names = {};
-const walkers = makeWalkers();
+let buildings = new Map(), ground = drawGround(pr), names = {};
+const sprites = new Map(), sim = new TownSim(), pops = [];
+let myDoc = { buildings: {}, wallet: { coins: 0, unlocked: ['S'] } }, dirty = false, lastSave = 0;
+let building = null;      // the building being assembled on the map: { lot, stage }
 
+function info(lotId, b) {   // normalized spec, cached per building version
+  const k = b.author + ':' + b.at;
+  if (b._k !== k) { b._n = normalize(b.input); b._k = k; }
+  return b._n;
+}
 function sprite(lotId, b) {
-  const key = b.author + ':' + b.at;
-  const s = sprites.get(lotId); if (s && s.key === key) return s;
-  try { const { canvas, anchor } = renderView(b.input, 'ext'); const alpha = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; const n = { canvas, anchor, key, alpha }; sprites.set(lotId, n); return n; }
-  catch { return null; }
+  const key = b.author + ':' + b.at, s = sprites.get(lotId); if (s && s.key === key) return s;
+  try { const { canvas, anchor } = renderView(b.input, 'ext'); const alpha = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data; const n = { canvas, anchor, key, alpha }; sprites.set(lotId, n); return n; } catch { return null; }
+}
+function applyBuildings(next) {
+  buildings = next; ground = drawGround(pr, new Set(buildings.keys()));
+  for (const lot of [...sprites.keys()]) if (!buildings.has(lot)) sprites.delete(lot);
+  sim.setBuildings(new Map([...buildings].map(([id, b]) => { const n = info(id, b); return [id, { type: n.type, levels: n.levels, owner: b.author }]; })));
+  $('count').textContent = `${buildings.size}/${LOTS.length} 부지`;
 }
 async function resolveNames() { if (!user) return; const ids = [...new Set([...buildings.values()].map(b => b.author).filter(a => a && a !== 'seed'))]; if (!ids.length) return; const ps = await user.profiles(ids); for (const id of ids) names[id] = ps[id]?.name || '이웃'; }
 const authorName = (a) => a === 'seed' ? 'promptshop 예시' : a === me ? '나' : (names[a] || '이웃');
@@ -89,42 +104,69 @@ const authorName = (a) => a === 'seed' ? 'promptshop 예시' : a === me ? '나' 
 if (db) {
   db.collection('b').onSnapshot(snap => {
     const next = new Map();
-    for (const d of snap.docs) { const bs = d.data()?.buildings ?? {}; for (const [lot, b] of Object.entries(bs)) { if (!LOTS.some(l => l.id === lot) || !b?.input) continue; const cur = next.get(lot); if (!cur || (b.at ?? 0) < cur.at) next.set(lot, { ...b, author: d.id }); } }
-    buildings = next; ground = drawGround(pr, new Set(buildings.keys()));
-    for (const lot of [...sprites.keys()]) if (!buildings.has(lot)) sprites.delete(lot);
-    $('count').textContent = `${buildings.size}/${LOTS.length} 부지에 건물이 섰어요. 빈 부지를 눌러 한 줄로 지어 보세요.`;
+    for (const d of snap.docs) {
+      const data = d.data() ?? {};
+      if (d.id === me) myDoc = { buildings: data.buildings ?? {}, wallet: { coins: Math.max(myDoc.wallet.coins, data.wallet?.coins ?? 0), unlocked: data.wallet?.unlocked ?? myDoc.wallet.unlocked } };
+      for (const [lot, b] of Object.entries(data.buildings ?? {})) { if (!LOTS.some(l => l.id === lot) || !b?.input) continue; const cur = next.get(lot); if (!cur || (b.at ?? 0) < cur.at) next.set(lot, { ...b, author: d.id }); }
+    }
+    applyBuildings(next);
     resolveNames().then(() => { if (current?.kind === 'info') showInfo(current.lot); });
     if (!current) showIntro();
   }, () => { $('count').textContent = '마을을 불러오지 못했어요.'; });
 } else {
-  // no store here (opened outside claude.ai): show the example town, read-only
-  buildings = new Map(Object.entries(SEED).map(([lot, b]) => [lot, { ...b, at: 0, author: 'seed' }]));
-  ground = drawGround(pr, new Set(buildings.keys()));
-  $('count').textContent = '예시 마을이에요. claude.ai에서 열면 모두가 함께 짓는 마을이 보여요.';
+  applyBuildings(new Map(Object.entries(SEED).map(([lot, b]) => [lot, { ...b, at: 0, author: 'seed' }])));
+  $('count').textContent = '예시 마을 (claude.ai에서 열면 함께 짓는 마을)';
 }
+// coins are saved only for my own buildings, a few seconds after they change
+async function save(force) {
+  if (!db || !me) return;
+  if (!force && (!dirty || performance.now() - lastSave < 5000)) return;
+  dirty = false; lastSave = performance.now();
+  try { await db.doc('b/' + me).set({ buildings: myDoc.buildings, wallet: myDoc.wallet }); } catch { dirty = true; }
+}
+setInterval(() => save(false), 2000);
 
-// ---------- drawing ----------
-let last = performance.now();
+// ---------- frame ----------
+let last = performance.now(), drawn = [];
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
-  const doors = [...buildings.keys()].map(id => { const l = LOTS.find(x => x.id === id); return { x: l.x + l.w / 2, z: l.z + l.d + .5 }; });
-  stepWalkers(walkers, dt, doors);
+  sim.step(dt);
+  for (const e of sim.events.splice(0)) {
+    const mine = !!me && e.owner === me; if (mine) { myDoc.wallet.coins += e.coins; dirty = true; }
+    pops.push({ lot: e.lot, text: '+' + e.coins, mine, t: 0 });
+  }
+  for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
   g.clearRect(0, 0, map.width, map.height); g.drawImage(ground, 0, 0);
-  const items = [];
-  for (const [id, b] of buildings) { const l = LOTS.find(x => x.id === id), s = sprite(id, b); if (!s) continue; const [px, py] = pr.P(l.x + l.w / 2, l.z + l.d / 2); items.push({ d: l.x + l.w / 2 + l.z + l.d / 2, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), id, s, px, py }); }
-  for (const w of walkers) items.push({ d: w.x + w.z, draw: () => drawWalker(g, pr, w) });
+  const items = [], tops = {};
+  for (const [id, b] of buildings) {
+    const l = LOTS.find(x => x.id === id), s = sprite(id, b); if (!s) continue;
+    const [px, py] = pr.P(l.x + l.w / 2, l.z + l.d / 2); tops[id] = [px, py - s.anchor.y + 6];
+    items.push({ d: l.x + l.w / 2 + l.z + l.d / 2, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), id, s, px, py });
+  }
+  if (building) { const l = building.lot, st = building.stage, [px, py] = pr.P(l.x + l.w / 2, l.z + l.d / 2);
+    items.push({ d: l.x + l.w / 2 + l.z + l.d / 2, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
+  for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
+  g.font = '900 12px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
+  for (const p of pops) { const t = tops[p.lot]; if (!t) continue; const y = t[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, t[0], y); g.fillStyle = p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, t[0], y); g.globalAlpha = 1; }
   if (current?.lot) { const l = LOTS.find(x => x.id === current.lot); const pts = [pr.P(l.x, l.z), pr.P(l.x + l.w, l.z), pr.P(l.x + l.w, l.z + l.d), pr.P(l.x, l.z + l.d)];
     g.strokeStyle = '#ffd166'; g.lineWidth = 2; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke(); }
   drawn = items;
   requestAnimationFrame(frame);
 }
-let drawn = [];
 requestAnimationFrame(frame);
 
+// what the town wants, and my coins
+function hud() {
+  const dm = sim.demand();
+  $('wants').replaceChildren(...NEED_KEYS.map(k => { const d = dm[k], none = !d.served && d.waiting; return el('span', { class: 'want' + (none ? ' none' : '') }, el('span', { class: 'dot', style: `background:${NEEDS[k].color}` }), NEEDS[k].ko, el('b', {}, String(d.waiting)), none ? el('span', { class: 'tag' }, '· 마을에 없음') : null); }));
+  $('wallet').textContent = me ? `동전 ${myDoc.wallet.coins.toLocaleString('ko-KR')}` : '';
+}
+setInterval(hud, 500); hud();
+
 map.addEventListener('click', (e) => {
+  if (building) return;
   const r = map.getBoundingClientRect(), sx = (e.clientX - r.left) * map.width / r.width, sy = (e.clientY - r.top) * map.height / r.height;
-  // the topmost building whose sprite has a pixel there
   for (const it of [...drawn].reverse()) {
     if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
     if (x < 0 || y < 0 || x >= it.s.canvas.width || y >= it.s.canvas.height) continue;
@@ -133,42 +175,62 @@ map.addEventListener('click', (e) => {
   const lot = lotAtPixel(pr, sx, sy);
   if (lot) buildings.has(lot.id) ? showInfo(lot.id) : showBuild(lot.id);
 });
+function focusLot(l) {   // bring the lot into view
+  const box = $('mapbox'), k = map.clientWidth / map.width, [px, py] = pr.P(l.x + l.w / 2, l.z + l.d / 2);
+  box.scrollTo({ left: px * k - box.clientWidth / 2, top: (py - 120) * k - box.clientHeight / 2, behavior: 'smooth' });
+}
 
 // ---------- panel ----------
 let current = null;
 const panel = $('panel');
 function showIntro() {
   current = null;
-  const mine = [...buildings.values()].filter(b => b.author === me).length;
   panel.replaceChildren(el('h2', {}, '한 줄 마을'),
-    el('p', { class: 'note' }, '빈 부지(점선)를 누르고 한 줄을 쓰면 Claude가 그 부지 크기에 맞는 건물을 지어요. 지은 건물은 이 페이지를 여는 모두에게 보여요. 건물을 누르면 겉과 층 단면을 볼 수 있어요.'),
-    el('p', { class: 'note' }, `부지 크기: S 2×2 · M 3×3 · L 4×4 · XL 5×5칸. 한 사람이 ${MAX_PER_PERSON}채까지 지을 수 있어요. 지금 내 건물 ${mine}채.`));
+    el('p', { class: 'note' }, '사람들 머리 위 말풍선이 지금 원하는 거예요. 위쪽에 빨갛게 "마을에 없음"이 뜬 걸 지어 주면, 그걸 원하는 사람들이 몰려와 줄을 서고 동전이 생겨요.'),
+    el('p', { class: 'note' }, '집·아파트·역·호텔은 사람을 늘려요. 가게는 원하는 걸 채워요. 손님은 가장 가까운, 줄이 짧은 곳으로 가요.'),
+    el('p', { class: 'note' }, `빈 부지(점선)를 눌러 한 줄로 지으세요. S 부지는 무료, M ${PRICE.M} · L ${PRICE.L} · XL ${PRICE.XL} 동전으로 열어요. 한 사람이 ${MAX_PER_PERSON}채까지.`));
 }
-const SUGGEST = { S: ['겨울 골목의 작은 붕어빵 노점', '동네 꽃집', '네온 간판 타코야키 가게'], M: ['달빛 아래 한옥 찻집', '프랑스식 작은 빵집', '고양이가 주인인 북카페'],
-  L: ['시계탑이 있는 시청', '붉은 벽돌 기차역', '레트로 볼링장'], XL: ['20층 럭셔리 호텔', '역대 챔피언 장갑과 벨트를 전시하는 넓은 전시장', '탑이 있는 중세 성'] };
+const SUGGEST = { S: ['겨울 골목의 작은 붕어빵 노점', '24시간 편의점', '작은 2층 단독주택'], M: ['달빛 아래 한옥 찻집', '할머니가 하는 떡볶이 분식집', '네온사인 가득한 PC방'],
+  L: ['12층 아파트', '레트로 볼링장', '붉은 벽돌 기차역'], XL: ['20층 럭셔리 호텔', '야간 경기가 있는 야구장', '탑이 있는 중세 성'] };
+
+function fitToLot(input, lot) {
+  // keep the whole footprint (wings included) inside the lot
+  input.scale = lot.size;
+  const n = normalize(input), m = n.masses.find(x => x.at === 'main') ?? n.masses[0];
+  let w = m.size[0], d = m.size[1];
+  for (const x of n.masses) { if (x === m) continue; if (x.at === 'left' || x.at === 'right') w += x.size[0]; if (x.at === 'back' || x.at === 'front') d += x.size[1]; }
+  const k = Math.min(1, (lot.w - .4) / w, (lot.d - .7) / d);
+  if (k < 1) { input.size = [m.size[0] * k, m.size[1] * k]; for (const x of input.masses ?? []) if (Array.isArray(x.size)) x.size = [x.size[0] * k, x.size[1] * k]; }
+}
 
 function showBuild(lotId) {
   const lot = LOTS.find(l => l.id === lotId); current = { kind: 'build', lot: lotId };
-  const mine = [...buildings.values()].filter(b => b.author === me).length;
-  if (!db || !me) { panel.replaceChildren(el('h2', {}, `빈 부지 ${lot.size}`), el('p', { class: 'note' }, 'claude.ai에 로그인하고 이 페이지에 Contributor 이상으로 초대받으면 지을 수 있어요.')); return; }
-  if (mine >= MAX_PER_PERSON) { panel.replaceChildren(el('h2', {}, `빈 부지 ${lot.size}`), el('p', { class: 'note' }, `이미 ${MAX_PER_PERSON}채를 지었어요. 내 건물을 누르고 철거하면 다시 지을 수 있어요.`)); return; }
+  const head = el('h2', {}, `빈 부지 ${lot.size} · ${lot.w}×${lot.d}칸`);
+  if (!db || !me) return panel.replaceChildren(head, el('p', { class: 'note' }, 'claude.ai에 로그인하고 이 페이지에 Contributor 이상으로 초대받으면 지을 수 있어요.'));
+  const mine = Object.keys(myDoc.buildings).length;
+  if (mine >= MAX_PER_PERSON) return panel.replaceChildren(head, el('p', { class: 'note' }, `이미 ${MAX_PER_PERSON}채를 지었어요. 내 건물을 철거하면 다시 지을 수 있어요.`));
+  if (!myDoc.wallet.unlocked.includes(lot.size)) {
+    const buy = el('button', { class: 'gold' }, `${PRICE[lot.size]} 동전으로 ${lot.size} 부지 열기`); buy.disabled = myDoc.wallet.coins < PRICE[lot.size];
+    buy.onclick = async () => { myDoc.wallet.coins -= PRICE[lot.size]; myDoc.wallet.unlocked = [...myDoc.wallet.unlocked, lot.size]; await save(true); showBuild(lotId); };
+    return panel.replaceChildren(head, el('p', { class: 'note' }, `${lot.size} 부지는 아직 잠겨 있어요. 내 가게가 손님을 받으면 동전이 모여요. 지금 ${myDoc.wallet.coins}개.`), buy, el('button', { class: 'ghost', on: { click: showIntro } }, '닫기'));
+  }
+  const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
   const input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + SUGGEST[lot.size][0] });
-  const go = el('button', {}, '짓기'), place = el('button', { hidden: '' }, '이 부지에 세우기'), again = el('button', { class: 'ghost', hidden: '' }, '다시 짓기');
-  const err = el('div', { class: 'err' }), log = el('div', { class: 'log' }), prev = el('div', { class: 'preview' });
-  const stage = new Stage2({ width: 420, height: 400, lift: .82 }); prev.append(stage.canvas);
+  const go = el('button', {}, '여기에 짓기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
   const chips = el('div', { class: 'chips' }, SUGGEST[lot.size].map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t)));
-  panel.replaceChildren(el('h2', {}, `빈 부지 ${lot.size} · ${lot.w}×${lot.d}칸`), el('div', { class: 'row' }, input, go), chips, err, prev, log, el('div', { class: 'row' }, place, again));
-  let b = null, line = '';
+  panel.replaceChildren(head, lack.length ? el('p', { class: 'note' }, `지금 마을에 없는 것: ${lack.join(', ')}`) : null, el('div', { class: 'row' }, input, go), chips, err, log);
   const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
   async function build() {
-    line = input.value.trim() || input.placeholder.replace(/^예: /, '');
-    err.textContent = ''; log.replaceChildren(); place.hidden = true; again.hidden = true;
+    const line = input.value.trim() || input.placeholder.replace(/^예: /, '');
+    err.textContent = ''; log.replaceChildren();
     if (bad(line)) { err.textContent = '그 표현으로는 지을 수 없어요.'; return; }
     if (!sample) { err.textContent = '이 화면에서는 Claude를 부를 수 없어요.'; return; }
-    go.disabled = true; b = emptyBuilding(); stage.clear(); note('…', '구상 중');
+    go.disabled = true; focusLot(lot);
+    const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); building = { lot, stage };
+    note('…', '구상 중');
     const seen = []; let raw = '', broken = 0;
     const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
-      if (ch.view === 'ext') stage.show(b.input, ch.key); note({ building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구' }[s.step] ?? s.step, s.note || s.type || ''); };
+      if (ch.view === 'ext') { fitToLot(b.input, lot); stage.show(b.input, ch.key); } note({ building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구' }[s.step] ?? s.step, s.note || s.type || ''); };
     try {
       const rd = lineReader(apply, () => broken++);
       await sample(buildPrompt(line, { lot }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
@@ -176,24 +238,22 @@ function showBuild(lotId) {
       const problems = [...c.ask, ...missingParts(seen).filter(p => p === 'building').map(p => `The "${p}" line is missing.`)];
       if (problems.length) { note('다시', `남은 문제 ${problems.length}개`); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
         await sample(revisePrompt(line, raw, problems), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); check(b.input, { line }); }
-      if (b.input) { b.input.scale = lot.size; const n = normalize(b.input); if (bad(n.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; b = null; } else { stage.show(b.input, 'all'); place.hidden = false; again.hidden = false; note('완성', `${n.name || TYPE_KO[n.type]} · ${n.levels}층`); } }
-      else err.textContent = '건물을 짓지 못했어요. 다시 눌러 주세요.';
-    } catch (e) { err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : '중간에 끊겼어요. 다시 눌러 주세요.'; }
+      if (!b.input) throw { code: 'nothing' };
+      fitToLot(b.input, lot);
+      const n = normalize(b.input);
+      if (bad(n.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; building = null; go.disabled = false; return; }
+      if (buildings.has(lotId)) { err.textContent = '그 사이에 다른 사람이 이 부지에 지었어요.'; building = null; go.disabled = false; return; }
+      // place it right away: the town reacts as soon as it stands
+      myDoc.buildings = { ...myDoc.buildings, [lotId]: { input: JSON.parse(JSON.stringify(b.input)), line, at: Date.now() } };
+      const next = new Map(buildings); next.set(lotId, { ...myDoc.buildings[lotId], author: me }); applyBuildings(next);
+      building = null; await save(true);
+      const role = roleOf(n.type, n.levels);
+      note('완성', `${n.name || TYPE_KO[n.type]} · ${n.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);
+      setTimeout(() => { if (current?.lot === lotId) showInfo(lotId); }, 2500);
+    } catch (e) { building = null; err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : '짓지 못했어요. 다시 눌러 주세요.'; }
     go.disabled = false;
   }
   go.onclick = build; input.addEventListener('keydown', e => { if (e.key === 'Enter') build(); });
-  again.onclick = build;
-  place.onclick = async () => {
-    if (!b?.input || buildings.has(lotId)) { err.textContent = '그 사이에 다른 사람이 이 부지에 지었어요.'; return; }
-    place.disabled = true;
-    try {
-      const ref = db.doc('b/' + me), cur = await ref.get(), bs = { ...(cur.exists ? cur.data().buildings ?? {} : {}) };
-      if (Object.keys(bs).length >= MAX_PER_PERSON) { err.textContent = `이미 ${MAX_PER_PERSON}채를 지었어요.`; place.disabled = false; return; }
-      bs[lotId] = { input: JSON.parse(JSON.stringify(b.input)), line, at: Date.now() };
-      await ref.set({ buildings: bs });
-      showInfo(lotId);
-    } catch (e) { err.textContent = '세우지 못했어요. 이 페이지에 쓰기 권한이 있는지 확인해 주세요.'; place.disabled = false; }
-  };
 }
 
 function section(input) {
@@ -204,20 +264,25 @@ function section(input) {
 function showInfo(lotId) {
   const b = buildings.get(lotId); if (!b) return showBuild(lotId);
   current = { kind: 'info', lot: lotId };
-  const n = normalize(b.input), lot = LOTS.find(l => l.id === lotId);
-  const ext = renderView(b.input, 'ext').canvas;
+  const n = info(lotId, b), lot = LOTS.find(l => l.id === lotId), shop = sim.shops.get(lotId), role = roleOf(n.type, n.levels);
   const buttons = el('div', { class: 'row' });
-  if (me && (b.author === me || isOwner)) buttons.append(el('button', { class: 'warn', on: { click: () => demolish(lotId, b) } }, '철거'));
-  if (me && b.author !== me) buttons.append(el('button', { class: 'ghost', on: { click: (e) => report(lotId, b, e.target) } }, '신고'));
+  const mayDemolish = me && (b.author === me || isOwner);
+  if (mayDemolish) buttons.append(el('button', { class: 'warn', on: { click: () => demolish(lotId, b) } }, '철거'));
+  if (me && b.author !== me && b.author !== 'seed') buttons.append(el('button', { class: 'ghost', on: { click: (e) => report(lotId, b, e.target) } }, '신고'));
   buttons.append(el('button', { class: 'ghost', on: { click: showIntro } }, '닫기'));
+  const what = [role.serves ? `${NEEDS[role.serves].ko}을(를) 채움` : null, role.source ? `사람 +${role.source}` : null].filter(Boolean).join(' · ') || '구경거리';
   panel.replaceChildren(el('h2', {}, n.name || TYPE_KO[n.type] || '건물'),
     el('div', { class: 'note' }, `${TYPE_KO[n.type] ?? n.type} · ${n.levels}층 · 부지 ${lot.size} · ${authorName(b.author)}`),
+    el('div', { class: 'stat' }, what, shop?.serves ? el('span', {}, ' · 줄 ', el('b', {}, `${shop.queue.length}/${shop.cap}`), ' · 받은 손님 ', el('b', {}, String(shop.served))) : null),
     el('div', { class: 'quote' }, `“${b.line}”`),
-    el('div', { class: 'pics' }, ext, section(b.input)), buttons);
+    el('div', { class: 'pics' }, renderView(b.input, 'ext').canvas, section(b.input)), buttons);
 }
 async function demolish(lotId, b) {
-  try { const ref = db.doc('b/' + b.author), cur = await ref.get(); const bs = { ...(cur.data()?.buildings ?? {}) }; delete bs[lotId]; await ref.set({ buildings: bs }); showIntro(); }
-  catch { panel.append(el('div', { class: 'err' }, '철거하지 못했어요.')); }
+  try {
+    if (b.author === me) { const bs = { ...myDoc.buildings }; delete bs[lotId]; myDoc.buildings = bs; await save(true); }
+    else { const ref = db.doc('b/' + b.author), cur = await ref.get(); const data = cur.data() ?? {}; const bs = { ...(data.buildings ?? {}) }; delete bs[lotId]; await ref.set({ ...data, buildings: bs }); }
+    showIntro();
+  } catch { panel.append(el('div', { class: 'err' }, '철거하지 못했어요.')); }
 }
 async function report(lotId, b, btn) {
   try { const ref = db.doc('r/' + me), cur = await ref.get(); const list = [...(cur.exists ? cur.data().items ?? [] : [])].slice(-50); list.push({ lot: lotId, author: b.author, at: Date.now() }); await ref.set({ items: list }); btn.textContent = '신고함'; btn.disabled = true; }
