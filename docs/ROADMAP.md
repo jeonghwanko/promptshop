@@ -68,6 +68,16 @@ Done when: a 20-floor hotel, a 3-floor school and a 1-floor café each show beli
 
 Done when: at least 95% of evaluation lines build without errors, and the reviewer marks at least 80% as "this is what I asked for".
 
+### 1.6 Catalogue size target
+
+The catalogue holds defaults, not limits: the model can compose a building that has no catalogue entry. What limits variety is the part vocabulary. Targets for the official catalogue:
+
+- **About 150 types**: OpenStreetMap's roughly 80 building values plus the shop and facility kinds a town needs.
+- **About 25 styles**: East Asian (Korean, Chinese, Japanese), Islamic, Gothic, Victorian, Art Deco, Brutalist, modern, Mediterranean, Nordic, Tudor, adobe, tropical stilt house, Soviet panel block and others.
+- **About 20 roof shapes and a few dozen ornament parts**: spires, arches, balustrades, column orders, eave brackets.
+
+With overrides this should make about 90% of everyday buildings recognisable. Unique landmarks such as the Eiffel Tower or Namdaemun form a long tail that no catalogue closes. User registration (stage 2) fills it.
+
 ## Stage 2: one town
 
 - Lots by scale: S 1×1, M 2×2, L 3×3, XL 4×4. Bigger lots cost more, which is the first link to the economy.
@@ -75,6 +85,23 @@ Done when: at least 95% of evaluation lines build without errors, and the review
 - Ambient life: customers at the door, queues, night lights, smoke.
 - Moderation before anything is shared: check the prompt and the sign text, and keep a report button.
 - Later: building next to a friend (the "build next door" idea), visits and reactions.
+
+### User-registered catalogue
+
+Catalogue entries are data, so players can register their own. Every level starts from one line ("make a tanghulu shop type"): the model writes the entry, the player checks it and registers it. The renderer still owns the look, so registered entries fit the town.
+
+| Level | What a player registers | Difficulty | Risk |
+| --- | --- | --- | --- |
+| 1. Style | palette, materials, window rhythm, roof ("Jeju stone-wall house") | easy | almost none |
+| 2. Type | default masses, front, hero prop, room program ("tanghulu shop") | easy | duplicates, spam |
+| 3. Part | a declarative part made of primitives (box, cylinder, cone, sphere) with a size and shape budget ("Namdaemun roof") | medium | needs budgets and review |
+| — | code parts | not allowed | would run someone else's code in every viewer |
+
+- When anyone builds with a registered entry, the building credits its author. Entries can be remixed.
+- Registering and sharing are free. Generation is what is paid for.
+- Safeguards: name and icon filters, reports, merging duplicates, a cap on primitives per part, and versions, so old buildings never change when an entry is edited.
+
+Order: styles and types open with the shared town; parts open after.
 
 ## Costs
 
