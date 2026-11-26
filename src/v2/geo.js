@@ -69,6 +69,19 @@ export function search(q) {
 export const suggestions = (q) => { if (!q) return []; const low = q.toLowerCase(); return [...CITIES.filter(c => c[0].includes(q) || c[1].toLowerCase().includes(low)).map(c => c[0]), ...POLYS.filter(c => c.ko.includes(q) || c.n.toLowerCase().includes(low)).map(c => c.ko)].slice(0, 8); };
 
 /** An equirectangular land map for the globe: sea, land, borders. */
+/** Draw land into any view: P(lng, lat) → [x, y] in canvas pixels; polygons outside [0, w] × [0, h] are skipped. */
+export function drawLand(g, P, w, h, { land = '#8cbf6a', ice = '#e8eef2', coast = '#79ad5a' } = {}) {
+  const pieces = (r) => { const out = [[]]; r.forEach(([lng, lat], i) => { if (i && Math.abs(lng - r[i - 1][0]) > 180) out.push([]); out[out.length - 1].push([lng, lat]); }); return out; };
+  for (const c of POLYS) {
+    const [ax, ay] = P(c.bb[0], c.bb[3]), [bx, by] = P(c.bb[2], c.bb[1]);
+    if (bx < 0 || ax > w || by < 0 || ay > h) continue;
+    for (const r of c.rings) for (const p of pieces(r)) {
+      if (p.length < 3) continue;
+      g.beginPath(); p.forEach(([lng, lat], i) => { const [x, y] = P(lng, lat); i ? g.lineTo(x, y) : g.moveTo(x, y); }); g.closePath();
+      g.fillStyle = c.n === 'Antarctica' ? ice : land; g.fill(); g.strokeStyle = coast; g.lineWidth = 1; g.stroke();
+    }
+  }
+}
 export function landCanvas(w = 2048, h = 1024, { borders = true } = {}) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
   g.fillStyle = '#3d7fa6'; g.fillRect(0, 0, w, h);
