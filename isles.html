@@ -269,7 +269,7 @@ import { check, missingParts, revisePrompt } from './src/v2/check.js';
 import { normalize } from './src/v2/spec.js';
 import { TYPE_KO } from './src/v2/catalog.js';
 import { SLOTS, WORLD, centerOf, neighbours, bridgeId, makeIsles, placePlot, PLOT, islesProjection, drawIsles, slotAt, dockOf, setLand, landSize, LAND_MAX, GAP, OLD_GAP, centerOfGap } from './src/v2/isles.js';
-import { buildSection } from './src/v2/interior.js';
+import { buildSection, LAYOUT, remapFixtures } from './src/v2/interior.js';
 import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson, typesFor } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
 import { drawLand, countryAt, placeLabel } from './src/v2/geo.js';
@@ -1230,7 +1230,7 @@ function startBuild(x, z, door) {
       const key = `${mySlot}_${x}_${z}`;
       G().permits--;
       const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
-      myDoc.plots = { ...myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
+      myDoc.plots = { ...myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, lay: LAYOUT, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
       building = null;
       // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
       const answered = need && roleOf(s.type, s.levels).serves === need;
@@ -1404,6 +1404,19 @@ function saveSummary() {
 setInterval(saveSummary, 10000);
 
 // islands moved apart (wider spacing): plots, doors and keys move with their island's centre
+/** Plots bought under the old "fill every wall" layout: carry the bought fixtures (and their levels) to the new layout once; ones with no place left are refunded. */
+function migrateLayout(d) {
+  if (!d?.plots) return d; let changed = false, refund = 0; const plots = {};
+  for (const [key, p] of Object.entries(d.plots)) {
+    if (!p.b || (p.lay ?? 1) >= LAYOUT) { plots[key] = p; continue; }
+    let oldFx, newFx; try { const n = normalize(p.b.input); oldFx = buildSection(n, { layout: 1 }).fixtures; newFx = buildSection(n).fixtures; } catch { plots[key] = p; continue; }
+    const own = Array.isArray(p.own) ? p.own : p.fx === undefined ? [...startingFixtures(oldFx, p.b.input.order)] : Array.from({ length: Math.min(oldFx.length, p.fx) }, (_, i) => i);
+    const r = remapFixtures(oldFx, newFx, own, p.lv ?? {});
+    for (const l of r.lost) { refund += costOf(l.kind); for (let L = 1; L < l.level; L++) refund += upgradeCost(l.kind, L); }
+    plots[key] = { ...p, own: r.own, fx: r.own.length, lv: r.lv, lay: LAYOUT }; changed = true;
+  }
+  return changed ? { ...d, plots, _refund: refund, _migrated: true } : d;
+}
 function moveWithIsland(uid, d) {
   if (!d?.slot || (d.gap ?? OLD_GAP) === GAP) return d;
   const [ox, oz] = centerOfGap(d.slot, d.gap ?? OLD_GAP), [nx, nz] = centerOfGap(d.slot, GAP), dx = nx - ox, dz = nz - oz, plots = {};
@@ -1419,15 +1432,16 @@ if (db && BOARD !== 'main') db.doc('boards/' + BOARD).get().then(d => { boardNam
 if (db) {
   db.collection(COL).onSnapshot(snap => {
     docs = new Map();
-    for (const d of snap.docs) docs.set(d.id, moveWithIsland(d.id, d.data() ?? {}));
+    for (const d of snap.docs) docs.set(d.id, migrateLayout(moveWithIsland(d.id, d.data() ?? {})));
     // my own doc: take the stored copy only when it is newer than what this page holds (another tab, or an edit from outside)
     if (me && docs.has(me)) { const remote = docs.get(me);
       if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, land: remote.land ?? 0, gap: remote.gap, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { ...(remote.wallet ?? {}), coins: remote.wallet?.coins ?? 0 } };
+      if (remote._migrated && myDoc.plots === remote.plots) { myDoc.wallet.coins += remote._refund; dirty = true; save(true); if (remote._refund) setTimeout(() => toast(`가게 안을 넓게 다시 놓았어요 · 자리 없는 가구 값 ${remote._refund}동전 돌려받음`, 3200), 1500); }
       docs.set(me, myDoc); if (remote.gap === GAP && snap.docs.find(x => x.id === me)?.data()?.gap !== GAP) { dirty = true; save(true); } }
     else if (me && myDoc) docs.set(me, myDoc);
     rebuild(); resolveNames();
   }, () => show(el('p', { class: 'err' }, '군도를 불러오지 못했어요.')));
-} else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, moveWithIsland(u, d)])); rebuild(); }
+} else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(u, d))])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
 window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };

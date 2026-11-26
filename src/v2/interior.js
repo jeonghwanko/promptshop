@@ -110,8 +110,11 @@ function squarify(items, x, z, w, d) {
  *        Leave it undefined to draw every fixture solid.
  */
 /** How far apart the rooms are spread compared with the layout size. */
-export const SPREAD = 1.5;
-export function buildSection(b, { owned, floor } = {}) {
+export const SPREAD = 1.5, SPREAD_MAX = 2.3;
+/** Layout rules: 1 filled every wall with fixtures; 2 (now) puts a few per zone so the rooms breathe. Saved plots carry the version they were bought under. */
+export const LAYOUT = 2;
+export function buildSection(b, { owned, floor, layout = LAYOUT } = {}) {
+  const few = layout >= 2;
   const placed = [], groups = [];   // groups: each fixture's meshes and footprint, to move it off the aisle   // every fixture placed, in order: { kind, zone, floor, fi, x, y, z }
   const isOwned = (i) => owned === undefined || (typeof owned === 'number' ? i < owned : owned.has(i));
   const plan = { floors: [] };   // where things are, in world units, for a sim that runs inside
@@ -130,14 +133,15 @@ export function buildSection(b, { owned, floor } = {}) {
   const ox = -W / 2, oz = -D / 2;   // floor local (0..W, 0..D) → world
   // The rooms are laid out at the old size (so the same fixtures, in the same order, come out), then spread apart by S:
   // floors, walls and zones stretch, fixtures keep their own size and only move. Guests walk S times faster to match.
-  const S = SPREAD;
+  let S = 1;   // set after every floor is laid out, from how much floor the fixtures cover
+  const floorGroups = [];
   const spreadArch = (grp) => { for (const m of grp.children) { if (!m.isMesh || m.userData.fixture) continue; m.position.x *= S; m.position.z *= S;
     const pr = m.geometry.parameters ?? {}; if ((pr.width ?? 0) > .3) m.scale.x = S; if ((pr.depth ?? 0) > .3) m.scale.z = S; } };
   FIX = fixtures(box, cyl, ball);
 
   floors.forEach((f, i) => {
     floorName = f.name;
-    const g = new THREE.Group(); g.position.y = i * GAP; root.add(g); cur = g;
+    const g = new THREE.Group(); g.position.y = i * GAP; root.add(g); cur = g; floorGroups.push(g);
     const fplan = { y: i * GAP, name: f.name, zones: [] }; plan.floors.push(fplan); floorIdx = i;
     const count = f.range[1] - f.range[0] + 1;
     // ghost plates under a merged floor
@@ -167,10 +171,17 @@ export function buildSection(b, { owned, floor } = {}) {
       box(.02, 1.0, .04, mat('#8a9098'), ox + core.x + .35, 0, oz + core.d + .05);
       for (let s = 0; s < 4; s++) box(.4, .1 * (s + 1), .22, mat('#cfc9bd'), ox + core.x + .85, 0, oz + core.d - .15 - s * .22);
     }
-    spreadArch(g); for (const zn of fplan.zones) { zn.x *= S; zn.z *= S; zn.w *= S; zn.d *= S; }
-    makeAisle(g, fplan, i);
-    labels.push({ pos: new THREE.Vector3((ox - .1) * S, i * GAP + .2, -oz * S), text: f.name, count });
+    labels.push({ pos: new THREE.Vector3(ox - .1, i * GAP + .2, -oz), text: f.name, count });
   });
+  // spread the rooms: the more floor the fixtures cover, the wider (one factor for the whole building, so the lift lines up)
+  { const area = W * D, cover = floorGroups.map((_, i) => groups.filter(q => q.fi === i).reduce((t, q) => t + q.w * q.d, 0) / area);
+    S = Math.max(SPREAD, Math.min(SPREAD_MAX, 1 + Math.max(0, ...cover) * 2.4)); }
+  floorGroups.forEach((g, i) => {
+    for (const q of groups) if (q.fi === i) { const f = placed[q.idx]; q.fg.position.x = f.x * (S - 1); q.fg.position.z = f.z * (S - 1); f.x *= S; f.z *= S; }
+    spreadArch(g); for (const zn of plan.floors[i].zones) { zn.x *= S; zn.z *= S; zn.w *= S; zn.d *= S; }
+    makeAisle(g, plan.floors[i], i);
+  });
+  for (const l of labels) { l.pos.x *= S; l.pos.z *= S; }
   // one floor at a time: every floor is still laid out (fixture numbers and the sim's plan stay whole), only the others are left out of the picture
   const only = floor !== undefined && floors.length > 1 ? Math.max(0, Math.min(floors.length - 1, floor)) : -1;
   if (only >= 0) { root.children.slice().forEach((g, i) => { if (i !== only) root.remove(g); }); labels.splice(0, labels.length, ...labels.filter((_, i) => i === only)); }
@@ -221,11 +232,11 @@ export function buildSection(b, { owned, floor } = {}) {
     const F = { size: F0.size, draw: (x, z, oo) => {
       const before = cur.children.length, idx = placed.length;
       F0.draw(x, z, oo);
-      placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x: x * S, z: z * S, y: floorIdx * GAP });
+      placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x, z, y: floorIdx * GAP });
       if (kind === 'counter') for (let k = 0; k < 4; k++) box(.22, .015, .14, mat(k ? '#e9c46a' : '#f4d35e'), x, 0, z + .55 + k * .32);   // where the line stands
       const parts = cur.children.slice(before), fg = new THREE.Group(); fg.userData.fixture = true; for (const m of parts) { cur.remove(m); fg.add(m); }
       const rot = oo?.rot === 90; groups.push({ fg, fi: floorIdx, idx, w: rot ? fd : (kind === 'counter' ? (oo?.len ?? fw) : fw), d: rot ? fw : fd, zone: r.zone });
-      fg.position.set(x * (S - 1), 0, z * (S - 1)); cur.add(fg);
+      cur.add(fg);
       if (!isOwned(idx)) for (const m of parts) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
     } };
     const [fw, fd] = F.size;
@@ -233,18 +244,18 @@ export function buildSection(b, { owned, floor } = {}) {
     if (pattern === 'corner') return F.draw(x0 + w - .3, z0 + d - .3, o);
     if (pattern === 'back' || pattern === 'front') {
       const z = pattern === 'back' ? z0 + fd / 2 + .08 : z0 + d - fd / 2 - .12;
-      const n = o.len ? 1 : Math.max(1, Math.min(o.count ?? 9, Math.floor((w - .3) / (fw + .25))));
+      const n = o.len ? 1 : Math.max(1, Math.min(o.count ?? 9, Math.floor((w - .3) / (fw + .25)), few ? (o.count ? 3 : 2) : 99));
       for (let k = 0; k < n; k++) F.draw(x0 + (k + .5) * w / n, z, o);
       return;
     }
-    if (pattern === 'left') { const n = Math.max(1, Math.min(4, Math.floor((d - .3) / (fd + .3)))); for (let k = 0; k < n; k++) F.draw(x0 + fw / 2 + .08, z0 + (k + .5) * d / n, { ...o, rot: 90 }); return; }
+    if (pattern === 'left') { const n = Math.max(1, Math.min(few ? 2 : 4, Math.floor((d - .3) / (fd + .3)))); for (let k = 0; k < n; k++) F.draw(x0 + fw / 2 + .08, z0 + (k + .5) * d / n, { ...o, rot: 90 }); return; }
     if (pattern === 'rows') {
-      const sx = fw + .35, sz = fd + .45, nx = Math.max(1, Math.floor((w - .2) / sx)), nz = Math.max(1, Math.floor((d - .3) / sz));
+      const sx = fw + .35, sz = fd + .45, nx = Math.max(1, Math.min(few ? 2 : 99, Math.floor((w - .2) / sx))), nz = Math.max(1, Math.min(few ? 2 : 99, Math.floor((d - .3) / sz)));
       let n = 0; for (let a = 0; a < nz; a++) for (let c = 0; c < nx; c++) { if (o.count && n++ >= o.count) return; F.draw(x0 + (c + .5) * w / nx, z0 + (a + .5) * d / nz, o); }
       return;
     }
     if (pattern === 'cells') {
-      const cw = o.cell ?? 1.4, n = Math.max(1, Math.floor(w / cw)), m = mat(shade(wallColor, .95));
+      const cw = o.cell ?? 1.4, n = Math.max(1, Math.min(few ? 3 : 99, Math.floor(w / cw))), m = mat(shade(wallColor, .95));
       for (let k = 0; k < n; k++) {
         const cx = x0 + (k + .5) * w / n;
         if (k > 0) box(.06, .9, d * .75, m, x0 + k * w / n, 0, z0 + d * .375);
@@ -320,3 +331,21 @@ function fixtures(box, cyl, ball) {
   };
 }
 export const FIXTURE_NAMES = ['ring', 'diamond', 'rug', 'sofa', 'plant', 'counter', 'stool', 'table4', 'table2', 'stove', 'fridge', 'prep', 'toilet', 'sink', 'gondola', 'shelf', 'stall', 'crates', 'rolldoor', 'curtain', 'bed', 'flat', 'wardrobe', 'desk', 'desk1', 'couch', 'lowtable', 'bench', 'board', 'kiosk', 'seats', 'stage', 'treadmill', 'weights', 'locker', 'pool', 'lane', 'platform', 'machine', 'conveyor', 'car', 'firetruck', 'pedestal', 'frame', 'tv', 'altar', 'pew', 'prayer', 'balls', 'court', 'lamp'];
+
+/**
+ * Carry bought fixtures from one layout to another: each bought fixture goes to a free fixture of the same kind,
+ * on the same floor and zone if there is one (else the same floor, else anywhere), nearest first.
+ * Returns { own: number[], lv: {index: level}, lost: [{ kind, level }] } — lost ones had no place left (refund them).
+ */
+export function remapFixtures(oldFx, newFx, own, lv = {}) {
+  const taken = new Set(), out = [], outLv = {}, lost = [];
+  const pick = (f, test) => { let best = -1, bd = Infinity; newFx.forEach((g, j) => { if (taken.has(j) || g.kind !== f.kind || !test(g)) return; const d = Math.hypot(g.x - f.x, g.z - f.z); if (d < bd) { bd = d; best = j; } }); return best; };
+  // the most levelled first, so they keep the best places
+  for (const i of [...own].sort((a, b) => (lv[b] ?? 1) - (lv[a] ?? 1))) {
+    const f = oldFx[i]; if (!f) continue;
+    let j = pick(f, g => g.fi === f.fi && g.zone === f.zone); if (j < 0) j = pick(f, g => g.fi === f.fi); if (j < 0) j = pick(f, () => true);
+    if (j < 0) { lost.push({ kind: f.kind, level: lv[i] ?? 1 }); continue; }
+    taken.add(j); out.push(j); if ((lv[i] ?? 1) > 1) outLv[j] = lv[i];
+  }
+  return { own: out.sort((a, b) => a - b), lv: outLv, lost };
+}
