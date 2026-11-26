@@ -1,0 +1,7 @@
+<!doctype html><meta charset="utf-8"><title>voxel ui</title>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<body style="background:#3d7fa6;margin:20px;display:flex;gap:24px;align-items:flex-end;flex-wrap:wrap">
+<script type="module">
+import { voxelEl, VOXEL_NAMES } from '../src/ui/voxelui.js';
+for (const k of [3, 4]) for (const n of VOXEL_NAMES) { const e = voxelEl(n, k); e.style.imageRendering = 'pixelated'; document.body.append(e); }
+</script>

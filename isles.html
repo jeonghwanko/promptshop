@@ -216,6 +216,19 @@
   .act.buy { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #e0b452, 0 4px 0 rgba(0,0,0,.3); }
   .act:active:not(:disabled) { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -2px 0 #d9c49a, 0 1px 0 rgba(0,0,0,.3); }
   .act .price { font:400 18px var(--f-disp); }
+  /* voxel dock: the buttons are little floating islands, no plates */
+  .dock .rb, .dock .rb.big, .dock .rb.sm, .dock .boatb { width:auto; height:auto; padding:0; background:none; box-shadow:none; border-radius:0; overflow:visible; }
+  .dock .rb .ic, .dock .rb.big .ic, .dock .rb.sm .ic, .dock .boatb .ic { width:auto; height:auto; transition:transform .12s, filter .12s; }
+  .dock .rb .ic img.vx { display:block; width:auto; height:auto; image-rendering:pixelated; filter:drop-shadow(0 5px 0 rgba(10,30,50,.35)); }
+  .dock .rb.sm .ic { zoom:.8; }
+  .dock .rb:hover .ic { transform:translateY(-4px); } .dock .rb:active:not(:disabled) { transform:none; box-shadow:none; } .dock .rb:active:not(:disabled) .ic { transform:translateY(3px); filter:brightness(.9); }
+  .dock .rb .lb { position:static; margin-top:-6px; font-size:15px; } .dock .rb.big .lb { font-size:18px; } .dock .rb { margin-bottom:0; }
+  .dock .rb.on .ic img.vx { filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 6px #ffe08a) drop-shadow(0 5px 0 rgba(10,30,50,.35)); }
+  .dock .rb.sm::after { top:6px; right:2px; } .dock .boatb .ring { display:none; }
+  .dock .boatb.callable { background:none; } .dock .boatb.callable .lb { color:#ffe08a; } .dock .boatb.idle { opacity:.6; }
+  .dock .rb .badge { top:0; right:-4px; } .dock .boatb .cnt { top:2px; left:-2px; }
+  .dock .rb.big { animation:none; } .dock .rb.big.ready .ic { animation:nudge 1.6s infinite; } .dock .rb.ready { animation:none; } .dock .rb.big.on .lb { color:#ffe08a; }
+  @media (max-width:440px) { .dock .rb .ic { zoom:.72; } .dock .rb.big .ic { zoom:.8; } .dock .rb.sm .ic { zoom:.6; } .dock > div { gap:2px; } }
   @media (max-width:760px) { .panel { top:auto; bottom:124px; max-height:52vh; } .rcard { width:min(212px, 44vw); min-height:200px; } }
 </style>
 <div class="inside" id="inside" hidden><div class="ibox"><div class="row"><h2 id="iname"></h2><button class="ghost" id="iclose">닫기</button></div><div class="note" id="ihint"></div><div class="iscroll" id="istage"></div><div id="iflow"></div><div class="istats" id="istats" hidden></div></div></div>
@@ -233,13 +246,13 @@
 <div class="guide" id="guide" hidden><div class="gbird" data-icon-size="64">🐦</div><div class="gbub"><div class="gname">끼룩이</div><div id="gtext"></div><div class="grow2" id="gbtns"></div></div></div>
 <div class="garrow" id="garrow" hidden>▼</div>
 <nav class="dock" id="dock">
-  <div class="dl"><button class="rb" id="d-world"><span class="ic" data-i="globe"></span><span class="lb">세계</span></button>
-    <button class="rb" id="zoom"><span class="ic"></span><span class="lb" id="zoom-t">전체</span></button>
-    <button class="rb" id="d-home"><span class="ic" data-i="island"></span><span class="lb">내 섬</span></button>
-    <button class="rb sm" id="d-auto"><span class="ic" data-i="chair"></span><span class="lb" id="d-auto-t">자동</span></button></div>
+  <div class="dl"><button class="rb" id="d-world"><span class="ic" data-v="globe"></span><span class="lb">세계</span></button>
+    <button class="rb" id="zoom"><span class="ic" data-v="map"></span><span class="lb" id="zoom-t">전체</span></button>
+    <button class="rb" id="d-home"><span class="ic" data-v="island"></span><span class="lb">내 섬</span></button>
+    <button class="rb sm" id="d-auto"><span class="ic" data-v="chair"></span><span class="lb" id="d-auto-t">자동</span></button></div>
   <div class="dr"><div class="sizes" id="sizes" hidden></div>
-    <button class="rb boatb" id="boat" hidden><span class="ring" id="boatring"></span><span class="ic" data-i="boat" id="boatic"></span><span class="cnt" id="boatn"></span><span class="lb" id="boatt"></span></button>
-    <button class="rb big" id="d-build"><span class="ic" data-i="hammer"></span><span class="lb">짓기</span></button></div>
+    <button class="rb boatb" id="boat" hidden><span class="ring" id="boatring"></span><span class="ic" data-v="boat" id="boatic"></span><span class="cnt" id="boatn"></span><span class="lb" id="boatt"></span></button>
+    <button class="rb big" id="d-build"><span class="ic" data-v="hammer"></span><span class="lb">짓기</span></button></div>
 </nav>
 <script type="module">
 import { lineReader } from './src/steps.js';
@@ -259,6 +272,7 @@ import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCa
 import { FlowView } from './src/v2/flowview.js';
 import { applyTheme } from './src/ui/theme.js';
 import { pixelIcons, iconCanvas, iconEl, EMOJI } from './src/ui/icons.js';
+import { voxelEl } from './src/ui/voxelui.js';
 
 const $ = (id) => document.getElementById(id);
 // the game skin: ?theme=wood|sea to compare, remembered per browser
@@ -412,7 +426,7 @@ async function resolveNames() { if (!user) return; const ids = [...owners.values
 const pr = islesProjection(), map = $('map'); map.width = pr.width; map.height = pr.height;
 // native pixels by default (crisp), scrolled to my island; "전체 보기" fits the whole archipelago
 let fit = false;
-const applyZoom = () => { map.style.width = fit ? '100vw' : pr.width + 'px'; $('zoom-t').textContent = fit ? '가까이' : '전체'; { const z = $('zoom').querySelector('.ic'); if (z) z.replaceChildren(iconEl(fit ? 'pin' : 'map', 32, '')); } $('zoom').classList.toggle('on', fit); };
+const applyZoom = () => { map.style.width = fit ? '100vw' : pr.width + 'px'; $('zoom-t').textContent = fit ? '가까이' : '전체'; $('zoom').classList.toggle('on', fit); };
 function scrollToSlot(s) { if (fit) return; const box = $('mapbox'), [cx, cz] = centerOf(s), [px, py] = pr.P(cx, cz); box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
@@ -541,6 +555,7 @@ requestAnimationFrame(frame);
 applyZoom(); $('zoom').onclick = () => { fit = !fit; applyZoom(); if (!fit) scrollToSlot(mySlot || 1); };
 let scrolled = false;
 for (const e of document.querySelectorAll('[data-i]')) e.replaceChildren(iconEl(e.dataset.i, 32, ''));
+for (const e of document.querySelectorAll('[data-v]')) e.replaceChildren(voxelEl(e.dataset.v, e.closest('.big') ? 5 : 4));   // the dock buttons are voxel dioramas, rendered once
 $('coinb').querySelector('.cic').replaceChildren(iconEl('coin', 36, ''));
 let shownCoins = null, shownPermits = null;
 function hud() {
@@ -560,10 +575,9 @@ function hud() {
   if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot && b.state !== 'out');
     const cd = Math.ceil(callReady - t / 1000), can = bp.shops && !docked && cd <= 0;
     B.hidden = false; B.classList.toggle('callable', !!can); B.classList.toggle('docked', !!docked); B.classList.toggle('idle', !bp.shops);
-    const ic = can ? 'horn' : 'boat'; if ($('boatic').dataset.i !== ic) { $('boatic').dataset.i = ic; $('boatic').replaceChildren(iconEl(ic, 36, '')); }
     $('boatring').style.setProperty('--p', docked || !bp.shops ? 1 : Math.max(0, Math.min(1, 1 - nb / Math.max(1, bp.every))).toFixed(3));
     $('boatn').textContent = docked ? String(docked.people) : bp.shops ? String(bp.people) : '';
-    $('boatt').textContent = can ? '부르기' : docked ? '도착!' : bp.shops ? `${Math.max(0, Math.ceil(nb))}초` : '';
+    $('boatt').textContent = can ? '부르기!' : docked ? '도착!' : bp.shops ? `${Math.max(0, Math.ceil(nb))}초` : '';
   } else B.hidden = true;
   dockState();
   const dm = sim.demand(); unmet = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => [k, dm[k].waiting]);
@@ -665,7 +679,7 @@ let toastT = 0;
 function toast(text, ms) { const t = $('toast'); t.textContent = text; t.hidden = !text; clearTimeout(toastT); if (ms) toastT = setTimeout(() => { t.hidden = !buildMode; if (buildMode) t.textContent = buildHint(); }, ms); }
 const buildHint = () => `${card?.need ? REQ[card.need].icon + ' ' + REQ[card.need].sub : '✏️ 마음대로'} · ${size}`;
 function setBuildMode(on) {
-  buildMode = on && !!mySlot; $('d-build').classList.toggle('on', buildMode); { const bb = $('d-build'); bb.querySelector('.lb').textContent = buildMode ? '그만' : '짓기'; bb.querySelector('.ic').replaceChildren(iconEl(buildMode ? 'close' : 'hammer', 48, '')); } $('sizes').hidden = !buildMode; hover = null;
+  buildMode = on && !!mySlot; $('d-build').classList.toggle('on', buildMode); { const bb = $('d-build'); bb.querySelector('.lb').textContent = buildMode ? '그만' : '짓기'; } $('sizes').hidden = !buildMode; hover = null;
   if (buildMode) { const lv = levelOf(G().served), open = sizesOpen(lv); if (!open.includes(size)) size = 'S';
     $('sizes').replaceChildren(...Object.keys(PLOT).map(k => { const ok = open.includes(k), b = el('button', { class: k === size ? 'on' : '', on: { click: () => { if (!ok) return toast(`${k} 크기는 ${LEVELS.find(l => l.size === k).name}부터 지을 수 있어요`, 1800); size = k; setBuildMode(true); } } }, ok ? k : `🔒 ${k}`); return b; })); toast(buildHint()); scrollToSlot(mySlot); }
   else toast('');

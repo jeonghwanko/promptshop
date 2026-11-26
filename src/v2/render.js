@@ -119,3 +119,42 @@ export function renderView(input, view = 'ext', opt = {}) {
   const v = new THREE.Vector3(), project = (x, y, z) => { v.set(x, y, z).project(cam); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; };
   return { canvas: out, labels: px, anchor, fixtures, plan, project };
 }
+
+/**
+ * Render a small voxel model the way buildings are rendered (same camera angle, light, outline and corner shading).
+ * voxels: [[x, y, z, '#rrggbb'], ...] with y up; k: screen pixels per voxel unit. Returns a canvas.
+ */
+export function renderVoxels(voxels, { k = 3, crisp = true } = {}) {
+  const scene = new THREE.Scene(), pitch = Math.PI / 6, yaw = Math.PI / 4;
+  const dir = new THREE.Vector3(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw));
+  const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, 1000);
+  cam.position.copy(dir).multiplyScalar(300); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
+  const right = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up = new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1);
+  const sun = new THREE.DirectionalLight(0xfff4e6, 1.9); sun.position.set(-1.25, 2.2, 0.35).multiplyScalar(30);
+  scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
+  const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), voxels.length);
+  const m = new THREE.Matrix4(), col = new THREE.Color(), box = new THREE.Box3();
+  voxels.forEach(([x, y, z, c], i) => { m.makeTranslation(x + .5, y + .5, z + .5); mesh.setMatrixAt(i, m); mesh.setColorAt(i, col.set(c)); box.expandByPoint(new THREE.Vector3(x, y, z)); box.expandByPoint(new THREE.Vector3(x + 1, y + 1, z + 1)); });
+  scene.add(mesh);
+  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  for (const cx of [box.min.x, box.max.x]) for (const cy of [box.min.y, box.max.y]) for (const cz of [box.min.z, box.max.z]) { const p = new THREE.Vector3(cx, cy, cz); x0 = Math.min(x0, p.dot(right)); x1 = Math.max(x1, p.dot(right)); y0 = Math.min(y0, p.dot(up)); y1 = Math.max(y1, p.dot(up)); }
+  const pad = 2 / k, L = Math.floor((x0 - pad) * k) / k, R = Math.ceil((x1 + pad) * k) / k, B = Math.floor((y0 - pad) * k) / k, T = Math.ceil((y1 + pad) * k) / k;
+  Object.assign(cam, { left: L, right: R, bottom: B, top: T }); cam.updateProjectionMatrix();
+  const W = Math.round((R - L) * k), H = Math.round((T - B) * k);
+  const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
+  renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.setClearColor(0x000000, 0); renderer.outputColorSpace = THREE.SRGBColorSpace;
+  renderer.render(scene, cam);
+  const out = document.createElement('canvas'); out.width = W; out.height = H; out.getContext('2d').drawImage(renderer.domElement, 0, 0);
+  if (crisp) {
+    const pass = (material, near, far) => { scene.overrideMaterial = material; if (near !== undefined) { cam.near = near; cam.far = far; cam.updateProjectionMatrix(); }
+      renderer.setClearColor(0x000000, 0); renderer.clear(); renderer.render(scene, cam); const cv = document.createElement('canvas'); cv.width = W; cv.height = H; cv.getContext('2d').drawImage(renderer.domElement, 0, 0); return cv; };
+    renderer.outputColorSpace = THREE.LinearSRGBColorSpace;
+    const nCan = pass(new THREE.MeshNormalMaterial());
+    let dn = Infinity, df = -Infinity; const dv = new THREE.Vector3(), camDir = new THREE.Vector3(); cam.getWorldDirection(camDir);
+    for (const cx of [box.min.x, box.max.x]) for (const cy of [box.min.y, box.max.y]) for (const cz of [box.min.z, box.max.z]) { const dd = dv.set(cx, cy, cz).sub(cam.position).dot(camDir); dn = Math.min(dn, dd); df = Math.max(df, dd); }
+    const dCan = pass(new THREE.MeshDepthMaterial(), Math.max(.1, dn - 1), df + 1);
+    crispen(out, nCan, dCan, W, H);
+  }
+  renderer.dispose(); renderer.forceContextLoss?.();
+  return out;
+}
