@@ -389,7 +389,7 @@ function rebuild() {
   const built = new Map(); for (const p of all) if (p.b) { const n = normalize(p.b.input), w = PLOT[p.size]; built.set(p.key, { type: n.type, levels: n.levels, owner: p.owner, stock: p.stock ?? START_STOCK, rates: ratesOf(p), watched: watching?.key === p.key, lot: { id: p.key, size: p.size, x: p.x, z: p.z, w, d: w, door: p.door } }); }
   sim.setBuildings(built);
 
-  if (!scrolled) { scrolled = true; setTimeout(() => scrollToSlot(mySlot || 1), 50); }
+  if (!scrolled) { scrolled = true; zoom = startZoom(mySlot || 1); applyZoom(); setTimeout(() => scrollToSlot(mySlot || 1), 50); }
   if (!current && !mySlot && panel.hidden) showHome();
   else if (mySlot && joinShown) closePanel();   // the join card goes away once my island is known
   if (myDoc && mySlot && !guided) { guided = true; const w = myDoc.wallet, none = !Object.keys(myDoc.plots).length;
@@ -436,6 +436,13 @@ function setZoom(z) {   // keep the point in the middle of the screen where it i
 }
 const applyZoom = () => { map.style.width = pr.width * zoom + 'px'; const st = zoomSteps(); $('zin').disabled = zoom >= st[st.length - 1]; $('zout').disabled = zoom <= st[0] + 1e-6; };
 const zoomBy = (d) => { const st = zoomSteps(), i = st.findIndex(z => Math.abs(z - zoom) < 1e-6); setZoom(st[Math.max(0, Math.min(st.length - 1, (i < 0 ? st.indexOf(1) : i) + d))]); };
+/** The first view: the biggest whole step at which my island (with room for its land to grow) still fits in most of the screen. */
+function startZoom(slot) {
+  const [cx, cz] = centerOf(slot), r = Math.sqrt(landSize(slot) / Math.PI) + 1, xs = [[-r, -r], [r, -r], [-r, r], [r, r]].map(([dx, dz]) => pr.P(cx + dx, cz + dz));
+  const w = Math.max(...xs.map(p => p[0])) - Math.min(...xs.map(p => p[0])), h = Math.max(...xs.map(p => p[1])) - Math.min(...xs.map(p => p[1]));
+  const k = Math.min(innerWidth * .8 / w, (innerHeight - 160) * .85 / h);
+  return Math.max(1, Math.min(3, Math.floor(k * Math.SQRT2)));   // the island is round: its outline is the square's corners pulled in by √2
+}
 function scrollToSlot(s) { const box = $('mapbox'), [cx, cz] = centerOf(s), [px0, py0] = pr.P(cx, cz), px = px0 * zoom, py = py0 * zoom; box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
@@ -990,10 +997,11 @@ function manage(p) {
 
 // ---------- inside a building: its own simulation, guests come from the map's queue ----------
 // ---------- a shop opens where it stands: the camera comes close, the roof lifts, the inside is there ----------
-let zoomShop = null;   // { key, t, dir } while the roof lifts or settles
+let zoomShop = null, camBefore = null;   // { key, t, dir } while the roof lifts or settles
 function openShop(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   if (watching) closeInside(true); setBuildMode(false); closePanel();
+  { const box = $('mapbox'); camBefore = { zoom, left: box.scrollLeft, top: box.scrollTop }; }   // put the camera back where it was when the shop closes
   if (zoom !== 1) { zoom = 1; applyZoom(); }
   const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2), box = $('mapbox');
   const lv = normalize(p.b.input).levels;   // taller cut-aways need more room above the building
@@ -1059,7 +1067,7 @@ function closeInside(quiet) {
   if (watching.inPlace) {   // the roof settles back, the camera steps away
     const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
     if (w.mine && left) { myDoc.wallet.coins += left * w.view.sim.price; dirty = true; }
-    watching = null; $('shopwrap').hidden = true; document.body.classList.remove('inshop'); $('shopstage').replaceChildren(); map.style.transform = ''; if (zoomShop) zoomShop.dir = -1; rebuild(); guide(); return;
+    watching = null; $('shopwrap').hidden = true; document.body.classList.remove('inshop'); $('shopstage').replaceChildren(); map.style.transform = ''; if (zoomShop) zoomShop.dir = -1; if (camBefore) { const c = camBefore; camBefore = null; if (c.zoom !== zoom) { map.style.transition = 'none'; requestAnimationFrame(() => requestAnimationFrame(() => { map.style.transition = ''; })); } zoom = c.zoom; applyZoom(); $('mapbox').scrollTo({ left: c.left, top: c.top }); } rebuild(); guide(); return;
   }
   // guests still inside pay as they would have
   const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
@@ -1418,7 +1426,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, moveWithIsland(u, d)])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), centerOf };
+window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
