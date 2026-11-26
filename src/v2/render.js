@@ -74,7 +74,7 @@ export function renderView(input, view = 'ext', opt = {}) {
   scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
   let labels = [];
   let fixtures = [], plan = null;
-  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else scene.add(buildExterior(spec));
+  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else scene.add(buildExterior(spec));
   const crisp = opt.crisp ?? CRISP;
   if (crisp && opt.cel) toCel(scene);   // cel bands dull the walls here, so they are off unless asked for
 

@@ -235,7 +235,7 @@ export class InsideSim {
       if (Math.abs(p.y - ty) < 1e-3) { p.y = ty; p.f = m.ride; p.inLift = false; p.moves.shift(); }
       return;
     }
-    const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz), s = SPEED * dt;
+    const dx = m.x - p.x, dz = m.z - p.z, d = Math.hypot(dx, dz), s = SPEED * (this.plan.spread ?? 1) * dt;
     if (d <= s) { p.x = m.x; p.z = m.z; p.moves.shift(); } else { p.x += dx / d * s; p.z += dz / d * s; }
     p.y = this.floorY(p.f);
   }

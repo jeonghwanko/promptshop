@@ -109,7 +109,9 @@ function squarify(items, x, z, w, d) {
  * @param opts.owned how many fixtures are bought (in drawing order); the rest are drawn as see-through ghosts.
  *        Leave it undefined to draw every fixture solid.
  */
-export function buildSection(b, { owned } = {}) {
+/** How far apart the rooms are spread compared with the layout size. */
+export const SPREAD = 1.5;
+export function buildSection(b, { owned, floor } = {}) {
   const placed = [];   // every fixture placed, in order: { kind, zone, floor, fi, x, y, z }
   const isOwned = (i) => owned === undefined || (typeof owned === 'number' ? i < owned : owned.has(i));
   const plan = { floors: [] };   // where things are, in world units, for a sim that runs inside
@@ -126,6 +128,11 @@ export function buildSection(b, { owned } = {}) {
   const cyl = (r1, r2, h, m, x, y, z, s = 10) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, s), m); o.position.set(x, y + h / 2, z); return add(o); };
   const ball = (r, m, x, y, z) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), m); o.position.set(x, y, z); return add(o); };
   const ox = -W / 2, oz = -D / 2;   // floor local (0..W, 0..D) → world
+  // The rooms are laid out at the old size (so the same fixtures, in the same order, come out), then spread apart by S:
+  // floors, walls and zones stretch, fixtures keep their own size and only move. Guests walk S times faster to match.
+  const S = SPREAD;
+  const spreadArch = (grp) => { for (const m of grp.children) { if (!m.isMesh || m.userData.fixture) continue; m.position.x *= S; m.position.z *= S;
+    const pr = m.geometry.parameters ?? {}; if ((pr.width ?? 0) > .3) m.scale.x = S; if ((pr.depth ?? 0) > .3) m.scale.z = S; } };
   FIX = fixtures(box, cyl, ball);
 
   floors.forEach((f, i) => {
@@ -160,16 +167,21 @@ export function buildSection(b, { owned } = {}) {
       box(.02, 1.0, .04, mat('#8a9098'), ox + core.x + .35, 0, oz + core.d + .05);
       for (let s = 0; s < 4; s++) box(.4, .1 * (s + 1), .22, mat('#cfc9bd'), ox + core.x + .85, 0, oz + core.d - .15 - s * .22);
     }
-    labels.push({ pos: new THREE.Vector3(ox - .1, i * GAP + .2, -oz), text: f.name, count });
+    spreadArch(g); for (const zn of fplan.zones) { zn.x *= S; zn.z *= S; zn.w *= S; zn.d *= S; }
+    labels.push({ pos: new THREE.Vector3((ox - .1) * S, i * GAP + .2, -oz * S), text: f.name, count });
   });
+  // one floor at a time: every floor is still laid out (fixture numbers and the sim's plan stay whole), only the others are left out of the picture
+  const only = floor !== undefined && floors.length > 1 ? Math.max(0, Math.min(floors.length - 1, floor)) : -1;
+  if (only >= 0) { root.children.slice().forEach((g, i) => { if (i !== only) root.remove(g); }); labels.splice(0, labels.length, ...labels.filter((_, i) => i === only)); }
   // the lift shaft that threads the floors
-  if (core && floors.length > 1) {
+  if (core && floors.length > 1 && only < 0) {
     cur = root;
     const h = (floors.length - 1) * GAP + WH;
     box(core.w * .8, h, core.d * .8, mat('#9fc3d0', { transparent: true, opacity: .25, depthWrite: false }), ox + core.x + core.w / 2, 0, oz + core.d / 2);
     box(.5, .5, .5, mat('#e3b448'), ox + core.x + core.w / 2, GAP * .5, oz + core.d / 2);
   }
-  Object.assign(plan, { W, D, gap: GAP, core: core ? { x: ox + core.x + core.w / 2, z: oz + core.d + .25 } : null, door: doorOf(plan.floors[0]?.zones ?? [], -oz, ox, W) });
+  spreadArch(root);
+  Object.assign(plan, { W: W * S, D: D * S, gap: GAP, spread: S, core: core ? { x: (ox + core.x + core.w / 2) * S, z: (oz + core.d) * S + .25 } : null, door: doorOf(plan.floors[0]?.zones ?? [], -oz * S, ox * S, W * S) });
   return { group: root, labels, fixtures: placed, plan };
 
   function partition(at, a0, a1, axis) {
@@ -188,8 +200,10 @@ export function buildSection(b, { owned } = {}) {
     const F = { size: F0.size, draw: (x, z, oo) => {
       const before = cur.children.length, idx = placed.length;
       F0.draw(x, z, oo);
-      placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x, z, y: floorIdx * GAP });
-      if (!isOwned(idx)) for (const m of cur.children.slice(before)) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
+      placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x: x * S, z: z * S, y: floorIdx * GAP });
+      const parts = cur.children.slice(before), fg = new THREE.Group(); fg.userData.fixture = true; for (const m of parts) { cur.remove(m); fg.add(m); }
+      fg.position.set(x * (S - 1), 0, z * (S - 1)); cur.add(fg);
+      if (!isOwned(idx)) for (const m of parts) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
     } };
     const [fw, fd] = F.size;
     if (pattern === 'center') return F.draw(x0 + w / 2, z0 + d / 2, o);

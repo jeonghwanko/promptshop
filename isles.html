@@ -216,6 +216,10 @@
   .act.buy { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #e0b452, 0 4px 0 rgba(0,0,0,.3); }
   .act:active:not(:disabled) { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -2px 0 #d9c49a, 0 1px 0 rgba(0,0,0,.3); }
   .act .price { font:400 18px var(--f-disp); }
+  .floortabs { position:absolute; left:-62px; top:50%; transform:translateY(-50%); display:flex; flex-direction:column; border-radius:18px; background:rgba(46,36,26,.86); box-shadow:0 4px 0 rgba(20,30,40,.35); overflow:hidden; z-index:2; }
+  .ftab { position:relative; width:50px; height:50px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; display:grid; place-items:center; font:400 18px var(--f-disp); }
+  .ftab + .ftab { border-top:1px solid rgba(251,241,220,.2); } .ftab:hover { background:rgba(255,255,255,.1); } .ftab:active:not(:disabled) { transform:none; box-shadow:none; }
+  .ftab.on { background:var(--gold); color:#3a2a00; } .ftab small { position:absolute; right:4px; bottom:3px; font:400 11px var(--f-disp); color:#ffd166; } .ftab.on small { color:#6a4500; }
   .zoomb { display:flex; flex-direction:column; margin-top:26px; border-radius:22px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); overflow:hidden; }
   .zb { width:44px; height:44px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; font:700 28px/1 var(--f-ui); display:grid; place-items:center; }
   .zb + .zb { border-top:1px solid rgba(251,241,220,.2); } .zb:hover { background:rgba(255,255,255,.1); } .zb:active:not(:disabled) { transform:none; box-shadow:none; background:rgba(255,255,255,.18); } .zb:disabled { filter:none; color:rgba(251,241,220,.3); } body.inshop .zoomb { opacity:0; pointer-events:none; }
@@ -1024,7 +1028,7 @@ function openInside(key, { inPlace = false } = {}) {
   const mineP = p.owner === me && !!myDoc?.plots[key], owned = ownedOf(p), n = normalize(p.b.input);
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
-    maxWidth: inPlace ? innerWidth - 300 : Math.min(innerWidth - 60, 1100), tags: inPlace, maxHeight: inPlace ? innerHeight - 70 : Infinity, maxZoom: inPlace ? 4 : 3,
+    maxWidth: inPlace ? innerWidth - 380 : Math.min(innerWidth - 60, 1100), tags: inPlace, maxHeight: inPlace ? innerHeight - 70 : Infinity, maxZoom: inPlace ? 4 : 3,
     onThud: () => { const st = $('shopstage'); st.classList.remove('thud'); void st.offsetWidth; st.classList.add('thud'); },
     levels: levelsOf(p),
     upgrade: (i, kind, cost, L) => { if (!mineP || myDoc.wallet.coins < cost) return false;
@@ -1053,7 +1057,7 @@ function openInside(key, { inPlace = false } = {}) {
   view.sim.setHelpers(helpersOf(p), levelsOf(p));
   const flow = new FlowView(); if (!inPlace) $('iflow').replaceChildren(flow.el);
   watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0, inPlace };
-  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop'); $('shopmore').hidden = true; watching.actKey = ''; placeActs(); rebuild(); return; }
+  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop'); $('shopmore').hidden = true; watching.actKey = ''; view.onFloorChange = () => placeActs(); placeActs(); rebuild(); return; }
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
   if (roleOf(n.type, n.levels).serves) $('iname').append(' ', el('span', { class: 'stars' }, starText(starsInfo(p).stars)));
   $('ihint').textContent = mineP ? '반투명 가구의 노란 + 를 누르면 들여요. 배 손님이 문에 줄을 서고, 앉아서 먹고, 테이블에서 돈을 내요.' : `${nameOf(p.owner)}의 가게예요. 구경만 할 수 있어요.`;
