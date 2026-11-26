@@ -247,6 +247,11 @@
   .bubble.mine b { background:var(--gold); } .bubble .where { position:static; margin-top:2px; background:rgba(46,36,26,.88); color:#fbf1dc; font:400 12px var(--f-disp); }
   .actinfo { width:240px; display:flex; flex-direction:column; gap:4px; padding:12px 14px; border-radius:16px; background:#f6ead2; box-shadow:inset 0 0 0 3px #2e241a, 0 4px 0 rgba(0,0,0,.3); }
   .actinfo b { font:400 19px var(--f-disp); } .actinfo small { font:400 13px var(--f-disp); color:var(--dim); } .actinfo q { font:400 15px var(--f-disp); color:var(--ink); quotes:'“' '”'; }
+  .signcard { position:fixed; z-index:14; width:min(360px, calc(100vw - 16px)); display:flex; flex-direction:column; gap:8px; padding:12px 14px; border-radius:18px; background:#e9c89a; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -6px 0 #c9a06a, 0 6px 0 rgba(0,0,0,.3); animation:signRise .35s cubic-bezier(.2,1.4,.4,1); }
+  .signcard::after { content:''; position:absolute; left:50%; bottom:-62px; width:6px; height:60px; margin-left:-3px; background:#5b3a22; box-shadow:0 0 0 2px #2e241a; z-index:-1; }
+  .signcard .row { flex-wrap:nowrap; } .signcard .st { font:400 18px var(--f-disp); flex:1; } .signcard small { font:400 13px var(--f-disp); color:#6b4f2a; } .signcard .xb { width:32px; height:32px; } .signcard .xb img { width:18px; height:18px; }
+  .signcard input { background:#fff8ea; } .signcard .chips button { background:#fff3dc; } .signcard .log { max-height:44px; color:#5b3a22; } .signcard.busy .chips, .signcard.busy .row:nth-child(2) { opacity:.5; pointer-events:none; }
+  @keyframes signRise { from { opacity:0; transform:translateY(16px) scale(.9); } }
   .zoomb { display:flex; flex-direction:column; margin-top:26px; border-radius:22px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); overflow:hidden; }
   .zb { width:44px; height:44px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; font:700 28px/1 var(--f-ui); display:grid; place-items:center; }
   .zb + .zb { border-top:1px solid rgba(251,241,220,.2); } .zb:hover { background:rgba(255,255,255,.1); } .zb:active:not(:disabled) { transform:none; box-shadow:none; background:rgba(255,255,255,.18); } .zb:disabled { filter:none; color:rgba(251,241,220,.3); } body.inshop .zoomb { opacity:0; pointer-events:none; }
@@ -346,8 +351,16 @@ async function widen() {
   setTimeout(() => { celebrate('🌱 땅이 넓어졌어요!', `땅 +${fresh.length}칸 · 이제 건물 ${maxPlots()}채까지`); }, landAnim.end * 1000 + 100);
 }
 // ---------- a building site: fence tape, scaffold, a tower crane, sparks and dust while Claude designs; a dust burst when it is done ----------
-const site = { parts: [], t: 0, done: null, dt: 0, step(dt) { this.dt = dt; this.t += dt; } };
+const site = { parts: [], t: 0, done: null, pending: null, dt: 0, step(dt) { this.dt = dt; this.t += dt; } };
+function placeSign() {   // the signboard sits above its spot, wherever the map is scrolled
+  const c = document.querySelector('.signcard'); if (!c) return; const [x, z] = JSON.parse(c.dataset.at), [px, py] = pr.P(x, z), r = map.getBoundingClientRect();
+  const sx = r.left + px * r.width / map.width, sy = r.top + py * r.height / map.height, w = c.offsetWidth, h = c.offsetHeight;
+  c.style.left = Math.max(8, Math.min(innerWidth - w - 8, sx - w / 2)) + 'px'; c.style.top = Math.max(70, Math.min(innerHeight - h - 120, sy - h - 70)) + 'px';
+}
 function drawSite(half) {
+  if (half === 'front' && site.pending && !building) { const q = site.pending, m = PLOT[q.size], C0 = [pr.P(q.x, q.z), pr.P(q.x + m, q.z), pr.P(q.x + m, q.z + m), pr.P(q.x, q.z + m)], pul = .6 + .4 * Math.sin(site.t * 5);
+    g.strokeStyle = `rgba(255,207,63,${pul})`; g.lineWidth = 2; g.beginPath(); C0.forEach(([a, c], i) => i ? g.lineTo(a, c) : g.moveTo(a, c)); g.closePath(); g.stroke();
+    const [mx, my] = pr.P(q.x + m / 2, q.z + m / 2); g.fillStyle = '#5b3a22'; g.fillRect(Math.round(mx) - 1, Math.round(my) - 22, 3, 22); g.fillStyle = '#c08a4a'; g.fillRect(Math.round(mx) - 9, Math.round(my) - 30, 19, 11); g.fillStyle = '#2e241a'; g.fillRect(Math.round(mx) - 9, Math.round(my) - 30, 19, 1); g.fillRect(Math.round(mx) - 9, Math.round(my) - 20, 19, 1); }
   const b = building ?? site.done; if (!b) return; const dt = site.dt, P = (x, z) => pr.P(x, z);
   const n = PLOT[b.size], x0 = b.x, z0 = b.z, C = [P(x0, z0), P(x0 + n, z0), P(x0 + n, z0 + n), P(x0, z0 + n)], H = 26 + n * 10;   // C[0] back, C[2] front
   const line = (a, c, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(Math.round(a[0]) + .5, Math.round(a[1]) + .5); g.lineTo(Math.round(c[0]) + .5, Math.round(c[1]) + .5); g.stroke(); };
@@ -544,6 +557,7 @@ function frame(t) {
     }
     if (mine && e.vip) { const p = allPlots().find(q => q.key === e.lot), b = vipBonus(p ? starsInfo(p).stars : 3); myDoc.wallet.coins += b; earned.push([performance.now(), b]); pops.push({ key: e.lot, text: `👑 VIP +${b}`, mine, t: -.4 }); }
     if (mine && e.fest) festServed(e);
+    if (mine) flyCoin(e.lot);
     if (mine) { tutEvent('coin'); countGuest(); earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
@@ -566,7 +580,7 @@ function frame(t) {
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
   for (const b of boats) items.push({ d: b.x + b.z, draw: () => drawBoat(b) });
   if (fest) items.push({ d: fest.x + fest.z, draw: drawFestBoat });
-  { const sb = building ?? site.done; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
+  { const sb = building ?? site.done ?? site.pending; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
       items.push({ d: sb.x + sb.z - .01, draw: () => drawSite('back') }, { d: sb.x + sb.z + n + .02, draw: () => drawSite('front') }); } else site.parts.length = 0; }
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
   // island labels: owner names, empty slots invite
@@ -599,7 +613,7 @@ function frame(t) {
       g.imageSmoothingEnabled = false; const ic = iconCanvas(NEED_ICON[k]); if (ic) g.drawImage(ic, x - 9, y - 9, 18, 18);
       g.font = '900 10px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeText(String(c), x + 11, y + 13); g.fillStyle = '#ff8a7a'; g.fillText(String(c), x + 11, y + 13); }); }
   drawSplash(dt);
-  drawn = items; lastTops = tops;
+  drawn = items; lastTops = tops; placeSign();
   if (tutSpot && buildMode && tutOn() && TUT[tutStep()].map === 'spot') { const t = (Math.sin(performance.now() / 180) + 1) / 2; outline(tutSpot.x, tutSpot.z, PLOT[size], `rgba(255,${200 + 55 * t | 0},80,${.6 + .4 * t})`); }
   requestAnimationFrame(frame);
 }
@@ -684,7 +698,19 @@ function stepFest(dt) {
   }
   festHud();
 }
-function festServed(e) { if (!fest || e.fest !== fest.id) return; const tip = fest.tip; fest.served++; fest.tips += tip; myDoc.wallet.coins += tip; earned.push([performance.now(), tip]); pops.push({ key: e.lot, text: `🎉+${tip}`, mine: true, t: -.2 }); dirty = true; }
+// a coin flies from the shop that earned it up to the coin plate (a few a second at most, so a busy island does not snow coins)
+let flyAt = 0;
+function flyCoin(key) {
+  const t = performance.now(); if (t - flyAt < 140 || document.hidden) return; flyAt = t;
+  const tp = lastTops[key], cb = $('coinb').querySelector('.cic'); if (!tp || !cb || $('coinb').hidden) return;
+  const r = map.getBoundingClientRect(), x0 = r.left + tp[0] * r.width / map.width, y0 = r.top + tp[1] * r.height / map.height, b = cb.getBoundingClientRect(), x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;
+  if (x0 < -40 || y0 < -40 || x0 > innerWidth + 40 || y0 > innerHeight + 40) return;
+  const c = iconEl('coin', 20, ''); Object.assign(c.style, { position: 'fixed', left: '0', top: '0', zIndex: 17, pointerEvents: 'none', imageRendering: 'pixelated' }); document.body.append(c);
+  const mx = (x0 + x1) / 2 + (Math.random() - .5) * 80, my = Math.min(y0, y1) - 60;
+  c.animate([{ transform: `translate(${x0 - 10}px, ${y0 - 10}px) scale(.6)` }, { transform: `translate(${mx - 10}px, ${my - 10}px) scale(1.2)`, offset: .35 }, { transform: `translate(${x1 - 10}px, ${y1 - 10}px) scale(.9)` }], { duration: 650, easing: 'cubic-bezier(.5,0,.6,1)' })
+    .onfinish = () => { c.remove(); const k = $('coinb'); k.classList.remove('up'); void k.offsetWidth; k.classList.add('up'); };
+}
+function festServed(e) { if (!fest || e.fest !== fest.id) return; const tip = fest.tip; fest.served++; fest.tips += tip; myDoc.wallet.coins += tip; earned.push([performance.now(), tip]); pops.push({ key: e.lot, text: `🎉+${tip}`, mine: true, t: -.2 }); flyCoin(e.lot); flyAt = 0; dirty = true; }
 let festKey = '';
 function festHud() {
   const b = $('festp'); if (!fest || fest.state === 'leave') { b.hidden = true; festKey = ''; return; }
@@ -819,12 +845,25 @@ map.addEventListener('pointermove', (e) => {
   hover = slotAt(Math.floor(fx), Math.floor(fz)) === mySlot ? { x, z, door: placePlot(world, mySlot, x, z, n, takenSet()) } : null;
 });
 map.addEventListener('pointerleave', () => { hover = null; });
+/** The building under a pointer (its picture's own pixels, frontmost first), or null. */
+function buildingAt(e) { const [sx, sy] = mapXY(e);
+  for (const it of [...drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
+    if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return it.key; }
+  return null; }
+// press and hold one of my buildings to pick it up and move it
+let holdT = 0, held = false;
+map.addEventListener('pointerdown', (e) => {
+  held = false; clearTimeout(holdT); if (building || moving || buildMode) return;
+  const key = buildingAt(e), p = key && allPlots().find(q => q.key === key); if (!p || p.owner !== me) return;
+  holdT = setTimeout(() => { if (dragged) return; held = true; startMove(key); }, 550);
+});
+addEventListener('pointerup', () => clearTimeout(holdT)); addEventListener('pointercancel', () => clearTimeout(holdT));
 map.addEventListener('click', (e) => {
   if (building || dragged) return;
+  if (held) { held = false; return; }   // the press that picked a building up is not also a tap
   const [sx, sy] = mapXY(e);
   if (moving) { const [fx, fz] = pr.inv(sx, sy); return dropMove(moveTarget(fx, fz)); }
-  for (const it of [...drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
-    if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return openShop(it.key); }
+  { const k = buildingAt(e); if (k) return openShop(k); }
   const [fx, fz] = pr.inv(sx, sy), s = slotAt(Math.floor(fx), Math.floor(fz));
   if (buildMode) {   // the spot comes from the tap itself (touch screens have no hover)
     const n = PLOT[size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2), door = s === mySlot ? placePlot(world, mySlot, x, z, n, takenSet()) : null;
@@ -861,7 +900,7 @@ const TUT = [
   { say: '허가증 🎫이 한 장 있어.\n아래 [짓기]를 눌러 봐!', el: '#d-build', on: 'cards' },
   { say: '섬 사람들 부탁이야.\n마음에 드는 카드를 하나 골라!', on: 'card' },
   { say: '반짝이는 땅을 눌러!\n거기에 지을 거야.', map: 'spot', on: 'place' },
-  { say: '어떤 가게일까?\n한 줄로 쓰거나, 아래 예시를 눌러 봐.', el: '#panel .chips', on: 'line' },
+  { say: '어떤 가게일까?\n한 줄로 쓰거나, 아래 예시를 눌러 봐.', el: '#signcard .chips', on: 'line' },
   { say: 'Claude가 짓는 중이야…\n건물이 올라가는 거 봐! 끼룩', on: 'built' },
   { say: '완공! 🎉\n저기 봐, 배가 손님을 싣고 와!', on: 'coin', boat: true },
   { say: '첫 수입이야! 동전이 쌓였지?\n이제 가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
@@ -1006,7 +1045,7 @@ let moving = null;
 function startMove(key) {
   const p = myDoc?.plots[key]; if (!p) return;
   if (watching) closeInside(); setBuildMode(false); closePanel();
-  moving = { key, size: p.size }; hover = null; toast('↔ 옮길 자리를 누르세요 · 내 다른 건물을 누르면 자리를 바꿔요 · Esc 취소');
+  moving = { key, size: p.size }; hover = null; toast('↔ 옮길 자리를 눌러요 · 내 건물을 누르면 자리 바꾸기');
 }
 function cancelMove() { moving = null; hover = null; toast(''); }
 function moveTarget(fx, fz) {   // where the moved building would land under the pointer
@@ -1356,16 +1395,21 @@ function startBuild(x, z, door) {
   const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
   const ideas = req ? req.ex : SUGGEST[sz], input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + ideas[0] });
   const go = el('button', {}, '여기에 짓기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
-  show(el('h2', {}, req ? `${req.icon} ${req.sub}` : '✏️ 마음대로 짓기'), el('p', { class: 'note' }, req ? `섬 사람들: “${req.ko}” — 이 요청에 맞는 곳을 한 줄로 써 주세요. ${sz} ${n}×${n}` : `무엇이든 한 줄로. ${sz} ${n}×${n}`),
-    el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t))), err, log,
-    el('button', { class: 'ghost', on: { click: () => { building = null; showHome(); } } }, '취소'));
+  // the spot is staked: dust where it lands, a stake with a sign, and the line is written on a signboard right above it
+  closePanel(); current = { kind: 'build' }; site.done = { x, z, size: sz, t: 0 }; site.pending = { x, z, size: sz };
+  document.querySelector('.signcard')?.remove();
+  const cancel = () => { if (building) return; card0.remove(); site.pending = null; current = null; };
+  const card0 = el('div', { class: 'signcard', id: 'signcard', on: { pointerdown: (e) => e.stopPropagation(), click: (e) => e.stopPropagation() } },
+    el('div', { class: 'row' }, el('b', { class: 'st' }, req ? `${req.icon} ${req.sub}` : '✏️ 마음대로'), el('small', {}, `${sz} ${n}×${n}`), xbtn(cancel)),
+    el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t))), err, log);
+  card0.dataset.at = JSON.stringify([x + n / 2, z]); document.body.append(card0); placeSign(); setTimeout(() => input.focus(), 60);
   const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
   async function build() {
     const line = input.value.trim() || input.placeholder.replace(/^예: /, '');
     err.textContent = ''; log.replaceChildren();
     if (bad(line)) { err.textContent = '그 표현으로는 지을 수 없어요.'; return; }
     if (!sample) { err.textContent = '이 화면에서는 Claude를 부를 수 없어요.'; return; }
-    go.disabled = true; tutEvent('line');
+    go.disabled = true; tutEvent('line'); card0.classList.add('busy');
     const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); building = { x, z, size: sz, stage };
     note('…', '구상 중');
     const seen = []; let raw = '', broken = 0;
@@ -1394,8 +1438,8 @@ function startBuild(x, z, door) {
       rebuild(); await save(true);
       const role = roleOf(s.type, s.levels);
       note('완성', `${s.name || TYPE_KO[s.type]} · ${s.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);
-      setTimeout(() => { if (current?.kind === 'build') showBuilding(key); }, 2500);
-    } catch (e) { building = null; err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : '짓지 못했어요. 다시 눌러 주세요.'; }
+      site.pending = null; setTimeout(() => { card0.remove(); if (current?.kind === 'build') current = null; }, 1800);
+    } catch (e) { building = null; card0.classList.remove('busy'); err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : '짓지 못했어요. 다시 눌러 주세요.'; }
     go.disabled = false;
   }
   go.onclick = build; input.addEventListener('keydown', e => { if (e.key === 'Enter') build(); });
@@ -1603,7 +1647,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(u, d))])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { dbgRates: () => JSON.stringify(allPlots().filter(p => p.owner === me && p.b).map(p => { const r = ratesOf(p), sh = sim.shops.get(p.key); return [p.key, roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves, +r.interval.toFixed(2), r.cap, sh && [sh.cap, +(sh.interval ?? 0).toFixed(2), sh.stock]]; })), fest: (sec = 3) => { nextFest = performance.now() / 1000; setTimeout(() => { if (fest) { fest.arrive = performance.now() / 1000 + sec; fest.t0 = fest.arrive - FEST_WARN; } }, 100); }, get festState() { return fest && { state: fest.state, served: fest.served, total: fest.total, needs: fest.needs }; }, celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
+window.__isles = { screenOf: (k) => { const tp = lastTops[k], r = map.getBoundingClientRect(); return tp && [r.left + tp[0] * r.width / map.width, r.top + (tp[1] + 30) * r.height / map.height]; }, dbgRates: () => JSON.stringify(allPlots().filter(p => p.owner === me && p.b).map(p => { const r = ratesOf(p), sh = sim.shops.get(p.key); return [p.key, roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves, +r.interval.toFixed(2), r.cap, sh && [sh.cap, +(sh.interval ?? 0).toFixed(2), sh.stock]]; })), fest: (sec = 3) => { nextFest = performance.now() / 1000; setTimeout(() => { if (fest) { fest.arrive = performance.now() / 1000 + sec; fest.t0 = fest.arrive - FEST_WARN; } }, 100); }, get festState() { return fest && { state: fest.state, served: fest.served, total: fest.total, needs: fest.needs }; }, celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
