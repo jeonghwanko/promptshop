@@ -61,6 +61,12 @@ Inside a claude.ai artifact the page calls Claude through the artifact runtime. 
 
 `scripts/bundle.py out.html` inlines the page and its modules into one file.
 
+## Archipelago
+
+`isles.html` is the social version: ten islands, one per friend. You start alone on your island with nine empty slots; invited friends pick a slot and their island fills in. On your own island you pick a size and build with one line, in place. Neighbouring islands are joined by a bridge that both owners build half of (30 coins each); when it is finished, people from one island walk over and spend in the other's shops, so each owner earns from the other's residents. Everyone shares one town simulation across the archipelago.
+
+![the archipelago with two example friends' islands and the empty island 1 between them](docs/img/isles.png)
+
 ## One world
 
 `world.html` puts the town on a globe. Turn the pixel globe and click anywhere, or search a country, a city or coordinates (`서울`, `Paris`, `6139 1048`, `37.5, 127`). The world is a grid of neighbourhoods (0.05° cells, about 5 km), numbered X and Y, so the same place is always the same neighbourhood; its streets come from a seed of X and Y and its sea follows the real coastline (Natural Earth 1:110m outlines). Inside a neighbourhood you pick a plot size, move the outline (green where it fits: dry, free land with its front on a road) and click to claim it: first come, first served, five plots per person, released after 24 hours if nothing is built. The place goes into the prompt, so the same line builds differently in Seoul and in Paris. Built buildings stand on the globe.

@@ -65,7 +65,7 @@ export class TownSim {
       const lot = (b.lot ?? this.A.lots?.find(l => l.id === id)); if (!lot) continue;
       const r = roleOf(b.type, b.levels); pop += r.source;
       const old = this.shops.get(id);
-      shops.set(id, { id, lot, door: doorOf(lot), serves: r.serves, source: r.source, owner: b.owner, cap: LOT_CAP[lot.size] + Math.min(4, Math.floor((b.levels - 1) / 2)), coin: LOT_COIN[lot.size],
+      shops.set(id, { id, lot, door: lot.door ?? doorOf(lot), serves: r.serves, source: r.source, owner: b.owner, cap: LOT_CAP[lot.size] + Math.min(4, Math.floor((b.levels - 1) / 2)), coin: LOT_COIN[lot.size],
         queue: old?.queue ?? [], busy: old?.busy ?? 0, fresh: !old, served: old?.served ?? 0 });
     }
     this.shops = shops; this.target = Math.min(70, pop);

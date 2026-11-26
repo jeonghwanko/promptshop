@@ -118,6 +118,8 @@ The building spec is short text. With a Haiku-class model one building costs abo
 
 - Stage 2, third version (after "choosing where comes first: a world board, claim a spot, search by country, x/y coordinates, or turn a globe"): `world.html`. Real-Earth globe with search and coordinates, procedural neighbourhoods per 5 km cell, free plot placement with first-come claims, the place in the prompt, buildings standing on the globe, the same town simulation inside each neighbourhood.
 
+- Stage 2, fourth version (after "the world map is not it; imagine a social game: build a city with friends, ten slots, invite friends, islands joined by bridges, ships for trade"): `isles.html`. Ten island slots, join a free slot, build on your own island, half bridges per owner, residents cross finished bridges and spend in neighbours' shops. Ships and harbours are next.
+
 ## Decisions (2026-11-26)
 
 1. **Tall buildings in the town view** are compressed above 8 floors. A band on the facade marks the hidden floors, and the label shows the real count.
