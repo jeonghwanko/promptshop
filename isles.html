@@ -172,12 +172,39 @@ function landCard() {
   b.disabled = lv < need || myDoc.wallet.coins < cost;
   return el('div', { class: 'card' + (!b.disabled ? ' alert' : '') }, el('span', {}, `🌱 땅 ${k}/${LAND_MAX}`, el('div', { class: 'note' }, lv < need ? `Lv.${need + 1} ${LEVELS[need].name}부터 넓힐 수 있어요` : `섬이 한 바퀴 넓어져요 · 땅 +${gain}칸 · 건물 +${PLOTS_PER_LAND}채`)), b);
 }
+// the tiles of an island right now
+function tilesOf(slot) { const [cx, cz] = centerOf(slot), out = []; for (let z = cz - 14; z <= cz + 14; z++) for (let x = cx - 14; x <= cx + 14; x++) if (slotAt(x, z) === slot) out.push([x, z]); return out; }
 async function widen() {
   const k = myDoc.land ?? 0, cost = LAND_COST[k]; if (k >= LAND_MAX || myDoc.wallet.coins < cost) return;
-  setLand(mySlot, k); const before = landSize(mySlot);
-  myDoc.wallet.coins -= cost; myDoc.land = k + 1; rebuild(); await save(true);
-  const gain = landSize(mySlot) - before; scrollToSlot(mySlot);
-  celebrate('🌱 땅이 넓어졌어요!', `땅 +${gain}칸 · 이제 건물 ${maxPlots()}채까지`); showHome();
+  setLand(mySlot, k); const was = new Set(tilesOf(mySlot).map(t => t + ''));
+  const old = ground;   // the coast as it was, shown while the new ring rises
+  myDoc.wallet.coins -= cost; myDoc.land = k + 1; rebuild(); save(true);
+  const [cx, cz] = centerOf(mySlot), fresh = tilesOf(mySlot).filter(t => !was.has(t + ''));
+  // new land rises from the sea, from the old coast outward, like a wave going round the island
+  const d0 = Math.min(...fresh.map(([x, z]) => Math.hypot(x - cx, z - cz)));
+  landAnim = { old, t: 0, tiles: fresh.map(([x, z]) => ({ x, z, at: (Math.hypot(x - cx, z - cz) - d0) * .35 + ((Math.atan2(z - cz, x - cx) + Math.PI) / (2 * Math.PI)) * .9 + Math.random() * .08, splashed: false })) };
+  landAnim.end = Math.max(...landAnim.tiles.map(t => t.at)) + .5;
+  closePanel(); scrollToSlot(mySlot); toast('🌱 땅이 솟아올라요…', 1600);
+  setTimeout(() => { celebrate('🌱 땅이 넓어졌어요!', `땅 +${fresh.length}칸 · 이제 건물 ${maxPlots()}채까지`); }, landAnim.end * 1000 + 100);
+}
+let landAnim = null; const splash = [];
+function drawLandAnim(dt) {   // old coast, then each new tile rising into place, with spray
+  const a = landAnim; a.t += dt;
+  g.drawImage(a.old, 0, 0);
+  for (const tl of a.tiles) {
+    const u = Math.max(0, Math.min(1, (a.t - tl.at) / .45)); if (u <= 0) continue;
+    if (!tl.splashed) { tl.splashed = true; const [px, py] = pr.P(tl.x + .5, tl.z + .5); for (let i = 0; i < 6; i++) splash.push({ x: px + (Math.random() - .5) * 18, y: py, vx: (Math.random() - .5) * 50, vy: -50 - Math.random() * 60, t: 0 }); }
+    const e = 1 - (1 - u) ** 3, dy = (1 - e) * 14 - Math.sin(u * Math.PI) * 3;   // comes up from below, overshoots a little
+    const c = [pr.P(tl.x, tl.z), pr.P(tl.x + 1, tl.z), pr.P(tl.x + 1, tl.z + 1), pr.P(tl.x, tl.z + 1)];
+    g.save(); g.beginPath(); c.forEach(([x, y], i) => i ? g.lineTo(x, y + dy) : g.moveTo(x, y + dy)); g.closePath(); g.clip();
+    g.globalAlpha = .35 + .65 * e; g.drawImage(ground, 0, dy);
+    g.globalAlpha = (1 - u) * .7; g.fillStyle = '#fff6c8'; g.fill(); g.restore();   // a flash as it surfaces
+  }
+  if (a.t > a.end) landAnim = null;
+}
+function drawSplash(dt) {
+  for (const p of splash) { p.t += dt; p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; g.globalAlpha = Math.max(0, 1 - p.t / .7); g.fillStyle = p.t < .25 ? '#ffffff' : '#bfe3f2'; g.fillRect(Math.round(p.x), Math.round(p.y), 3, 3); }
+  g.globalAlpha = 1; for (let i = splash.length - 1; i >= 0; i--) if (splash[i].t > .7) splash.splice(i, 1);
 }
 // ---------- growth: guests served fill the permit gauge; a permit builds one building; served guests also raise the island's level ----------
 const LEVELS = [{ at: 0, name: '마을', size: 'S' }, { at: 40, name: '동네', size: 'M' }, { at: 150, name: '거리', size: 'L' }, { at: 400, name: '번화가', size: 'L' }];
@@ -306,7 +333,7 @@ function frame(t) {
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
-  g.clearRect(0, 0, map.width, map.height); g.drawImage(ground, 0, 0);
+  g.clearRect(0, 0, map.width, map.height); if (landAnim) drawLandAnim(dt); else g.drawImage(ground, 0, 0);
   const outline = (x, z, n, color) => { const pts = [pr.P(x, z), pr.P(x + n, z), pr.P(x + n, z + n), pr.P(x, z + n)]; g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.stroke(); };
   if (hover && !building) outline(hover.x, hover.z, PLOT[size], hover.door ? '#2fbf71' : '#e2432f');
   const all = allPlots();
@@ -337,6 +364,7 @@ function frame(t) {
   g.font = '900 12px "Noto Sans KR", sans-serif';
   // my shops running low on stock show a red mark
   for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
+  drawSplash(dt);
   drawn = items; lastTops = tops;
   if (tutSpot && buildMode && tutOn() && TUT[tutStep()].map === 'spot') { const t = (Math.sin(performance.now() / 180) + 1) / 2; outline(tutSpot.x, tutSpot.z, PLOT[size], `rgba(255,${200 + 55 * t | 0},80,${.6 + .4 * t})`); }
   requestAnimationFrame(frame);
