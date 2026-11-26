@@ -65,7 +65,7 @@ let shops = [], seedN = 3;
 
 function addShop(s, first) {
   const fx = buildSection(normalize(s.input)).fixtures;
-  const owned = new Set(all ? fx.map((_, i) => i) : startingFixtures(fx));
+  const owned = new Set(all ? fx.map((_, i) => i) : startingFixtures(fx, s.input.order));
   const view = new InsideView(s.input, owned, { coins: () => coins, buy: (i, kind, c) => { if (coins < c) return false; coins -= c; return true; }, seed: seedN++, maxWidth: Math.min(innerWidth, 1400) - 64 });
   const shop = { view, served: [] };
   const card = document.createElement('div'); card.className = 'card';

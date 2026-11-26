@@ -56,31 +56,33 @@ export function shopRates(fixtures, owned, baseCoin = 3) {
 export const TRACKS = { order: '주문', seat: '자리', browse: '진열', deco: '꾸밈' };
 const trackOf = (k) => { const r = FIX_ROLE(k); return r === 'serve' || r === 'cook' ? 'order' : r === 'seat' ? 'seat' : r === 'browse' ? 'browse' : 'deco'; };
 /** Per track, fixture indices in the order they are bought: lower floors first, nearer the door first. */
-export function trackOrder(fixtures, door) {
+export function trackOrder(fixtures, door, order) {
   const d = door ?? { x: 0, z: Math.max(0, ...fixtures.map(f => f.z)) + 1 };
-  const near = (f) => f.fi * 100 + Math.hypot(f.x - d.x, f.z - d.z);
+  // the building's own order (written by the model) ranks kinds first; then lower floors and nearer the door
+  const rank = (k) => { const i = order?.indexOf(k) ?? -1; return i < 0 ? 50 : i; };
+  const near = (f) => rank(f.kind) * 1000 + f.fi * 100 + Math.hypot(f.x - d.x, f.z - d.z);
   const out = { order: [], seat: [], browse: [], deco: [] };
   const idx = fixtures.map((f, i) => i);
   const by = (pred) => idx.filter(i => pred(fixtures[i])).sort((a, b) => near(fixtures[a]) - near(fixtures[b]));
   const counters = by(f => f.kind === 'counter');
-  out.order = [...counters.slice(0, 1), ...by(f => COOK[f.kind]), ...counters.slice(1)];
+  out.order = order?.length ? by(f => f.kind === 'counter' || COOK[f.kind]) : [...counters.slice(0, 1), ...by(f => COOK[f.kind]), ...counters.slice(1)];
   out.seat = by(f => SEATS[f.kind]);
   out.browse = by(f => BROWSE.has(f.kind));
   out.deco = [...by(f => f.kind === 'toilet'), ...by(f => DECOR.has(f.kind)), ...by(f => trackOf(f.kind) === 'deco' && f.kind !== 'toilet' && !DECOR.has(f.kind))];
   return out;
 }
 /** The next fixture of each track: { track: index }. */
-export function nextUp(fixtures, owned, door) {
+export function nextUp(fixtures, owned, door, order) {
   const out = {};
-  for (const [t, list] of Object.entries(trackOrder(fixtures, door))) { const i = list.find(i => !owned.has(i)); if (i !== undefined) out[t] = i; }
+  for (const [t, list] of Object.entries(trackOrder(fixtures, door, order))) { const i = list.find(i => !owned.has(i)); if (i !== undefined) out[t] = i; }
   return out;
 }
 
 /** Unbought fixtures that would raise income (price per guest ÷ seconds per guest) the most, by kind. */
-export function bestNext(fixtures, owned, baseCoin = 3) {
+export function bestNext(fixtures, owned, baseCoin = 3, order) {
   const rev = (set) => { const r = shopRates(fixtures, set, baseCoin); return r.price / r.interval; }, now = rev(owned);
   const gain = new Map();
-  const allowed = new Set(Object.values(nextUp(fixtures, owned)));
+  const allowed = new Set(Object.values(nextUp(fixtures, owned, undefined, order)));
   fixtures.forEach((f, i) => { if (owned.has(i) || !allowed.has(i)) return; const g = rev(new Set([...owned, i])) - now; if (g > (gain.get(f.kind) ?? 0)) gain.set(f.kind, g); });
   const best = Math.max(0, ...gain.values());
   return best > 0 ? [...gain].filter(([, g]) => g >= best * .8).map(([k]) => k) : [];

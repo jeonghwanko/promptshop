@@ -5,7 +5,7 @@ import { TYPES, STYLES, TYPE_KO, STYLE_KO } from './catalog.js';
 import { GROUNDS, RHYTHMS, ICONS, HEROES, PROPS, MASS_SHAPES } from './spec.js';
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
-import { ZONE_NAMES, FIXTURE_NAMES } from './interior.js';
+import { ZONE_NAMES, FIXTURE_NAMES, zoneFixtures } from './interior.js';
 
 export function emptyBuilding() { return { input: null }; }
 
@@ -45,6 +45,12 @@ export function applyStep(b, step) {
       i.floors.push({ ...pick(step, ['range', 'name', 'zones', 'tint']), fixtures: [] });
       return { view: 'int', key: 'floor:' + (i.floors.length - 1) };
     }
+    case 'order': {   // the order the owner furnishes the shop as it grows: fixture kinds, first = first bought
+      const kinds = (Array.isArray(step.kinds) ? step.kinds : []).filter(k => typeof k === 'string' && FIXTURE_NAMES.includes(k));
+      if (!kinds.length) return null;
+      i.order = [...new Set(kinds)].slice(0, 16);
+      return { view: 'int', key: 'order' };
+    }
     case 'fixture': {
       const f = i.floors?.[step.floor ?? i.floors.length - 1];
       if (!f || f.fixtures.length >= 8) return null;
@@ -81,9 +87,10 @@ Output ONLY JSON Lines, one JSON object per line, no other text, no code fences,
 7. Inside, written once per KIND of floor (the engine draws a stacked cross-section, repeated floors merge into one, a lift core is added automatically):
    1-5 lines {"step":"floor","range":[from,to],"name":"<e.g. 로비, 객실층, 스카이 라운지>","zones":[{"zone":"<zone>","weight":<area weight 0.3-5>}, ...],"tint":"#rrggbb" (optional),"note":"..."}
    Ranges must cover every level from 1 to the building's levels without overlap, e.g. a 20-floor hotel: [1,1] lobby, [2,19] guest floors, [20,20] sky lounge. A 1-floor shop has one floor line.
-   Zones (each already comes with its recognisable furniture): ${ZONE_NAMES.join(' ')}
+   Zones, each with the furniture it already comes with: ${ZONE_NAMES.map(z => `${z}(${zoneFixtures(z).join(',')})`).join(' ')}
 8. Optional 0-6 lines {"step":"fixture","floor":<index of the floor line, 0-based>,"zone":"<a zone on that floor>","kind":"<fixture>","pattern":"back|left|rows|center|corner|front|cells","count":<n>,"color":"#rrggbb","note":"..."} to add something special.
    Fixtures: ${FIXTURE_NAMES.join(' ')}
+9. One line {"step":"order","kinds":["<fixture>", ...],"note":"..."}: the order in which the owner furnishes this place as it grows, using the furniture of your zones and fixture lines. The shop opens with almost nothing; list 5-12 kinds, first bought first: what this place cannot open without (where guests pay or are served), then what lets more guests in (seats, displays, cooking that makes it faster), then comfort and decoration. Think like the owner of THIS place: a 붕어빵 stall starts with its counter and its cooking, a reading cafe gets seats early, a gallery its pedestals.
 
 Make it recognisable at a glance. Rules that help:
 - Landmarks need their silhouette: lighthouse = main shape "round" with taper and bands + hero "lamp"; windmill = "round" with taper + hero "sails"; castle = "crenel": true + round towers (mass shape "round", roof "cone"); stadium or ballpark = main shape "bowl"; UFO or spaceship = main shape "saucer"; mosque = roof "dome" + a tall "round" mass with roof "onion" as minaret; market = hero "stall_row".

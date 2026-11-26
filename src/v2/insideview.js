@@ -13,7 +13,12 @@ function tip() {
 }
 
 /** Which fixtures a fresh building starts with: its first counter and its first table (or seat, or shelf). */
-export function startingFixtures(fixtures) {
+export function startingFixtures(fixtures, order) {
+  if (order?.length) {   // the building's own order: it opens with the first two kinds on its list
+    const out = [];
+    for (const k of order) { const i = fixtures.findIndex(f => f.kind === k); if (i >= 0) out.push(i); if (out.length === 2) break; }
+    if (out.length) return out;
+  }
   const tr = trackOrder(fixtures), out = [];
   if (tr.order.length && fixtures[tr.order[0]].kind === 'counter') out.push(tr.order[0]);
   if (tr.seat.length) out.push(tr.seat[0]); else if (tr.browse.length) out.push(tr.browse[0]);
@@ -66,7 +71,7 @@ export class InsideView {
     return best;
   }
   /** Fixtures that can be bought now: the next of each track. */
-  buyable() { return new Set(Object.values(nextUp(this.fx, this.owned))); }
+  buyable() { return new Set(Object.values(nextUp(this.fx, this.owned, undefined, this.input.order))); }
   hover(e) {
     const i = this.ghostAt(e), t = tip(); this.hot = i;
     if (i < 0) { t.style.display = 'none'; return; }

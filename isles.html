@@ -121,7 +121,7 @@ const fxTotal = (p) => fixturesOf(p).length;
 function ownedOf(p) {
   const d = p.owner === me && myDoc?.plots[p.key] ? myDoc.plots[p.key] : p;
   if (Array.isArray(d.own)) return new Set(d.own);
-  if (d.fx === undefined) return new Set(startingFixtures(fixturesOf(p)));   // never furnished: a counter and a table
+  if (d.fx === undefined) return new Set(startingFixtures(fixturesOf(p), p.b.input.order));   // never furnished: a counter and a table
   return new Set(Array.from({ length: Math.min(fxTotal(p), d.fx ?? 1) }, (_, i) => i));
 }
 const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1);
@@ -396,12 +396,12 @@ function stepInside(dt) {
   const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, seats = isim.seats.length, used = isim.seats.filter(x => x.who).length;
   const cell = (label, v, bad) => `<div class="${bad ? 'bad' : ''}"><span>${label}</span><br><b>${v}</b></div>`;
   if (watching.mine && r) {   // what to do next: the fixtures that would raise income the most blink
-    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1);
+    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order);
     watching.view.suggest = new Set(k);
     const names = k.map(x => FIX_INFO[x]?.[0] ?? x).slice(0, 3).join('·'), t = (nextBoat.get(p.slot) ?? 0) - performance.now() / 1000;
-    const up = nextUp(fixturesOf(p), ownedOf(p)), fx = fixturesOf(p);
+    const up = nextUp(fixturesOf(p), ownedOf(p), undefined, p.b.input.order), fx = fixturesOf(p);
     const turn = Object.entries(up).map(([tr, i]) => `${TRACKS[tr]}: ${FIX_INFO[fx[i].kind]?.[0] ?? fx[i].kind}`).join(' · ');
-    $('ihint').textContent = (turn ? `다음 차례 — ${turn}. 깜빡이는 ${names}이(가) 수입을 가장 많이 올려요.` : '가구를 다 채웠어요.') + (t > 0 ? ` · 다음 배 ${Math.ceil(t)}초` : '');
+    $('ihint').textContent = (turn ? `다음 차례 — ${turn}.${names ? ` 깜빡이는 ${names}이(가) 수입을 가장 많이 올려요.` : ''}` : '가구를 다 채웠어요.') + (t > 0 ? ` · 다음 배 ${Math.ceil(t)}초` : '');
   }
   $('istats').innerHTML = cell('문 앞 줄', door) + cell('안에서 기다림', q, q >= 5) + cell('자리', `${used}/${seats}`, seats && used === seats)
     + cell('놓친 손님 (줄·자리)', `${isim.stats.lostLine} · ${isim.stats.lostSeat}`, isim.stats.lostLine + isim.stats.lostSeat > 0) + cell('지금 번 돈', watching.earned)
@@ -441,7 +441,7 @@ function startBuild(x, z, door) {
     note('…', '구상 중');
     const seen = []; let raw = '', broken = 0;
     const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
-      if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note({ building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구' }[s.step] ?? s.step, s.note || s.type || ''); };
+      if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note({ building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구', order: '순서' }[s.step] ?? s.step, s.note || s.type || ''); };
     try {
       const rd = lineReader(apply, () => broken++);
       await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${mySlot})` }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
@@ -454,7 +454,7 @@ function startBuild(x, z, door) {
       if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; building = null; go.disabled = false; return; }
       const key = `${mySlot}_${x}_${z}`;
       myDoc.wallet.coins -= COST[sz];
-      const own = startingFixtures(buildSection(normalize(b.input)).fixtures);
+      const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
       myDoc.plots = { ...myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
       building = null; rebuild(); await save(true);
       const role = roleOf(s.type, s.levels);

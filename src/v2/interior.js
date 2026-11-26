@@ -48,6 +48,8 @@ export const ZONES = {
 };
 const zoneDef = (name) => { let z = ZONES[name]; while (typeof z === 'string') z = ZONES[z]; return z ?? ZONES.lobby; };
 export const ZONE_NAMES = Object.keys(ZONES);
+/** Furniture kinds a zone comes with. */
+export const zoneFixtures = (name) => [...new Set(zoneDef(name).fixtures.map(f => f[0]))];
 // zones that fill repeated upper floors, and zones that like the top floor
 const REPEAT = new Set(['guest_rooms', 'units', 'classroom', 'ward', 'offices', 'parking', 'lecture', 'stacks', 'room']);
 const TOP = new Set(['restaurant', 'lounge', 'pool', 'gallery']);
@@ -68,6 +70,17 @@ export function defaultFloors(typeName, levels) {
   if (upperEnd >= 2) floors.push({ range: [2, upperEnd], name: upperEnd > 2 ? `2~${upperEnd}층` : '2층', zones: upper });
   if (top.length) floors.push({ range: [levels, levels], name: `${levels}층`, zones: top });
   return floors;
+}
+
+// ---------- the front door ----------
+// Guests come in through the front edge of the ground floor, into the zone meant for them, never through the kitchen.
+const DOOR_PREF = ['counter', 'checkout', 'tickets', 'lobby', 'reception', 'foyer', 'hall', 'concourse', 'shop', 'aisles', 'sales', 'stalls', 'seating', 'dining', 'restaurant', 'canteen', 'bar', 'waiting', 'gallery', 'lounge', 'maru', 'living'];
+const BACK = new Set(['kitchen', 'stockroom', 'racks', 'loading', 'wc', 'bath', 'bedroom', 'corridor', 'production', 'workshop', 'nurse', 'or', 'lockers']);
+function doorOf(zones, front, ox, W) {
+  const atFront = zones.filter(z => z.z + z.d >= front - .05 && !BACK.has(z.zone));
+  const rank = (z) => { const i = DOOR_PREF.indexOf(z.zone); return i < 0 ? 99 : i; };
+  const z = atFront.sort((a, b) => rank(a) - rank(b) || b.w - a.w)[0];
+  return z ? { x: z.x + z.w / 2, z: front } : { x: ox + W / 2, z: front };
 }
 
 // ---------- squarified treemap ----------
@@ -156,7 +169,7 @@ export function buildSection(b, { owned } = {}) {
     box(core.w * .8, h, core.d * .8, mat('#9fc3d0', { transparent: true, opacity: .25, depthWrite: false }), ox + core.x + core.w / 2, 0, oz + core.d / 2);
     box(.5, .5, .5, mat('#e3b448'), ox + core.x + core.w / 2, GAP * .5, oz + core.d / 2);
   }
-  Object.assign(plan, { W, D, gap: GAP, core: core ? { x: ox + core.x + core.w / 2, z: oz + core.d + .25 } : null, door: { x: ox + Math.min(W * .3, 1.2), z: -oz } });
+  Object.assign(plan, { W, D, gap: GAP, core: core ? { x: ox + core.x + core.w / 2, z: oz + core.d + .25 } : null, door: doorOf(plan.floors[0]?.zones ?? [], -oz, ox, W) });
   return { group: root, labels, fixtures: placed, plan };
 
   function partition(at, a0, a1, axis) {
