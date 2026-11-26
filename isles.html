@@ -49,6 +49,8 @@
   .world .wcard { position:absolute; z-index:2; right:12px; bottom:12px; width:320px; max-width:calc(100vw - 24px); background:var(--card); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:8px; box-shadow:0 6px 0 rgba(0,0,0,.3); }
   .world .wcard[hidden] { display:none; } .world .wcard h2 { margin:0; font:400 21px var(--f-disp); }
   .world .wcard canvas { width:100%; border-radius:10px; background:var(--sea); image-rendering:auto; }
+  /* the general pressed-button nudge must not replace the spot's own centring, or the spot slips out from under the pointer */
+  .spot:active:not(:disabled) { transform:translate(-50%, calc(-100% + 2px)); box-shadow:none; } .bubble:active:not(:disabled) { transform:translate(-50%, calc(-50% + 2px)); }
   .bubble { position:absolute; transform:translate(-50%, -50%); border-radius:50%; border:3px solid #fbf6ec; background:var(--accent); color:#fff; display:flex; flex-direction:column; align-items:center; justify-content:center; padding:0; box-shadow:0 3px 0 rgba(0,0,0,.3), 0 0 0 6px rgba(63,122,116,.25); cursor:pointer; }
   .bubble b { font:400 16px var(--f-disp); line-height:1; } .bubble .where { position:absolute; top:100%; margin-top:4px; background:rgba(251,246,236,.95); color:var(--ink); border-radius:8px; padding:0 6px; font:700 11px var(--f-ui); white-space:nowrap; }
   .bubble.mine { background:var(--gold); color:#3a2a00; box-shadow:0 3px 0 rgba(0,0,0,.3), 0 0 0 6px rgba(227,167,47,.35); } .bubble.here { border-color:#fff; }
