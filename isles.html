@@ -439,7 +439,7 @@ setInterval(hud, 500); hud();
 // furniture comes in by itself: every 3 s, the next piece (of any shop) that raises income most per coin,
 // keeping enough for the next batch of supplies. Off when the owner turns it off on the home panel.
 setInterval(() => {
-  if (!myDoc || myDoc.wallet.manual || tutOn() || inTutOn()) return;   // during the first visit the owner buys by hand
+  if (!myDoc || !myDoc.wallet.autoInvest || tutOn() || inTutOn()) return;   // off unless the owner turns it on
   let best = null;
   for (const p of allPlots()) {
     if (p.owner !== me || !p.b || !roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves) continue;
@@ -676,8 +676,8 @@ function celebrate(title, sub) {
   const c = el('div', { class: 'celebrate' }, el('b', {}, title), el('span', {}, sub)); document.body.append(c); celebT = setTimeout(() => c.remove(), 2600);
 }
 $('d-home').onclick = () => { setBuildMode(false); if (panel.hidden || current) showHome(); else closePanel(); };   // open my island; a second press closes it
-$('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.manual = !myDoc.wallet.manual; save(true); dockState(); toast(myDoc.wallet.manual ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
-function dockState() { const auto = !!myDoc && !myDoc.wallet.manual; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = auto ? '자동 켬' : '자동 끔'; }
+$('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.autoInvest = !myDoc.wallet.autoInvest; save(true); dockState(); toast(!myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
+function dockState() { const auto = !!myDoc && !!myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = auto ? '자동 켬' : '자동 끔'; }
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && buildMode) setBuildMode(false); });
 
 // ---------- panel ----------
@@ -716,8 +716,8 @@ function showHome(msg) {
   show(el('h2', {}, `${mySlot}번 섬 · 내 섬`),
     (() => { const w = G(), lv = levelOf(w.served), nx = LEVELS[lv + 1]; return el('div', { class: 'card' }, el('span', {}, `Lv.${lv + 1} ${LEVELS[lv].name} · 받은 손님 ${w.served}명`, el('div', { class: 'note' }, nx ? `손님 ${nx.at - w.served}명 더 받으면 ${nx.name} — ${nx.size !== LEVELS[lv].size ? nx.size + ' 크기가 열려요' : '번화가!'}` : '최고 단계예요')),
       el('span', {}, `🎫 ${w.permits}`, el('div', { class: 'note' }, `다음까지 ${w.nextAt - w.served}명`))); })(),
-    el('div', { class: 'note' }, `내 건물 ${mine}/${maxPlots()}`), boatCard(), el('div', { class: 'card' }, el('span', {}, myDoc.wallet.manual ? '가구는 직접 들여요' : '가구가 자동으로 들어와요', el('div', { class: 'note' }, '재료 값은 남겨 두고, 수입을 가장 많이 올리는 가구부터')),
-      el('button', { class: 'ghost', on: { click: () => { myDoc.wallet.manual = !myDoc.wallet.manual; save(true); showHome(); } } }, myDoc.wallet.manual ? '자동으로' : '직접 하기')),
+    el('div', { class: 'note' }, `내 건물 ${mine}/${maxPlots()}`), boatCard(), el('div', { class: 'card' }, el('span', {}, !myDoc.wallet.autoInvest ? '가구는 직접 들여요' : '가구가 자동으로 들어와요', el('div', { class: 'note' }, '재료 값은 남겨 두고, 수입을 가장 많이 올리는 가구부터')),
+      el('button', { class: 'ghost', on: { click: () => { myDoc.wallet.autoInvest = !myDoc.wallet.autoInvest; save(true); showHome(); } } }, !myDoc.wallet.autoInvest ? '자동으로' : '직접 하기')),
     landCard(), msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃 섬과 다리'), bridgeCards(), inviteCard());
 }
