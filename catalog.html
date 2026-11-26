@@ -1,0 +1,55 @@
+<!doctype html>
+<html lang="ko">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>promptshop — catalogue</title>
+<style>
+  :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:14px/1.5 system-ui, "Noto Sans KR", sans-serif; padding:20px 16px; }
+  h1 { margin:0 0 4px; font-size:24px; } h2 { margin:24px 0 8px; font-size:16px; color:var(--dim); letter-spacing:.06em; }
+  .row { display:flex; flex-wrap:wrap; gap:14px; align-items:flex-end; }
+  figure { margin:0; display:flex; flex-direction:column; align-items:center; gap:2px; }
+  figure canvas { image-rendering:pixelated; width:calc(var(--w) * 1px); }
+  figcaption { font-size:12px; color:var(--dim); text-align:center; }
+  figcaption b { color:var(--ink); }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<h1>Building catalogue</h1>
+<p style="margin:0;color:var(--dim)">Every type in its default look, then the same buildings in each style. Name and real floor count are labels outside the picture.</p>
+<div id="out"></div>
+<pre id="dump" hidden></pre>
+<script type="module">
+import { renderBuilding } from './src/v2/render.js';
+import { TYPES, FAMILIES, TYPE_KO, STYLE_NAMES, STYLE_KO } from './src/v2/catalog.js';
+const q = new URLSearchParams(location.search), zoom = +(q.get('zoom') ?? 1);
+const out = document.getElementById('out');
+const tiles = [];
+function fig(spec, label) {
+  const c = renderBuilding(spec); c.style.setProperty('--w', c.width * zoom);
+  const f = document.createElement('figure'); const cap = document.createElement('figcaption');
+  const b = document.createElement('b'); b.textContent = label; cap.append(b, document.createElement('br'), `${spec.levels ?? c.dataset.levels}층`);
+  f.append(c, cap); tiles.push([c, label, c.dataset.levels]); return f;
+}
+const famKo = { food: '음식', retail: '상점', leisure: '여가', hospitality: '숙박', civic: '공공', education: '교육', health: '의료', culture: '문화', sport: '스포츠', transport: '교통', industry: '산업', residential: '주거', religious: '종교', landmark: '랜드마크' };
+for (const fam of FAMILIES) {
+  const h = document.createElement('h2'); h.textContent = famKo[fam] ?? fam; out.append(h);
+  const row = document.createElement('div'); row.className = 'row'; out.append(row);
+  for (const [name, t] of Object.entries(TYPES)) if (t.family === fam) row.append(fig({ type: name }, TYPE_KO[name] ?? name));
+}
+const h = document.createElement('h2'); h.textContent = '스타일'; out.append(h);
+for (const type of ['house', 'cafe', 'apartment', 'school']) {
+  const row = document.createElement('div'); row.className = 'row'; out.append(row);
+  for (const style of STYLE_NAMES) row.append(fig({ type, style, levels: type === 'apartment' ? 12 : undefined }, `${TYPE_KO[type]} · ${STYLE_KO[style]}`));
+}
+if (q.get('dump')) {
+  // one contact sheet for headless checks
+  const cols = +(q.get('cols') ?? 10), cw = 300, ch = 330;
+  const sheet = document.createElement('canvas'); sheet.width = cols * cw; sheet.height = Math.ceil(tiles.length / cols) * ch;
+  const g = sheet.getContext('2d'); g.fillStyle = '#e8dcc4'; g.fillRect(0, 0, sheet.width, sheet.height); g.imageSmoothingEnabled = false;
+  tiles.forEach(([c, label, lv], i) => { const x = (i % cols) * cw, y = Math.floor(i / cols) * ch; const k = Math.min(1, (cw - 10) / c.width, (ch - 30) / c.height);
+    g.drawImage(c, x + (cw - c.width * k) / 2, y + ch - 28 - c.height * k, c.width * k, c.height * k);
+    g.fillStyle = '#2e241a'; g.font = '14px "Noto Sans CJK KR", sans-serif'; g.textAlign = 'center'; g.fillText(`${label} · ${lv}층`, x + cw / 2, y + ch - 8); });
+  const d = document.getElementById('dump'); d.textContent = sheet.toDataURL('image/png');
+}
+</script>
+</html>

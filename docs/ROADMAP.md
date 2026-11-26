@@ -80,8 +80,8 @@ Done when: at least 95% of evaluation lines build without errors, and the review
 
 The building spec is short text. With a Haiku-class model one building costs about $0.001 (about 1.5 KRW). A revision pass adds about 30%. A typical floor is written once, so floor count does not raise the cost.
 
-## Open decisions
+## Decisions (2026-11-26)
 
-1. **Tall buildings in the town view.** Option A: true height. Option B: compress above about 8 floors with a band that shows the real count. B is recommended, so a skyline does not hide the town.
-2. **Building view layout.** The stacked cross-section is recommended. The alternative is floor buttons, like an elevator.
-3. **Style presets that come first.** Recommended: hanok, modern glass, brick, Mediterranean, Nordic wood.
+1. **Tall buildings in the town view** are compressed above 8 floors. A band on the facade marks the hidden floors, and the label shows the real count.
+2. **Building view** is the stacked cross-section.
+3. **First style presets**: hanok, modern glass, brick, Mediterranean, Nordic wood.

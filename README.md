@@ -38,6 +38,12 @@ To export PNGs with headless Chrome:
 scripts/render.sh            # writes out/<id>-ext.png and out/<id>-int.png
 ```
 
+## Catalogue (spec v2, in progress)
+
+`catalog.html` renders every building type in `src/v2/catalog.js` with its default look, then the same buildings in each style preset. Spec v2 lives in `src/v2/`: the model picks a type and a style, `normalize()` fills every default, and `buildExterior()` draws masses, roofs, facades, signs and props.
+
+![catalogue: 52 building types and 5 style presets](docs/img/catalog.png)
+
 ## Watch it build
 
 `build.html` shows a shop being built while the model is still writing. The model answers in **JSON Lines, one part per line** (name → body → front → roof → sign → props → room → furniture), and every finished line is built at once: the body rises out of the ground, then each part drops into place, and a build log lists what each line added.
