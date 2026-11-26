@@ -90,7 +90,7 @@ export class TownSim {
   spawn(at, delay = 0, need = null, dock = null, vip = false) {
     if (!this.roads.length) return;
     const [x, z] = at ?? this.roads[Math.floor(this.rnd() * this.roads.length)];
-    this.people.push({ dock, x: x + .5, z: z + .5, path: [], need, since: this.t, target: null, wait: delay, t: this.rnd() * 10, shirt: Math.floor(this.rnd() * 8), vip, side: (this.rnd() - .5) * .5, speed: .8 + this.rnd() * .5, mood: 0, giveUp: 0 });
+    return this.people[this.people.push({ dock, x: x + .5, z: z + .5, path: [], need, since: this.t, target: null, wait: delay, t: this.rnd() * 10, shirt: Math.floor(this.rnd() * 8), vip, side: (this.rnd() - .5) * .5, speed: .8 + this.rnd() * .5, mood: 0, giveUp: 0 }) - 1];
   }
   /** Go to the nearest building that serves this person's want and has room; nothing is hidden: no room → they give up. */
   route(p) {
@@ -148,9 +148,9 @@ export class TownSim {
       if (s.busy >= (s.interval ?? 2.2 / (s.speed ?? 1))) {
         s.busy = 0; const p = s.queue.shift(); p.inQueue = false; p.target = null; p.wait = .8;
         if (s.stock <= 0) { p.need = null; p.mood = 2; this.events.push({ kind: 'empty', lot: s.id, owner: s.owner, t: this.t }); continue; }
-        s.stock--; s.served++; p.mood = 1;
+        s.stock--; s.served++; p.mood = 1; const fest = p.fest && !p.festServed ? p.fest : 0; if (fest) p.festServed = true;
         // a shop someone is looking inside: the guest walks in there and pays at the table instead
-        this.events.push(s.watched ? { kind: 'enter', lot: s.id, owner: s.owner, used: 1, t: this.t, vip: !!p.vip } : { kind: 'coin', lot: s.id, owner: s.owner, coins: s.price, used: 1, t: this.t, vip: !!p.vip }); p.vip = false;
+        this.events.push(s.watched ? { kind: 'enter', lot: s.id, owner: s.owner, used: 1, t: this.t, vip: !!p.vip, fest } : { kind: 'coin', lot: s.id, owner: s.owner, coins: s.price, used: 1, t: this.t, vip: !!p.vip, fest }); p.vip = false;
         // a visitor sometimes wants one more thing before going home
         p.need = p.dock && this.rnd() < .3 ? NEED_KEYS[Math.floor(this.rnd() * NEED_KEYS.length)] : null; p.since = this.t; p.tried = false;
       }

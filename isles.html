@@ -230,6 +230,11 @@
   .autot .ic img { width:20px; height:20px; display:block; image-rendering:pixelated; } .autot:active:not(:disabled) { transform:translateY(2px); box-shadow:0 1px 0 rgba(20,30,40,.35); }
   .autot .sw { position:relative; width:30px; height:16px; border-radius:8px; background:#6b5d4d; transition:background .15s; } .autot .sw::after { content:''; position:absolute; left:2px; top:2px; width:12px; height:12px; border-radius:50%; background:#fbf1dc; transition:left .15s; }
   .autot.on .sw { background:#4fbf6b; } .autot.on .sw::after { left:16px; } .autot[hidden] { display:none; } body.inshop .autot { opacity:0; pointer-events:none; }
+  .festp { position:fixed; z-index:16; left:50%; top:12px; transform:translateX(-50%); display:flex; align-items:center; gap:8px; padding:6px 14px 6px 8px; border-radius:24px; background:rgba(46,36,26,.86); color:#fbf1dc; box-shadow:0 4px 0 rgba(20,30,40,.35); font:400 17px var(--f-disp); }
+  .festp[hidden] { display:none; } .festp:active:not(:disabled) { transform:translate(-50%, 2px); box-shadow:0 2px 0 rgba(20,30,40,.35); }
+  .festp img { width:22px; height:22px; image-rendering:pixelated; display:block; } .festp .nd { display:flex; align-items:center; gap:2px; font-size:15px; } .festp .cd { min-width:42px; color:#ffe08a; font-size:20px; text-align:center; }
+  .festp .bar { width:90px; height:10px; border-radius:6px; background:#5a4a3a; overflow:hidden; } .festp .bar i { display:block; height:100%; background:#4fbf6b; } .festp .bar i.lost { background:#e2685a; float:right; }
+  .festp.soon { animation:nudge 1.2s infinite; } .festp.here .cd { color:#7ee08f; }
   .zoomb { display:flex; flex-direction:column; margin-top:26px; border-radius:22px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); overflow:hidden; }
   .zb { width:44px; height:44px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; font:700 28px/1 var(--f-ui); display:grid; place-items:center; }
   .zb + .zb { border-top:1px solid rgba(251,241,220,.2); } .zb:hover { background:rgba(255,255,255,.1); } .zb:active:not(:disabled) { transform:none; box-shadow:none; background:rgba(255,255,255,.18); } .zb:disabled { filter:none; color:rgba(251,241,220,.3); } body.inshop .zoomb { opacity:0; pointer-events:none; }
@@ -252,6 +257,7 @@
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
 <div class="hud tl"><button class="isleb" id="who"></button><button class="autot" id="d-auto" title="가구 자동으로 들이기"><span class="ic" data-i="chair"></span><span id="d-auto-t">자동</span><i class="sw"></i></button></div>
+<button class="festp" id="festp" hidden></button>
 <div class="hud tr"><div class="coinb" id="coinb"><span class="cic"></span><b id="wallet"></b><small id="rate"></small></div><div class="zoomb"><button class="zb" id="zin" title="가까이" aria-label="가까이">+</button><button class="zb" id="zout" title="멀리" aria-label="멀리">−</button></div></div>
 <aside class="panel" id="panel" hidden></aside>
 <div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><div class="shopacts" id="shopacts"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
@@ -514,16 +520,18 @@ function sprite(p) {
 let last = performance.now();
 function frame(t) {
   const dt = Math.min(.05, (t - last) / 1000); last = t;
-  sim.step(dt); stepBoats(dt); stepInside(dt);
+  sim.step(dt); stepBoats(dt); stepInside(dt); stepFest(dt);
   for (const e of sim.events.splice(0)) {
     const mine = !!me && e.owner === me;
     if (e.kind === 'empty') { pops.push({ key: e.lot, text: '재료 없음', mine, bad: true, t: 0 }); continue; }
     if (e.kind === 'enter') {   // the guest walks into the shop we are looking inside, and pays at the table there
+      if (mine && e.fest) festServed(e);
       if (mine) { countGuest(); const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
       if (mine && e.vip) { const p = allPlots().find(q => q.key === e.lot), b = vipBonus(p ? starsInfo(p).stars : 3); myDoc.wallet.coins += b; earned.push([performance.now(), b]); pops.push({ key: e.lot, text: `👑 VIP +${b}`, mine, t: 0 }); }
       if (watching?.key === e.lot) { watching.view.sim.spawn(); const ps = watching.view.sim.people; if (e.vip && ps.length) ps[ps.length - 1].vip = true; watching.ins.push(performance.now()); } continue;
     }
     if (mine && e.vip) { const p = allPlots().find(q => q.key === e.lot), b = vipBonus(p ? starsInfo(p).stars : 3); myDoc.wallet.coins += b; earned.push([performance.now(), b]); pops.push({ key: e.lot, text: `👑 VIP +${b}`, mine, t: -.4 }); }
+    if (mine && e.fest) festServed(e);
     if (mine) { tutEvent('coin'); countGuest(); earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
@@ -545,6 +553,7 @@ function frame(t) {
   if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
   for (const b of boats) items.push({ d: b.x + b.z, draw: () => drawBoat(b) });
+  if (fest) items.push({ d: fest.x + fest.z, draw: drawFestBoat });
   { const sb = building ?? site.done; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
       items.push({ d: sb.x + sb.z - .01, draw: () => drawSite('back') }, { d: sb.x + sb.z + n + .02, draw: () => drawSite('front') }); } else site.parts.length = 0; }
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
@@ -614,6 +623,66 @@ function stepBoats(dt) {
     } else { b.x += dx / dist * v; b.z += dz / dist * v; }
   }
   for (let i = boats.length - 1; i >= 0; i--) if (boats[i].done) boats.splice(i, 1);
+}
+// ---------- the festival boat: now and then a big boat shows on the horizon; a minute later its crowd lands all at once ----------
+// what it brings is shown in advance, so the owner can get the shops ready; how many get served is the score
+const FEST_FIRST = 90, FEST_EVERY = 240, FEST_WARN = 60, FEST_TIP = 5;
+let fest = null, nextFest = performance.now() / 1000 + FEST_FIRST;
+function festNeeds(total) {   // mostly what my shops serve (so it tests them), some of everything else
+  const mine = islandShops(mySlot).map(p => roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves).filter(Boolean), out = {};
+  for (let k = 0; k < total; k++) { const n = Math.random() < .8 && mine.length ? mine[Math.floor(Math.random() * mine.length)] : NEED_KEYS[Math.floor(Math.random() * NEED_KEYS.length)]; out[n] = (out[n] ?? 0) + 1; }
+  return out;
+}
+function stepFest(dt) {
+  const t = performance.now() / 1000;
+  if (!fest) {
+    if (!myDoc || !mySlot || tutOn() || t < nextFest) return;
+    const shops = islandShops(mySlot).length; if (!shops) { nextFest = t + 30; return; }
+    const total = Math.min(48, 14 + 6 * shops), d = dockOf(mySlot), from = [d.out[0] + .5, d.out[1] + .5 + 10 * Math.sign(d.out[1] - d.stop[1] || 1)];
+    fest = { id: Math.floor(t), state: 'coming', t0: t, arrive: t + FEST_WARN, total, needs: festNeeds(total), people: [], served: 0, tips: 0, x: from[0], z: from[1], from, to: [d.stop[0] + .5, d.stop[1] + .5], bt: 0 };
+    return;
+  }
+  fest.bt += dt;
+  if (fest.state === 'coming') {
+    const u = Math.min(1, (t - fest.t0) / FEST_WARN), e = 1 - (1 - u) ** 2; fest.x = fest.from[0] + (fest.to[0] - fest.from[0]) * e; fest.z = fest.from[1] + (fest.to[1] - fest.from[1]) * e;
+    if (t >= fest.arrive) {   // landing: everyone off, a few at a time
+      fest.state = 'here'; fest.landed = t; const d = dockOf(mySlot); let k = 0;
+      for (const [need, n] of Object.entries(fest.needs)) for (let i = 0; i < n; i++, k++) { const p = sim.spawn(d.road, k * .22, need, d.road); if (p) { p.fest = fest.id; fest.people.push(p); } }
+      celebrate('🎉 축제 손님 도착!', `${fest.total}명`);
+    }
+  } else if (fest.state === 'here') {
+    const left = fest.people.filter(p => !p.festServed && !p.gone && p.mood !== 2).length;
+    if (!left || t - fest.landed > 75) {   // the result: how many got served, as stars
+      const r = fest.served / fest.total, st = r >= .95 ? 3 : r >= .75 ? 2 : r >= .5 ? 1 : 0;
+      celebrate(`${'★'.repeat(st)}${'☆'.repeat(3 - st)} 축제 ${fest.served}/${fest.total}`, `팁 +${fest.tips}동전${fest.total - fest.served ? ` · ${fest.total - fest.served}명 돌아감` : ''}`);
+      fest.state = 'leave'; fest.left = t;
+    }
+  } else if (fest.state === 'leave') {
+    const u = Math.min(1, (t - fest.left) / 6); fest.x = fest.to[0] + (fest.from[0] - fest.to[0]) * u * u; fest.z = fest.to[1] + (fest.from[1] - fest.to[1]) * u * u;
+    if (u >= 1) { fest = null; nextFest = t + FEST_EVERY; }
+  }
+  festHud();
+}
+function festServed(e) { if (!fest || e.fest !== fest.id) return; fest.served++; fest.tips += FEST_TIP; myDoc.wallet.coins += FEST_TIP; earned.push([performance.now(), FEST_TIP]); pops.push({ key: e.lot, text: `🎉+${FEST_TIP}`, mine: true, t: -.2 }); dirty = true; }
+let festKey = '';
+function festHud() {
+  const b = $('festp'); if (!fest || fest.state === 'leave') { b.hidden = true; festKey = ''; return; }
+  const t = performance.now() / 1000, cd = Math.max(0, Math.ceil(fest.arrive - t)), key = fest.state + cd + fest.served + fest.people.filter(p => p.mood === 2 && !p.festServed).length;
+  if (key === festKey) return; festKey = key; b.hidden = false; b.classList.toggle('soon', fest.state === 'coming' && cd <= 15); b.classList.toggle('here', fest.state === 'here');
+  const ic = iconEl('boat', 22, '');
+  if (fest.state === 'coming') b.replaceChildren(ic, el('span', { class: 'cd' }, `0:${String(cd).padStart(2, '0')}`), ...Object.entries(fest.needs).sort((a, c) => c[1] - a[1]).map(([k, n]) => el('span', { class: 'nd' }, iconEl(NEED_ICON[k], 22, ''), String(n))));
+  else { const lost = fest.people.filter(p => p.mood === 2 && !p.festServed).length;
+    b.replaceChildren(ic, el('span', { class: 'cd' }, `${fest.served}/${fest.total}`), el('span', { class: 'bar' }, Object.assign(el('i'), { style: `width:${fest.served / fest.total * 100}%` }), Object.assign(el('i', { class: 'lost' }), { style: `width:${lost / fest.total * 100}%` }))); }
+}
+$('festp').onclick = () => { if (watching) closeInside(); scrollToSlot(mySlot); };
+function drawFestBoat() {   // a big boat with bunting and a deck full of people
+  if (!fest) return; const [px, py] = pr.P(fest.x, fest.z), x = Math.round(px), y = Math.round(py + Math.sin(fest.bt * 2) * 2), s = 2;
+  g.fillStyle = 'rgba(255,255,255,.35)'; g.fillRect(x - 13 * s, y + 3 * s, 26 * s, 2);
+  g.fillStyle = '#6b4026'; g.beginPath(); g.moveTo(x - 14 * s, y - 3 * s); g.lineTo(x + 14 * s, y - 3 * s); g.lineTo(x + 10 * s, y + 3 * s); g.lineTo(x - 10 * s, y + 3 * s); g.closePath(); g.fill();
+  g.fillStyle = '#c0392b'; g.fillRect(x - 14 * s, y - 4 * s, 28 * s, 2 * s);
+  for (const mx of [-6, 6]) { g.fillStyle = '#3a2418'; g.fillRect(x + mx * s, y - 26 * s, 2, 22 * s); g.fillStyle = '#f4f1ea'; g.beginPath(); g.moveTo(x + mx * s + 2, y - 25 * s); g.lineTo(x + mx * s + 11 * s, y - 9 * s); g.lineTo(x + mx * s + 2, y - 9 * s); g.closePath(); g.fill(); }
+  const cols = ['#e2432f', '#ffcf3f', '#4ee0c1', '#b79cff', '#ff8fa3']; for (let k = 0; k < 9; k++) { const u = k / 8, fx = x - 6 * s + u * 12 * s, fy = y - 26 * s + Math.sin(u * Math.PI) * 4 * s; g.fillStyle = cols[k % 5]; g.fillRect(Math.round(fx) - 1, Math.round(fy), 3, 4); }
+  if (fest.state === 'coming') { const n = Math.min(14, fest.total); for (let k = 0; k < n; k++) { g.fillStyle = cols[k % 5]; g.fillRect(x - 11 * s + (k % 7) * 3.2 * s, y - 7 * s - Math.floor(k / 7) * 3, 3, 4); } }
 }
 function drawBoat(b) {
   const [px, py] = pr.P(b.x, b.z), x = Math.round(px), y = Math.round(py + Math.sin(b.t * 3) * 1.5);
@@ -1506,7 +1575,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(u, d))])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
+window.__isles = { fest: (sec = 3) => { nextFest = performance.now() / 1000; setTimeout(() => { if (fest) { fest.arrive = performance.now() / 1000 + sec; fest.t0 = fest.arrive - FEST_WARN; } }, 100); }, get festState() { return fest && { state: fest.state, served: fest.served, total: fest.total, needs: fest.needs }; }, celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
