@@ -1,6 +1,6 @@
 // Moving a building: it lifts, follows the pointer, and lands where it fits; landing on another of mine swaps them.
 import { PLOT, placePlot, slotAt } from '../v2/isles.js';
-import { S, pr, splash } from './state.js';
+import { S, pr, splash, canWrite } from './state.js';
 import { takenSet, rebuild } from './model.js';
 import { save } from './persist.js';
 import { toast } from './hud.js';
@@ -9,7 +9,7 @@ import { closeInside } from './shop.js';
 import { setBuildMode } from './build.js';
 
 export function startMove(key) {
-  const p = S.myDoc?.plots[key]; if (!p) return;
+  const p = S.myDoc?.plots[key]; if (!p || !canWrite()) return;
   if (S.watching) closeInside(); setBuildMode(false); closePanel();
   S.moving = { key, size: p.size }; S.hover = null; toast('↔ 옮길 자리를 눌러요 · 내 건물을 누르면 자리 바꾸기');
 }

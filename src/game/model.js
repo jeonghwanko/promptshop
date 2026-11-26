@@ -19,6 +19,8 @@ export const hooks = {
   happened: (name) => {},
   /** A plot of mine changed outside its screen (supplies, furniture coming in by itself). */
   plotChanged: (key) => {},
+  /** Another tab took my island over: this one only watches now. */
+  yielded: () => {},
 };
 
 export const nameOf = (uid) => uid?.startsWith('seed') ? (S.docs.get(uid)?.name ?? '예시 친구') : uid === me ? '나' : (S.names[uid] || '친구');

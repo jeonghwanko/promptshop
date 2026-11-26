@@ -260,3 +260,7 @@
   :is(.dock, .zoomb) .rb.big { animation:none; } :is(.dock, .zoomb) .rb.big.ready .ic { animation:nudge 1.6s infinite; } :is(.dock, .zoomb) .rb.ready { animation:none; } :is(.dock, .zoomb) .rb.big.on .lb { color:#ffe08a; }
   @media (max-width:440px) { :is(.dock, .zoomb) .rb .ic { zoom:.72; } :is(.dock, .zoomb) .rb.big .ic { zoom:.8; } :is(.dock, .zoomb) .rb.sm .ic { zoom:.6; } .dock > div { gap:2px; } }
   @media (max-width:760px) { .panel { top:auto; bottom:124px; max-height:52vh; } .rcard { width:min(212px, 44vw); min-height:200px; } }
+/* another tab plays this island: this one only watches, with one way back */
+.handoff { position:fixed; inset:0; z-index:60; display:grid; place-items:center; background:rgba(20,28,40,.55); }
+.handoff > div { display:flex; flex-direction:column; align-items:center; gap:14px; padding:22px 30px; border-radius:18px; background:#2e241a; color:#fff7e6; box-shadow:0 6px 0 #1a130c; }
+.handoff b { font:400 22px "Jua", "Noto Sans KR", sans-serif; }

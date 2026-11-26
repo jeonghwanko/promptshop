@@ -17,7 +17,7 @@ import { show, showHome, showBuilding, closePanel, panelOpen } from './panel.js'
 import { initShop, openShop, closeInside, stepInside } from './shop.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { initInput } from './input.js';
-import { startExtend } from './build.js';
+import { setBuildMode, startExtend } from './build.js';
 import { dustSite } from './mapfx.js';
 import { initWorld, openWorld } from './world.js';
 
@@ -30,6 +30,11 @@ pixelIcons(document.body);   // emoji in the game's words become pixel icons eve
 hooks.celebrate = celebrate;
 hooks.guiding = (inside) => tutOn() || (inside && inTutOn());
 hooks.happened = tutEvent;
+hooks.yielded = () => {   // another tab plays this island now: this one stops and offers to take it back
+  closeInside(); setBuildMode(false); cancelMove(); closePanel();
+  if (document.querySelector('.handoff')) return;
+  document.body.append(el('div', { class: 'handoff' }, el('div', {}, el('b', {}, '다른 창에서 플레이 중'), el('button', { class: 'gold', on: { click: () => location.reload() } }, '여기서 하기'))));
+};
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };
 hooks.rebuilt = () => {
   if (!S.scrolled) { S.scrolled = true; S.zoom = startZoom(S.mySlot || 1); applyZoom(); setTimeout(() => scrollToSlot(S.mySlot || 1), 50); }
@@ -72,4 +77,4 @@ window.__isles = {
 };
 // ?world=1 opens the world map at once; ?open=<plot key> opens a building's inside at once (for checks)
 if (q.get('world')) setTimeout(openWorld, 600);
-if (q.get('open')) setTimeout(() => openShop(q.get('open')), 1500);
+if (q.get('open')) { const t = setInterval(() => { if (S.role === 'live') { clearInterval(t); openShop(q.get('open')); } }, 300); }

@@ -5,7 +5,7 @@ import { voxelEl } from '../ui/voxelui.js';
 import { NEED_KEYS } from '../v2/townsim.js';
 import { LEVELS, levelOf } from './rules.js';
 import { $, el } from './ui.js';
-import { S, sim, earned, boats, nextBoat } from './state.js';
+import { S, sim, earned, boats, nextBoat, canWrite } from './state.js';
 import { G, boatPlan } from './model.js';
 import { save } from './persist.js';
 import { toScreen, scrollToSlot } from './camera.js';
@@ -91,6 +91,6 @@ export function initHud() {
   });
   $('d-build').onclick = () => { if (!S.mySlot) return showHome(); if (S.buildMode) return setBuildMode(false); openCards(); };
   $('d-home').onclick = () => { setBuildMode(false); if ($('panel').hidden || S.current) showHome(); else closePanel(); };   // open my island; a second press closes it
-  $('d-auto').onclick = () => { if (!S.myDoc) return; S.myDoc.wallet.autoInvest = !S.myDoc.wallet.autoInvest; save(true); dockState(); toast(!S.myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
+  $('d-auto').onclick = () => { if (!S.myDoc || !canWrite()) return; S.myDoc.wallet.autoInvest = !S.myDoc.wallet.autoInvest; save(true); dockState(); toast(!S.myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
   $('festp').onclick = () => { if (S.watching) closeInside(); scrollToSlot(S.mySlot); };
 }

@@ -28,9 +28,12 @@ export const nextBoat = new Map();   // slot → when its next boat leaves (seco
 export const splash = [];        // spray and dust particles on the map
 
 export const now = () => Date.now();
+/** This tab holds my island and may change it (see lease.js). */
+export const canWrite = () => S.role === 'live';
 
 export const S = {
   // saved islands
+  role: 'new',                   // this tab and my island: 'new' (not seen yet) | 'settle' (taking over) | 'live' (mine to play) | 'idle' (another tab plays)
   docs: new Map(),               // uid → { slot, at, plots, half, wallet, land, rev }
   owners: new Map(),             // slot → uid (first to take it)
   myDoc: null, mySlot: 0,

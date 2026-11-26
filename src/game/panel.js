@@ -8,9 +8,9 @@ import { renderView } from '../v2/render.js';
 import { iconEl } from '../ui/icons.js';
 import { START_COINS, BRIDGE, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, LEVELS, levelOf } from './rules.js';
 import { $, el, xbtn } from './ui.js';
-import { S, db, me, isOwner, COL, now } from './state.js';
+import { S, db, me, isOwner, now, canWrite } from './state.js';
 import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild } from './model.js';
-import { save } from './persist.js';
+import { save, createMine, removeOthers } from './persist.js';
 import { scrollToSlot } from './camera.js';
 import { toast, celebrate } from './hud.js';
 import { guide } from './guide.js';
@@ -51,7 +51,7 @@ function landCard() {
   return el('div', { class: 'card tile' + (!b.disabled ? ' alert' : '') }, iconEl('sprout', 40, ''), el('span', { class: 'tt' }, el('b', {}, `땅 넓히기 ${k}/${LAND_MAX}`), el('small', {}, `+${gain}칸 · 건물 +${PLOTS_PER_LAND}`)), b);
 }
 async function widen() {
-  const { myDoc, mySlot } = S, k = myDoc.land ?? 0, cost = LAND_COST[k]; if (k >= LAND_MAX || myDoc.wallet.coins < cost) return;
+  const { myDoc, mySlot } = S, k = myDoc.land ?? 0, cost = LAND_COST[k]; if (!canWrite() || k >= LAND_MAX || myDoc.wallet.coins < cost) return;
   setLand(mySlot, k); const was = new Set(tilesOf(mySlot).map(t => t + ''));
   const old = S.ground;   // the coast as it was, shown while the new ring rises
   myDoc.wallet.coins -= cost; myDoc.land = k + 1; rebuild(); save(true);
@@ -85,11 +85,11 @@ export function showHome(msg) {
 }
 async function join(s) {
   if (S.owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');
-  S.myDoc = { slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0 } };
-  S.docs.set(me, S.myDoc); rebuild(); await save(true); closePanel(); scrollToSlot(s); guide();
+  await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0 } });
+  closePanel(); scrollToSlot(s); guide();
 }
 async function halfBridge(n) {
-  const { myDoc } = S;
+  const { myDoc } = S; if (!canWrite()) return;
   if (myDoc.wallet.coins < BRIDGE) return showHome(`다리 반쪽에는 ${BRIDGE} 동전이 필요해요.`);
   myDoc.wallet.coins -= BRIDGE; myDoc.half = { ...myDoc.half, [n]: now() }; rebuild(); await save(true); showHome();
 }
@@ -114,6 +114,7 @@ export function showBuilding(key) {
       me && (mineP || isOwner) ? el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거') : null));
 }
 async function demolish(p) {
-  if (p.owner === me) { const ps = { ...S.myDoc.plots }; delete ps[p.key]; S.myDoc.plots = ps; rebuild(); await save(true); return showHome(); }
-  try { const ref = db.doc(COL + '/' + p.owner), cur = await ref.get(), data = cur.data() ?? {}; const ps = { ...(data.plots ?? {}) }; delete ps[p.key]; await ref.set({ ...data, plots: ps }); showHome(); } catch { showHome('철거하지 못했어요.'); }
+  if (p.owner === me) { if (!canWrite()) return; const ps = { ...S.myDoc.plots }; delete ps[p.key]; S.myDoc.plots = ps; rebuild(); await save(true); return showHome(); }
+  // someone else's: a mark their own tab applies (writing their doc from here would be undone by their next save)
+  try { await removeOthers(p); showHome('철거했어요. 주인의 섬에 곧 반영돼요.'); } catch { showHome('철거하지 못했어요.'); }
 }

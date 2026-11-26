@@ -14,7 +14,7 @@ import { iconEl } from '../ui/icons.js';
 import { START_STOCK, REQ_BONUS, LEVELS, levelOf, sizesOpen, bad } from './rules.js';
 import { refundOf } from './migrate.js';
 import { $, el, xbtn } from './ui.js';
-import { S, me, sample, pr, sim, now } from './state.js';
+import { S, me, sample, pr, sim, now, canWrite } from './state.js';
 import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild } from './model.js';
 import { stakeSite, dustSite } from './mapfx.js';
 import { save } from './persist.js';
@@ -47,6 +47,7 @@ export function setBuildMode(on) {
 
 // ---------- request cards: what the island wants, dealt when there is a permit to spend ----------
 export function openCards() {
+  if (!canWrite()) return;
   const w = G();
   if (w.permits <= 0) return toast(`손님 ${w.nextAt - w.served}명을 더 받으면 허가증이 나와요 🎫`, 2400);
   if (Object.keys(S.myDoc.plots).length >= maxPlots()) return toast(`섬에는 ${maxPlots()}채까지 지을 수 있어요`, 2000);
@@ -120,7 +121,8 @@ export function startBuild(x, z, door) {
       if (!b.input) throw { code: 'nothing' };
       fitToLot(b.input, n); const s = normalize(b.input);
       if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; S.building = null; go.disabled = false; return; }
-      // the world may have moved on while Claude wrote: the permit spent elsewhere, the island full
+      // the world may have moved on while Claude wrote: another tab took the island, the permit spent elsewhere, the island full
+      if (!canWrite()) { S.building = null; return; }
       if (G().permits <= 0) { err.textContent = '허가증이 없어요.'; S.building = null; card0.classList.remove('busy'); go.disabled = false; return; }
       if (Object.keys(S.myDoc.plots).length >= maxPlots()) { err.textContent = `섬에는 ${maxPlots()}채까지 지을 수 있어요.`; S.building = null; card0.classList.remove('busy'); go.disabled = false; return; }
       const key = `${S.mySlot}_${x}_${z}`;
@@ -145,7 +147,7 @@ export function startBuild(x, z, door) {
 // ---------- extension: one more floor on top of a full shop, from one line ----------
 /** inShop: the form takes the place of the open shop's buttons; otherwise it opens in the panel. */
 export function startExtend(key, { inShop = false } = {}) {
-  const p = allPlots().find(x => x.key === key); if (!p?.b || p.owner !== me) return;
+  const p = allPlots().find(x => x.key === key); if (!p?.b || p.owner !== me || !canWrite()) return;
   if (G().permits <= 0) return toast(`허가증이 있어야 증축해요 · 다음까지 손님 ${G().nextAt - G().served}명`, 2200);
   const n = normalize(p.b.input), ideas = EXT_IDEAS[servesOf(p)] ?? ['한 층 더 올리기', '루프탑 테라스', '2층 휴게실'];
   const input = el('input', { type: 'text', maxlength: '60', placeholder: '예: ' + ideas[0] }), go = el('button', { class: 'gold' }, `${n.levels + 1}층 올리기 · 🎫1`), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
@@ -172,7 +174,7 @@ export function startExtend(key, { inShop = false } = {}) {
       const next = applyExtension(p.b.input, steps); if (!next) throw { code: 'nothing' };
       // the shop as it is now (it may have moved, or the permit gone elsewhere, while Claude wrote)
       const p1 = allPlots().find(x => x.key === key), mp = S.myDoc.plots[key];
-      if (!p1?.b || !mp) throw { code: 'gone' };
+      if (!p1?.b || !mp || !canWrite()) throw { code: 'gone' };
       if (G().permits <= 0) throw { code: 'no_permit' };
       // keep what was bought: each fixture (and its level) goes to the nearest of its kind on its floor; ones with no place are refunded
       const newFx = buildSection(normalize(next)).fixtures, r = remapFixtures(fixturesOf(p1), newFx, [...ownedOf(p1)], levelsOf(p1)), own = new Set(r.own), refund = refundOf(r.lost);

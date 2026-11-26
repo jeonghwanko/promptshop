@@ -9,7 +9,7 @@ import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, costOf, flowCaps, LV_M
 import { iconEl } from '../ui/icons.js';
 import { BASE_COIN, HELPER_MAX, helperCost } from './rules.js';
 import { $, el } from './ui.js';
-import { S, me, pr, map, earned } from './state.js';
+import { S, me, pr, map, earned, canWrite } from './state.js';
 import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, G, rebuild } from './model.js';
 import { save } from './persist.js';
 import { applyZoom } from './camera.js';
@@ -39,7 +39,7 @@ export function openShop(key) {
 function openInside(key) {   // the cut-away in place, over the zoomed map (openShop moves the camera first)
   setTimeout(() => tutEvent('inside'), 0);
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
-  const myDoc = S.myDoc, mineP = p.owner === me && !!myDoc?.plots[key], owned = ownedOf(p);
+  const myDoc = S.myDoc, mineP = p.owner === me && !!myDoc?.plots[key] && canWrite(), owned = ownedOf(p);
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
     maxWidth: innerWidth - 380, tags: true, maxHeight: innerHeight - 70, maxZoom: 4,

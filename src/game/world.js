@@ -25,7 +25,7 @@ function boardShape(entries) {   // owners, joined islands, bridges and plots of
   return { owners, joined, bridges, taken, buildings, mine: [...owners.values()].includes(me) };
 }
 const colOf = (id) => id === 'main' ? 'i' : 'i-' + id;
-async function boardEntries(id) { try { return db ? (await db.collection(colOf(id)).get()).docs.map(d => [d.id, moveWithIsland(d.data())]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
+async function boardEntries(id) { try { return db ? (await db.collection(colOf(id)).get()).docs.filter(d => !d.id.startsWith('_')).map(d => [d.id, moveWithIsland(d.data())]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
 // every board keeps a small summary (friends, buildings, which users) so the world map never reads every island
 async function loadBoards() {
   let meta = [];
