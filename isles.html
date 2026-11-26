@@ -401,7 +401,7 @@ function frame(t) {
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
   // island labels: owner names, empty slots invite
   g.textAlign = 'center';
-  for (let s = 1; s <= SLOTS; s++) {
+  for (let s = 1; s <= SLOTS && !zoomShop; s++) {   // map words would be blown up behind an open shop
     const [cx, cz] = centerOf(s), [lx, ly] = pr.P(cx - 4, cz - 4), uid = owners.get(s);
     const label = uid ? `${s} · ${nameOf(uid)}` : `${s} · 빈 섬`;
     g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(label).width + 14;
@@ -410,13 +410,13 @@ function frame(t) {
     if (!uid) { g.font = '400 11px "Noto Sans KR", sans-serif'; g.fillStyle = 'rgba(255,255,255,.9)'; const [mx, my] = pr.P(cx + .5, cz + .5); g.fillText('+ 친구 초대', mx, my); }
   }
   g.font = '900 12px "Noto Sans KR", sans-serif';
-  for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;
+  for (const p of pops) { const tp = tops[p.key]; if (!tp || zoomShop) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;
     if (em) { g.imageSmoothingEnabled = false; g.drawImage(iconCanvas(EMOJI[em]), Math.round(tp[0] - g.measureText(txt).width / 2 - w - 2), Math.round(y - 12), 14, 14); }
     g.strokeText(txt, tp[0] + w / 2, y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(txt, tp[0] + w / 2, y); g.globalAlpha = 1; }
   // the stars of every shop, small and gold, over its roof
   g.font = '900 11px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
   { const si = iconCanvas('star'), so = iconCanvas('star0');
-    for (const p of all) { if (!p.b || !tops[p.key] || !roleOf(normalize(p.b.input).type).serves) continue; const n = starsInfo(p).stars, [x, y] = tops[p.key];
+    for (const p of all) { if (zoomShop || !p.b || !tops[p.key] || !roleOf(normalize(p.b.input).type).serves) continue; const n = starsInfo(p).stars, [x, y] = tops[p.key];
       for (let k = 0; k < n; k++) g.drawImage(si, Math.round(x - n * 6 + k * 12), Math.round(y - 26), 12, 12); } }
   g.font = '900 12px "Noto Sans KR", sans-serif';
   // my shops running low on stock show a red mark
@@ -916,7 +916,7 @@ function openShop(key) {
   const lv = normalize(p.b.input).levels;   // taller cut-aways need more room above the building
   box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - box.clientHeight * Math.min(.86, .62 + .12 * (Math.min(lv, 4) - 1)) });
   requestAnimationFrame(() => {
-    map.style.transformOrigin = `${px}px ${py}px`; map.style.transform = 'scale(1.7)';
+    map.style.transformOrigin = `${px}px ${py}px`; map.style.transform = 'scale(2)';
     const r = map.getBoundingClientRect(), sx = r.left + px * r.width / map.width / 1.7 * 1, sy = r.top + py * r.height / map.height / 1.7;
     // the origin does not move when scaling, so the building's base stays where it was on screen
     const st = $('shopstage'); st.style.left = ((innerWidth - 270) / 2 + 6) + 'px'; st.style.top = (innerHeight / 2) + 'px';   // the cut-away takes the middle of the screen; the building behind it lifts away

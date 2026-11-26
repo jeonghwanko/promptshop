@@ -43,6 +43,8 @@ export class InsideView {
     this.floats = []; this.hot = -1;
     this.top = document.createElement('canvas'); Object.assign(this.top.style, { position: 'absolute', left: 0, top: 0, imageRendering: 'pixelated', cursor: coins ? 'pointer' : 'default' });
     this.g = this.top.getContext('2d');
+    // words go on their own canvas at screen resolution: the pixel layers are blown up, and text drawn there breaks into blocks
+    this.txt = document.createElement('canvas'); Object.assign(this.txt.style, { position: 'absolute', left: 0, top: 0, pointerEvents: 'none' }); this.tg = this.txt.getContext('2d');
     this.redraw();
     this.sim = new InsideSim(this.view.plan, this.fx, owned, { seed, every, price }); this.sim.setLevels(levels);
     if (coins) {
@@ -57,7 +59,8 @@ export class InsideView {
     const W = v.canvas.width, H = v.canvas.height, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 4) / 4);   // whole steps when there is room, quarter steps for tall buildings
     this.zoom = z; this.top.width = W; this.top.height = H;
     for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = 'pixelated'; c.style.display = 'block'; }
-    this.el.replaceChildren(v.canvas, this.top);
+    { const d = Math.min(3, devicePixelRatio || 1); this.ts = z * d; this.txt.width = Math.round(W * this.ts); this.txt.height = Math.round(H * this.ts); this.txt.style.width = W * z + 'px'; this.txt.style.height = H * z + 'px'; }
+    this.el.replaceChildren(v.canvas, this.top, this.txt);
     Object.assign(this.el.style, { width: W * z + 'px', height: H * z + 'px' });
     for (const l of v.labels) {
       const e = document.createElement('div'); e.textContent = l.text;
@@ -79,7 +82,8 @@ export class InsideView {
     return best;
   }
   /** A thump where a fixture lands: dust, and the caller shakes the view. */
-  thud(i, text, kind = 'buy') { const f = this.fx[i]; this.floats.push({ text: text || (kind === 'up' ? '레벨업!' : '쿵!'), x: f.x, y: f.y + 1, z: f.z, t: 0, big: true }); this.dust = { i, t: 0 }; this.burst = { i, t: 0, kind }; this.onThud?.(i); }
+  thud(i, text, kind = 'buy') { const f = this.fx[i]; this.floats = this.floats.filter(o => !(o.t === 0 && !o.big && o.x === f.x && o.z === f.z));   // the small word pushed by the same press would sit under the big one
+    this.floats.push({ text: text || (kind === 'up' ? '레벨업!' : '쿵!'), x: f.x, y: f.y + 1, z: f.z, t: 0, big: true }); this.dust = { i, t: 0 }; this.burst = { i, t: 0, kind }; this.onThud?.(i); }
   /** Raise an owned fixture one level. */
   upgradeIndex(i) {
     const f = this.fx[i], L = this.levels[i] ?? 1; if (L >= LV_MAX) return false;
@@ -128,12 +132,13 @@ export class InsideView {
     this.sim.step(dt);
     const { g, view, sim } = this, P = view.project, paid = [];
     g.clearRect(0, 0, this.top.width, this.top.height);
+    const tg = this.tg; tg.setTransform(1, 0, 0, 1, 0, 0); tg.clearRect(0, 0, this.txt.width, this.txt.height); tg.setTransform(this.ts, 0, 0, this.ts, 0, 0);
     const can = this.coins ? this.buyable() : new Set();
     if (this.coins && this.tags) {
       const tag = (x, y, text, ok, big) => { g.font = 'bold 7px system-ui'; const w = Math.ceil(g.measureText(text).width) + 9, bx = Math.round(x - w / 2), by = Math.round(y - 10 - (big ? Math.abs(Math.sin(performance.now() / 200)) * 2 : 0));
         g.fillStyle = '#2b1e15'; g.fillRect(bx - 1, by - 1, w + 2, 10); g.fillStyle = ok ? '#f2c12e' : '#b8ad98'; g.fillRect(bx, by, w, 8);
         g.fillStyle = ok ? '#c48a1a' : '#8f8573'; g.fillRect(bx, by + 7, w, 1); g.fillStyle = '#2b1e15'; g.fillRect(Math.round(x), by + 8, 1, 2);
-        g.fillStyle = '#c48a1a'; g.fillRect(bx + 2, by + 2, 3, 4); g.fillStyle = '#2b1e15'; g.textAlign = 'left'; g.fillText(text, bx + 7, by + 7); };
+        g.fillStyle = '#c48a1a'; g.fillRect(bx + 2, by + 2, 3, 4); tg.font = 'bold 7px system-ui, "Noto Sans KR", sans-serif'; tg.fillStyle = '#2b1e15'; tg.textAlign = 'left'; tg.fillText(text, bx + 7, by + 6.6); };
       this.fx.forEach((f, i) => { if (!can.has(i)) return; const [x, y] = P(f.x, f.y + .9, f.z); tag(x, y, String(costOf(f.kind)), this.coins() >= costOf(f.kind), this.suggest?.has(f.kind)); });
       if (this.sel >= 0 && this.owned.has(this.sel)) { const f = this.fx[this.sel], L = this.levels[this.sel] ?? 1; const [x, y] = P(f.x, f.y + 1.1, f.z);
         if (L < 5) tag(x, y, `Lv${L + 1} · ${upgradeCost(f.kind, L)}`, this.coins() >= upgradeCost(f.kind, L), true); }
@@ -170,11 +175,14 @@ export class InsideView {
       this.floats.push({ text: e.kind === 'coin' ? `+${e.n}` : e.why, x: e.x, y: sim.floorY(e.f) + 1.1, z: e.z, t: 0, bad: e.kind === 'lost', tip: e.tip });
     }
     g.font = 'bold 10px system-ui'; g.textAlign = 'center';
+    tg.textAlign = 'center'; tg.lineJoin = 'round';
     for (const f of this.floats) {
-      f.t += dt * (f.big ? .7 : 1); const [x, y] = P(f.x, f.y, f.z); g.font = f.big ? 'bold 11px system-ui' : 'bold 10px system-ui';
-      g.globalAlpha = Math.max(0, 1 - f.t / 1.4); g.fillStyle = '#2e241a'; g.fillText(f.text, Math.round(x) + 1, Math.round(y - f.t * 14) + 1);
-      g.fillStyle = f.bad ? '#e2685a' : f.tip ? '#f08ab0' : '#ffd25a'; g.fillText(f.text, Math.round(x), Math.round(y - f.t * 14));
+      f.t += dt * (f.big ? .7 : 1); const [x, y] = P(f.x, f.y, f.z), yy = y - f.t * 14;
+      tg.font = f.big ? '900 12px "Noto Sans KR", system-ui, sans-serif' : '800 9px "Noto Sans KR", system-ui, sans-serif';
+      tg.globalAlpha = Math.max(0, 1 - f.t / 1.4); tg.lineWidth = f.big ? 3 : 2.4; tg.strokeStyle = '#2e241a'; tg.strokeText(f.text, x, yy);
+      tg.fillStyle = f.bad ? '#ff8a7a' : f.tip ? '#f9a8c8' : '#ffd25a'; tg.fillText(f.text, x, yy);
     }
+    tg.globalAlpha = 1;
     g.globalAlpha = 1; this.floats = this.floats.filter(f => f.t < 1.4);
     return paid;
   }
