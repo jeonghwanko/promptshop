@@ -2,7 +2,7 @@
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
 import { SLOTS, centerOf, placePlot, PLOT, neighbours } from '../v2/isles.js';
 import { $, el } from './ui.js';
-import { mountGull } from '../ui/gull.js';
+import { mountGuideGull } from '../ui/gull/guide-gull.js';
 import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { allPlots, takenSet, nameOf } from './model.js';
 import { save, track } from './persist.js';
@@ -102,6 +102,9 @@ function guideArrow() {
     if (st.map === 'invite') { const n = emptyNeighbours()[0]; if (n) { const [cx, cz] = centerOf(n), [x, y] = toScreen(...pr.P(cx + .5, cz + .5)); pt = [x, y - 16]; } }
     if (st.map === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && S.lastTops[p.key]; if (tp) { const [x, y] = toScreen(tp[0], tp[1]); pt = [x, y - 8]; } }
   }
+  // 끼룩이 holds a wing toward what the arrow points at — only when it is above its head: lower to the right the wing
+  // would cover its own speech bubble, so there it just talks
+  { const b = document.querySelector('#guide .gbird')?.getBoundingClientRect(); gull?.point(pt && b && pt[1] < b.top + b.height * .2 ? pt : null); }
   if (!pt) { a.hidden = true; return; }
   a.hidden = false; a.style.left = pt[0] + 'px'; a.style.top = pt[1] + 'px';
 }
@@ -128,6 +131,6 @@ function speak(text) {
   }, 0);
 }
 export function initGuide() {
-  gull = mountGull(document.querySelector('#guide .gbird'));
+  gull = mountGuideGull(document.querySelector('#guide .gbird'));
   setInterval(guideArrow, 120);
 }

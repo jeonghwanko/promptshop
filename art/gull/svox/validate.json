@@ -1,0 +1,303 @@
+{
+  "schema": "svox.validate/v1",
+  "bundle": "svox",
+  "tool": "svox_cli.py 1.0.0",
+  "parts": {
+    "body": {
+      "solidVoxels": 3432,
+      "thinFraction": 0.0,
+      "normals": {
+        "solidVoxels": 3432,
+        "surfaceVoxels": 842,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1843,
+        "aoMean": 0.9559,
+        "dilatedShellVoxels": 1838
+      }
+    },
+    "head": {
+      "solidVoxels": 2810,
+      "thinFraction": 0.0014,
+      "normals": {
+        "solidVoxels": 2810,
+        "surfaceVoxels": 746,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1922,
+        "aoMean": 0.946,
+        "dilatedShellVoxels": 1662
+      }
+    },
+    "beakU": {
+      "solidVoxels": 128,
+      "thinFraction": 0.1094,
+      "normals": {
+        "solidVoxels": 128,
+        "surfaceVoxels": 104,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1922,
+        "aoMean": 0.7335,
+        "dilatedShellVoxels": 254
+      }
+    },
+    "beakL": {
+      "solidVoxels": 102,
+      "thinFraction": 0.1961,
+      "normals": {
+        "solidVoxels": 102,
+        "surfaceVoxels": 102,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1569,
+        "aoMean": 0.6838,
+        "dilatedShellVoxels": 252
+      }
+    },
+    "eyeR": {
+      "solidVoxels": 32,
+      "thinFraction": 0.25,
+      "normals": {
+        "solidVoxels": 32,
+        "surfaceVoxels": 32,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.3647,
+        "aoMean": 0.8643,
+        "dilatedShellVoxels": 152
+      }
+    },
+    "eyeL": {
+      "solidVoxels": 32,
+      "thinFraction": 0.25,
+      "normals": {
+        "solidVoxels": 32,
+        "surfaceVoxels": 32,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.3647,
+        "aoMean": 0.8643,
+        "dilatedShellVoxels": 152
+      }
+    },
+    "happyR": {
+      "solidVoxels": 24,
+      "thinFraction": 0.4583,
+      "normals": {
+        "solidVoxels": 24,
+        "surfaceVoxels": 24,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.2745,
+        "aoMean": 0.8832,
+        "dilatedShellVoxels": 166
+      }
+    },
+    "happyL": {
+      "solidVoxels": 24,
+      "thinFraction": 0.4583,
+      "normals": {
+        "solidVoxels": 24,
+        "surfaceVoxels": 24,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.2745,
+        "aoMean": 0.8832,
+        "dilatedShellVoxels": 166
+      }
+    },
+    "cap": {
+      "solidVoxels": 1008,
+      "thinFraction": 0.0,
+      "normals": {
+        "solidVoxels": 1008,
+        "surfaceVoxels": 530,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1922,
+        "aoMean": 0.7194,
+        "dilatedShellVoxels": 874
+      }
+    },
+    "wingR": {
+      "solidVoxels": 373,
+      "thinFraction": 0.0456,
+      "normals": {
+        "solidVoxels": 373,
+        "surfaceVoxels": 295,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1882,
+        "aoMean": 0.9282,
+        "dilatedShellVoxels": 749
+      }
+    },
+    "wingTipR": {
+      "solidVoxels": 38,
+      "thinFraction": 0.2632,
+      "normals": {
+        "solidVoxels": 38,
+        "surfaceVoxels": 38,
+        "unitFrac": 1.0,
+        "outwardFrac": 0.9737,
+        "aoMin": 0.1843,
+        "aoMean": 0.7777,
+        "dilatedShellVoxels": 177
+      }
+    },
+    "wingL": {
+      "solidVoxels": 373,
+      "thinFraction": 0.0456,
+      "normals": {
+        "solidVoxels": 373,
+        "surfaceVoxels": 295,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1882,
+        "aoMean": 0.9282,
+        "dilatedShellVoxels": 749
+      }
+    },
+    "wingTipL": {
+      "solidVoxels": 38,
+      "thinFraction": 0.2632,
+      "normals": {
+        "solidVoxels": 38,
+        "surfaceVoxels": 38,
+        "unitFrac": 1.0,
+        "outwardFrac": 0.9737,
+        "aoMin": 0.1843,
+        "aoMean": 0.7777,
+        "dilatedShellVoxels": 177
+      }
+    },
+    "tail": {
+      "solidVoxels": 72,
+      "thinFraction": 0.2778,
+      "normals": {
+        "solidVoxels": 72,
+        "surfaceVoxels": 72,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.1922,
+        "aoMean": 0.8812,
+        "dilatedShellVoxels": 208
+      }
+    },
+    "footR": {
+      "solidVoxels": 88,
+      "thinFraction": 0.0,
+      "normals": {
+        "solidVoxels": 88,
+        "surfaceVoxels": 86,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.2745,
+        "aoMean": 0.7176,
+        "dilatedShellVoxels": 244
+      }
+    },
+    "footL": {
+      "solidVoxels": 88,
+      "thinFraction": 0.0,
+      "normals": {
+        "solidVoxels": 88,
+        "surfaceVoxels": 86,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.2745,
+        "aoMean": 0.7176,
+        "dilatedShellVoxels": 244
+      }
+    },
+    "feather": {
+      "solidVoxels": 40,
+      "thinFraction": 0.0,
+      "normals": {
+        "solidVoxels": 40,
+        "surfaceVoxels": 40,
+        "unitFrac": 1.0,
+        "outwardFrac": 1.0,
+        "aoMin": 0.2745,
+        "aoMean": 0.6729,
+        "dilatedShellVoxels": 142
+      }
+    }
+  },
+  "groundContact": {
+    "restLowestZ": 0.0,
+    "lowestPart": "footR",
+    "tolerance": 0.5,
+    "pass": true
+  },
+  "clips": {
+    "idle": {
+      "lowestZ": 0.0,
+      "squashRange": [
+        0.35,
+        1.022
+      ],
+      "loopSeam": 3.55e-15
+    },
+    "talk": {
+      "lowestZ": 0.0,
+      "squashRange": [
+        0.9859,
+        1.0141
+      ],
+      "loopSeam": 7.11e-15
+    },
+    "cheer": {
+      "lowestZ": 0.0,
+      "squashRange": [
+        0.8507,
+        1.1293
+      ],
+      "loopSeam": 0.0
+    },
+    "point": {
+      "lowestZ": 0.0,
+      "squashRange": [
+        0.985,
+        1.015
+      ],
+      "loopSeam": 1.78e-15
+    }
+  },
+  "deformSelfTest": {
+    "samples": 200,
+    "maxError": 0.0,
+    "threshold": 1e-05,
+    "pass": true
+  },
+  "errors": [],
+  "warnings": [
+    {
+      "code": "THIN_PART",
+      "part": "happyR",
+      "message": "46% of voxels are 1 voxel thick along some axis - thin blades/wings break up under rotation; make them >= 2 voxels thick"
+    },
+    {
+      "code": "THIN_PART",
+      "part": "happyL",
+      "message": "46% of voxels are 1 voxel thick along some axis - thin blades/wings break up under rotation; make them >= 2 voxels thick"
+    },
+    {
+      "code": "THIN_PART",
+      "part": "wingTipR",
+      "message": "26% of voxels are 1 voxel thick along some axis - thin blades/wings break up under rotation; make them >= 2 voxels thick"
+    },
+    {
+      "code": "THIN_PART",
+      "part": "wingTipL",
+      "message": "26% of voxels are 1 voxel thick along some axis - thin blades/wings break up under rotation; make them >= 2 voxels thick"
+    },
+    {
+      "code": "THIN_PART",
+      "part": "tail",
+      "message": "28% of voxels are 1 voxel thick along some axis - thin blades/wings break up under rotation; make them >= 2 voxels thick"
+    }
+  ],
+  "ok": true
+}

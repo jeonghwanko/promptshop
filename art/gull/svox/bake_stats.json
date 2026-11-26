@@ -1,0 +1,159 @@
+{
+  "schema": "svox.bake/v1",
+  "tool": "svox_cli.py bake-normal-ao",
+  "parts": {
+    "body": {
+      "solidVoxels": 3432,
+      "surfaceVoxels": 842,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1843,
+      "aoMean": 0.9559,
+      "dilatedShellVoxels": 1838
+    },
+    "head": {
+      "solidVoxels": 2810,
+      "surfaceVoxels": 746,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1922,
+      "aoMean": 0.946,
+      "dilatedShellVoxels": 1662
+    },
+    "beakU": {
+      "solidVoxels": 128,
+      "surfaceVoxels": 104,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1922,
+      "aoMean": 0.7335,
+      "dilatedShellVoxels": 254
+    },
+    "beakL": {
+      "solidVoxels": 102,
+      "surfaceVoxels": 102,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1569,
+      "aoMean": 0.6838,
+      "dilatedShellVoxels": 252
+    },
+    "eyeR": {
+      "solidVoxels": 32,
+      "surfaceVoxels": 32,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.3647,
+      "aoMean": 0.8643,
+      "dilatedShellVoxels": 152
+    },
+    "eyeL": {
+      "solidVoxels": 32,
+      "surfaceVoxels": 32,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.3647,
+      "aoMean": 0.8643,
+      "dilatedShellVoxels": 152
+    },
+    "happyR": {
+      "solidVoxels": 24,
+      "surfaceVoxels": 24,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.2745,
+      "aoMean": 0.8832,
+      "dilatedShellVoxels": 166
+    },
+    "happyL": {
+      "solidVoxels": 24,
+      "surfaceVoxels": 24,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.2745,
+      "aoMean": 0.8832,
+      "dilatedShellVoxels": 166
+    },
+    "cap": {
+      "solidVoxels": 1008,
+      "surfaceVoxels": 530,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1922,
+      "aoMean": 0.7194,
+      "dilatedShellVoxels": 874
+    },
+    "wingR": {
+      "solidVoxels": 373,
+      "surfaceVoxels": 295,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1882,
+      "aoMean": 0.9282,
+      "dilatedShellVoxels": 749
+    },
+    "wingTipR": {
+      "solidVoxels": 38,
+      "surfaceVoxels": 38,
+      "unitFrac": 1.0,
+      "outwardFrac": 0.9737,
+      "aoMin": 0.1843,
+      "aoMean": 0.7777,
+      "dilatedShellVoxels": 177
+    },
+    "wingL": {
+      "solidVoxels": 373,
+      "surfaceVoxels": 295,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1882,
+      "aoMean": 0.9282,
+      "dilatedShellVoxels": 749
+    },
+    "wingTipL": {
+      "solidVoxels": 38,
+      "surfaceVoxels": 38,
+      "unitFrac": 1.0,
+      "outwardFrac": 0.9737,
+      "aoMin": 0.1843,
+      "aoMean": 0.7777,
+      "dilatedShellVoxels": 177
+    },
+    "tail": {
+      "solidVoxels": 72,
+      "surfaceVoxels": 72,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.1922,
+      "aoMean": 0.8812,
+      "dilatedShellVoxels": 208
+    },
+    "footR": {
+      "solidVoxels": 88,
+      "surfaceVoxels": 86,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.2745,
+      "aoMean": 0.7176,
+      "dilatedShellVoxels": 244
+    },
+    "footL": {
+      "solidVoxels": 88,
+      "surfaceVoxels": 86,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.2745,
+      "aoMean": 0.7176,
+      "dilatedShellVoxels": 244
+    },
+    "feather": {
+      "solidVoxels": 40,
+      "surfaceVoxels": 40,
+      "unitFrac": 1.0,
+      "outwardFrac": 1.0,
+      "aoMin": 0.2745,
+      "aoMean": 0.6729,
+      "dilatedShellVoxels": 142
+    }
+  }
+}

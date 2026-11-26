@@ -271,9 +271,10 @@
 .invitecard input { width:100%; font-size:12px; }
 /* 끼룩이: a voxel gull that bobs and hops, and a speech bubble in the HUD's ink: cream paper, thick outline, a tilted name tag */
 .guide { left:8px; bottom:118px; gap:0; align-items:flex-end; animation:none; }
-.gbird { font-size:0; line-height:0; margin-right:4px; animation:gbob 1.8s ease-in-out infinite; filter:drop-shadow(0 5px 0 rgba(20,30,40,.32)); transform-origin:50% 100%; }
+.gbird { position:relative; z-index:1; font-size:0; line-height:0; margin-right:4px; transform-origin:50% 100%; flex:none; animation:none; filter:none; }   /* the live gull moves itself (src/ui/gull/) */
+.gbird.flat { animation:gbob 1.8s ease-in-out infinite; filter:drop-shadow(0 5px 0 rgba(20,30,40,.32)); }   /* the flat fallback bobs and hops in CSS */
 .gbird .gull { display:block; image-rendering:pixelated; }
-.gbird.hop { animation:ghop .5s cubic-bezier(.3,1.5,.5,1), gbob 1.8s ease-in-out .5s infinite; }
+.gbird.flat.hop { animation:ghop .5s cubic-bezier(.3,1.5,.5,1), gbob 1.8s ease-in-out .5s infinite; }
 @keyframes gbob { 50% { transform:translateY(-4px); } }
 @keyframes ghop { 0% { transform:scale(1.1, .88); } 35% { transform:translateY(-20px) scale(.94, 1.08); } 70% { transform:translateY(0) scale(1.06, .94); } 100% { transform:none; } }
 .gbub { position:relative; margin:0 0 40px 10px; padding:18px 18px 12px; min-width:220px; max-width:340px; background:#fff8e6; color:#2e241a; border-radius:20px;

@@ -1,0 +1,6 @@
+Character turnaround sheet for a cozy island-building game mascot: a cute, chubby seagull guide named Kkiruk.
+ONE ROW of three views, left to right: FRONT view, THREE-QUARTER view (turned to its left), SIDE view (facing right). Same character, same scale, same ground line, standing upright, wings folded.
+Style: high-quality voxel art like MagicaVoxel renders — chunky cubic voxels clearly visible, soft studio lighting, gentle ambient occlusion, cute toy-like proportions (big round head about as large as the body).
+Design: pure white plump body and head; light blue-grey wings with dark slate wing tips and a short grey tail; big glossy black eyes with a white highlight; small pink blush cheeks; short rounded yellow-orange beak with a tiny red spot near the tip; orange webbed feet; a small navy-blue sailor cap tilted a little, with a gold band and a white anchor badge.
+Expression: cheerful and friendly, eyes bright, beak slightly smiling.
+Plain flat very light grey background, no shadows on the background, no text, no labels, no frames.

@@ -1,0 +1,2 @@
+{"at": "2026-11-27T02:03:43+09:00", "kind": "image", "what": "turnaround front/3-4/side", "take": 1, "changed": "first", "result": "not sent: login token expired (no call)"}
+{"at": "2026-11-27T02:04:09+09:00", "kind": "image", "what": "turnaround front/3-4/side", "take": 1, "changed": "first (after login refresh)", "result": "pass (conditional): voxel look, proportions, eyes, blush, wings, feet good; front view is missing the cap the other two views have (fix when sculpting)"}

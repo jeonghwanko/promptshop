@@ -1,0 +1,29 @@
+{
+  "kind": "sprite-gen-image-report",
+  "provider": "grok",
+  "prompt": "Character turnaround sheet for a cozy island-building game mascot: a cute, chubby seagull guide named Kkiruk.\nONE ROW of three views, left to right: FRONT view, THREE-QUARTER view (turned to its left), SIDE view (facing right). Same character, same scale, same ground line, standing upright, wings folded.\nStyle: high-quality voxel art like MagicaVoxel renders — chunky cubic voxels clearly visible, soft studio lighting, gentle ambient occlusion, cute toy-like proportions (big round head about as large as the body).\nDesign: pure white plump body and head; light blue-grey wings with dark slate wing tips and a short grey tail; big glossy black eyes with a white highlight; small pink blush cheeks; short rounded yellow-orange beak with a tiny red spot near the tip; orange webbed feet; a small navy-blue sailor cap tilted a little, with a gold band and a white anchor badge.\nExpression: cheerful and friendly, eyes bright, beak slightly smiling.\nPlain flat very light grey background, no shadows on the background, no text, no labels, no frames.",
+  "out": "/home/ubuntu/promptshop/art/gull/turnaround-1.png",
+  "raw": "/home/ubuntu/promptshop/art/gull/turnaround-1.png.raw.png",
+  "raw_bytes": 1003646,
+  "elapsed_seconds": 17.265,
+  "model": "grok-imagine-image-2.0",
+  "session_id": null,
+  "refs": [],
+  "transparent": false,
+  "alpha": null,
+  "chroma": null,
+  "extra": {
+    "auth_source": "grok-login",
+    "transport": "xai-api",
+    "endpoint": "/images/generations",
+    "aspect_ratio_source": "request-or-auto",
+    "resolution": "1.5k"
+  },
+  "provider_resolved_from": "explicit",
+  "ok": true,
+  "errors": [],
+  "provider_submitted": true,
+  "provider_requests": [
+    "xai"
+  ]
+}
