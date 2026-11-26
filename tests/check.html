@@ -1,0 +1,28 @@
+<!doctype html><meta charset="utf-8"><pre id="out"></pre>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import { lineReader } from '../src/steps.js';
+import { emptyBuilding, applyStep, buildPrompt } from '../src/v2/steps.js';
+import { check, missingParts, revisePrompt, nearest } from '../src/v2/check.js';
+import { normalize } from '../src/v2/spec.js';
+import { renderView } from '../src/v2/render.js';
+const text = [
+  '{"step":"building","type":"coffee_shop","style":"Hanok","name":"","levels":3}',
+  '{"step":"main","roof":{"shape":"gable"}}',
+  '{"step":"sign","icon":"coffee","place":"front"}',
+  '{"step":"hero","hero":"big_cup"}',
+  '{"step":"prop","type":"plants","x":0.2}',
+  '{"step":"floor","range":[1,1],"name":"1층","zones":["counter","dinning"]}',
+  '{"step":"floor","range":[3,3],"name":"루프탑","zones":["roof_garden"]}',
+  '{"step":"fixture","floor":0,"zone":"counter","kind":"table_4","pattern":"rows"}',
+  '{"step":"item" broken json',
+].join('\n');
+const b = emptyBuilding(), seen = []; let broken = 0;
+const rd = lineReader(s => { if (applyStep(b, s)) seen.push(s); }, () => broken++);
+for (let i = 0; i < text.length; i += 23) rd.push(text.slice(i, i + 23)); rd.end();
+const c = check(b.input, { broken });
+const n = normalize(b.input);
+let drew = 'ok'; try { renderView(b.input, 'ext'); renderView(b.input, 'section'); } catch (e) { drew = 'FAIL ' + e.message; }
+document.getElementById('out').textContent = JSON.stringify({ fixed: c.fixed, ask: c.ask, missing: missingParts(seen), type: n.type, style: n.style, floors: n.floors.map(f => [f.range, f.zones.map(z => z.zone)]), drew,
+  promptLen: buildPrompt('x').length, near: [nearest('공항', ['train_station']), nearest('department store', Object.keys({ supermarket: 1, hotel: 1 }))] }, null, 1);
+</script>

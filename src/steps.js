@@ -83,9 +83,9 @@ export function applyStep(shop, step) {
 }
 
 /** Feed streamed text; calls onStep(step) for every complete line that parses. */
-export function lineReader(onStep) {
+export function lineReader(onStep, onBroken) {
   let buf = '';
-  const flush = (line) => { line = line.trim().replace(/^```\w*$/, ''); if (!line.startsWith('{')) return; try { onStep(JSON.parse(line)); } catch { /* skip a broken line */ } };
+  const flush = (line) => { line = line.trim().replace(/^```\w*$/, ''); if (!line.startsWith('{')) return; try { onStep(JSON.parse(line)); } catch { onBroken?.(line); } };
   return {
     push(delta) { buf += delta; let i; while ((i = buf.indexOf('\n')) >= 0) { flush(buf.slice(0, i)); buf = buf.slice(i + 1); } },
     end() { flush(buf); buf = ''; },

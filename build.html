@@ -60,6 +60,7 @@ import { lineReader } from './src/steps.js';
 import { Stage2 } from './src/v2/stage.js';
 import { renderView } from './src/v2/render.js';
 import { emptyBuilding, applyStep, buildPrompt } from './src/v2/steps.js';
+import { check, missingParts, revisePrompt } from './src/v2/check.js';
 import { STREAMS } from './examples/streams.js';
 
 await document.fonts.load('900 18px "Noto Sans KR"').catch(() => {});
@@ -76,10 +77,10 @@ function showSection(input) {
   host.append(wrap);
 }
 const $ = (id) => document.getElementById(id);
-const TAG = { building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구' };
+const TAG = { fix: '수선', ask: '다시', building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구' };
 
-let shop, queue = [], pumping = false, run = 0;
-function reset() { shop = emptyBuilding(); queue = []; ext.clear(); showSection(null); $('name').textContent = ''; $('raw').textContent = '';
+let shop, queue = [], pumping = false, run = 0, seen = [];
+function reset() { shop = emptyBuilding(); queue = []; seen = []; ext.clear(); showSection(null); $('name').textContent = ''; $('raw').textContent = '';
   $('log').replaceChildren(Object.assign(document.createElement('span'), { className: 'st', textContent: '공사 기록' })); }
 // Steps can arrive faster than the eye; show them at least 260 ms apart.
 function enqueue(step, myRun) { queue.push([step, myRun]); if (!pumping) pump(); }
@@ -87,7 +88,8 @@ async function pump() {
   pumping = true;
   while (queue.length) {
     const [step, myRun] = queue.shift(); if (myRun !== run) continue;
-    const ch = applyStep(shop, step); if (!ch) continue;
+    if (step.step === 'floor' && step.replace && shop.input) { shop.input.floors = []; }
+    const ch = applyStep(shop, step); if (!ch) continue; seen.push(step);
     if (step.step === 'building') $('name').textContent = shop.input.name || '';
     if (ch.view === 'ext') ext.show(shop.input, ch.key);
     if (ch.view === 'int' || step.step === 'building') showSection(shop.input);
@@ -97,6 +99,26 @@ async function pump() {
     await new Promise(r => setTimeout(r, 260));
   }
   pumping = false;
+}
+function note(tag, text) { const r = document.createElement('div'); r.className = 'row'; const t = document.createElement('span'); t.className = 'tag'; t.textContent = tag; const n = document.createElement('span'); n.textContent = text; r.append(t, n); $('log').append(r); $('log').scrollTop = 1e9; }
+const idle = () => new Promise(r => { const t = setInterval(() => { if (!pumping && !queue.length) { clearInterval(t); r(); } }, 60); });
+// After the stream: repair cheaply, then ask the model once for what is still wrong.
+async function quality(line, raw, broken, my) {
+  await idle(); if (my !== run) return;
+  const miss = missingParts(seen).filter(p => p === 'building');
+  const { fixed, ask } = check(shop.input, { broken, line });
+  for (const f of fixed) note(TAG.fix, f);
+  if (fixed.length && shop.input) { ext.show(shop.input, 'all'); showSection(shop.input); }
+  const problems = [...ask, ...miss.map(p => `The "${p}" line is missing.`)];
+  if (!problems.length || !sample) return;
+  note(TAG.ask, `남은 문제 ${problems.length}개를 다시 물어봄`);
+  let first = true;
+  const reader = lineReader((s) => { if (s.step === 'floor' && first) { s.replace = true; first = false; } enqueue(s, my); });
+  try { await sample(revisePrompt(line, raw, problems), { modelTier: 'quick', cache: false, onText: ({ delta }) => reader.push(delta) }); reader.end(); }
+  catch (e) { reader.end(); note(TAG.ask, '다시 묻기 실패'); }
+  await idle(); if (my !== run) return;
+  const after = check(shop.input, {}); for (const f of after.fixed) note(TAG.fix, f);
+  if (shop.input) { ext.show(shop.input, 'all'); showSection(shop.input); }
 }
 function replay(steps) { reset(); const my = ++run; $('name').textContent = ''; for (const s of steps) enqueue(s, my); }
 
@@ -111,11 +133,13 @@ async function build() {
   if (!sample) { $('err').textContent = '이 화면에서는 Claude를 부를 수 없어서 예시만 다시 보여 줍니다.'; replay(STREAMS.hotel); return; }
   reset(); const my = ++run; ctl = new AbortController();
   $('go').disabled = true; $('stop').hidden = false; $('name').textContent = '구상 중…';
-  const reader = lineReader((s) => enqueue(s, my));
+  let broken = 0;
+  const reader = lineReader((s) => enqueue(s, my), () => broken++);
   try {
     await sample(buildPrompt(line), { modelTier: 'quick', cache: false, signal: ctl.signal,
       onText: ({ delta }) => { $('raw').textContent += delta; reader.push(delta); } });
     reader.end();
+    await quality(line, $('raw').textContent, broken, my);
   } catch (e) {
     reader.end();
     const c = e && e.code;

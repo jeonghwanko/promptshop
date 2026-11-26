@@ -107,6 +107,12 @@ Order: styles and types open with the shared town; parts open after.
 
 The building spec is short text. With a Haiku-class model one building costs about $0.001 (about 1.5 KRW). A revision pass adds about 30%. A typical floor is written once, so floor count does not raise the cost.
 
+## Status (2026-11-26)
+
+- 1.1 spec v2, 1.2 catalogue (52 types, 5 styles), 1.3 exterior kit: first version done.
+- 1.4 stacked cross-section: done.
+- 1.5 quality loop: checker, follow-up and evaluation page done; the first evaluation run is next.
+
 ## Decisions (2026-11-26)
 
 1. **Tall buildings in the town view** are compressed above 8 floors. A band on the facade marks the hidden floors, and the label shows the real count.

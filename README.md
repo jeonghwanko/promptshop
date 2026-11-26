@@ -61,6 +61,12 @@ Inside a claude.ai artifact the page calls Claude through the artifact runtime. 
 
 `scripts/bundle.py out.html` inlines the page and its modules into one file.
 
+## Quality loop
+
+`src/v2/check.js` repairs a model answer before it is drawn: unknown names snap to the nearest known type, style, roof, zone, fixture, icon or prop; missing floors are joined to their neighbours; a missing name comes from the description. Only what it cannot fix (broken lines, a floor with no known zone, a missing building line) goes back to the model in one short follow-up.
+
+`eval.html` runs the 60 one-liners in `examples/eval.js` through the model, applies the same loop, and reports build rate, repairs, follow-ups, types used and variety within each family. A reviewer marks each result as "what I asked for" or not. `tests/check.html` runs the checker on a deliberately broken answer.
+
 ## Use it
 
 ```js
