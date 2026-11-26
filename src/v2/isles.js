@@ -2,24 +2,31 @@
 // can be joined by a bridge that both owners build half of. Roads are a cross through each island; a finished
 // bridge continues the road over the water.
 
-export const SLOTS = 10, COLS = 5, GAP = 16, MARGIN = 3, R = 5.8;
+export const SLOTS = 10, COLS = 5, GAP = 24, MARGIN = 3, R = 5.8;
+/** Island spacing used before this version, for moving older plots along with their island. */
+export const OLD_GAP = 16;
 export const WORLD = { w: MARGIN * 2 + GAP * COLS, d: MARGIN * 2 + GAP * 2 };
-export const centerOf = (slot) => { const i = slot - 1, c = i % COLS, r = Math.floor(i / COLS); return [MARGIN + c * GAP + GAP / 2 | 0, MARGIN + r * GAP + GAP / 2 | 0]; };
+export const centerOfGap = (slot, gap) => { const i = slot - 1, c = i % COLS, r = Math.floor(i / COLS); return [MARGIN + c * gap + gap / 2 | 0, MARGIN + r * gap + gap / 2 | 0]; };
+export const centerOf = (slot) => centerOfGap(slot, GAP);
 export const neighbours = (slot) => { const i = slot - 1, c = i % COLS, r = Math.floor(i / COLS), out = []; if (c > 0) out.push(slot - 1); if (c < COLS - 1) out.push(slot + 1); if (r > 0) out.push(slot - COLS); if (r < 1) out.push(slot + COLS); return out; };
 export const bridgeId = (a, b) => Math.min(a, b) + '-' + Math.max(a, b);
 
-// island shape: a noisy disc, the same for everyone
-const SHAPE = new Map();
+// island shape: a noisy disc, the same for everyone; an owner can widen it (land steps), one ring at a time
+export const LAND_MAX = 4, LAND_STEP = 0.9;
+const SHAPE = new Map(), LAND = new Map();
+/** How many times the island of this slot has been widened. */
+export function setLand(slot, steps) { LAND.set(slot, Math.max(0, Math.min(LAND_MAX, steps | 0))); }
 function islandTiles(slot) {
-  if (SHAPE.has(slot)) return SHAPE.get(slot);
+  const extra = (LAND.get(slot) ?? 0) * LAND_STEP, ck = slot + ':' + extra;
+  if (SHAPE.has(ck)) return SHAPE.get(ck);
   const [cx, cz] = centerOf(slot), set = new Set(); let s = slot * 7919 % 233280;
   const rnd = () => (s = (s * 9301 + 49297) % 233280) / 233280;
   const bumps = Array.from({ length: 6 }, () => [rnd() * Math.PI * 2, .4 + rnd() * .7]);
-  for (let z = cz - 8; z <= cz + 8; z++) for (let x = cx - 8; x <= cx + 8; x++) {
-    const a = Math.atan2(z - cz, x - cx), r = R + bumps.reduce((t, [p, k]) => t + Math.cos(a * 2 + p) * k * .35, 0);
+  for (let z = cz - 13; z <= cz + 13; z++) for (let x = cx - 13; x <= cx + 13; x++) {
+    const a = Math.atan2(z - cz, x - cx), r = R + extra + bumps.reduce((t, [p, k]) => t + Math.cos(a * 2 + p) * k * .35, 0);
     if (Math.hypot(x - cx, z - cz) <= r) set.add(x + ',' + z);
   }
-  SHAPE.set(slot, set); return set;
+  SHAPE.set(ck, set); return set;
 }
 /** The dock of an island: the road end on the open-sea side (north for the top row, south for the bottom row),
  *  a two-tile pier, and the water tile where boats stop. */
@@ -29,6 +36,8 @@ export function dockOf(slot) {
   const step = top ? -1 : 1;
   return { road: [cx, z], pier: [[cx, z + step], [cx, z + 2 * step]], stop: [cx, z + 3 * step], out: [cx, z + 14 * step] };
 }
+/** Number of land tiles of an island (for showing what a land step adds). */
+export const landSize = (slot) => islandTiles(slot).size;
 export function slotAt(x, z) { for (let s = 1; s <= SLOTS; s++) if (islandTiles(s).has(x + ',' + z)) return s; return 0; }
 /** Tiles of the bridge between two neighbours, from a's side to b's side (only the water part). */
 export function bridgeTiles(a, b) {

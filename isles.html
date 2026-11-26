@@ -144,7 +144,7 @@ import { emptyBuilding, applyStep, buildPrompt, extendPrompt, applyExtension } f
 import { check, missingParts, revisePrompt } from './src/v2/check.js';
 import { normalize } from './src/v2/spec.js';
 import { TYPE_KO } from './src/v2/catalog.js';
-import { SLOTS, WORLD, centerOf, neighbours, bridgeId, makeIsles, placePlot, PLOT, islesProjection, drawIsles, slotAt, dockOf } from './src/v2/isles.js';
+import { SLOTS, WORLD, centerOf, neighbours, bridgeId, makeIsles, placePlot, PLOT, islesProjection, drawIsles, slotAt, dockOf, setLand, landSize, LAND_MAX, GAP, OLD_GAP, centerOfGap } from './src/v2/isles.js';
 import { buildSection } from './src/v2/interior.js';
 import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson, typesFor } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
@@ -160,6 +160,25 @@ const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sampl
 const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
 const COST = { S: 10, M: 25, L: 60 }, BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 5 };
 const BASE_COIN = { S: 2, M: 3, L: 5 };
+// widening my island: one ring of land a step, more buildings allowed
+const LAND_COST = [80, 200, 450, 900], LAND_LEVEL = [0, 1, 2, 3], PLOTS_PER_LAND = 3;
+const maxPlots = () => MAX_PLOTS + PLOTS_PER_LAND * (myDoc?.land ?? 0);
+function landCard() {
+  const k = myDoc.land ?? 0;
+  if (k >= LAND_MAX) return el('div', { class: 'card' }, el('span', {}, `🌱 땅 ${k}/${LAND_MAX}`, el('div', { class: 'note' }, '섬을 끝까지 넓혔어요')));
+  const lv = levelOf(G().served), need = LAND_LEVEL[k], cost = LAND_COST[k];
+  setLand(mySlot, k); const now0 = landSize(mySlot); setLand(mySlot, k + 1); const gain = landSize(mySlot) - now0; setLand(mySlot, k);
+  const b = el('button', { class: 'gold', on: { click: () => widen() } }, `🌱 땅 넓히기 · ${cost}동전`);
+  b.disabled = lv < need || myDoc.wallet.coins < cost;
+  return el('div', { class: 'card' + (!b.disabled ? ' alert' : '') }, el('span', {}, `🌱 땅 ${k}/${LAND_MAX}`, el('div', { class: 'note' }, lv < need ? `Lv.${need + 1} ${LEVELS[need].name}부터 넓힐 수 있어요` : `섬이 한 바퀴 넓어져요 · 땅 +${gain}칸 · 건물 +${PLOTS_PER_LAND}채`)), b);
+}
+async function widen() {
+  const k = myDoc.land ?? 0, cost = LAND_COST[k]; if (k >= LAND_MAX || myDoc.wallet.coins < cost) return;
+  setLand(mySlot, k); const before = landSize(mySlot);
+  myDoc.wallet.coins -= cost; myDoc.land = k + 1; rebuild(); await save(true);
+  const gain = landSize(mySlot) - before; scrollToSlot(mySlot);
+  celebrate('🌱 땅이 넓어졌어요!', `땅 +${gain}칸 · 이제 건물 ${maxPlots()}채까지`); showHome();
+}
 // ---------- growth: guests served fill the permit gauge; a permit builds one building; served guests also raise the island's level ----------
 const LEVELS = [{ at: 0, name: '마을', size: 'S' }, { at: 40, name: '동네', size: 'M' }, { at: 150, name: '거리', size: 'L' }, { at: 400, name: '번화가', size: 'L' }];
 const REQ = {
@@ -202,6 +221,7 @@ function rebuild() {
   owners = new Map();
   for (const [uid, d] of [...docs].sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0))) if (d.slot >= 1 && d.slot <= SLOTS && !owners.has(d.slot)) owners.set(d.slot, uid);
   mySlot = 0; for (const [s, u] of owners) if (u === me) mySlot = s;
+  for (const [sl, uid] of owners) setLand(sl, docs.get(uid)?.land ?? 0);   // widened islands
   const joined = new Set(owners.keys()), bridges = new Map();
   for (const s of joined) for (const n of neighbours(s)) if (n > s && joined.has(n)) {
     const da = docs.get(owners.get(s)), dbb = docs.get(owners.get(n));
@@ -604,7 +624,7 @@ let card = null;
 function openCards() {
   const w = G();
   if (w.permits <= 0) return toast(`손님 ${w.nextAt - w.served}명을 더 받으면 허가증이 나와요 🎫`, 2400);
-  if (Object.keys(myDoc.plots).length >= MAX_PLOTS) return toast(`섬에는 ${MAX_PLOTS}채까지 지을 수 있어요`, 2000);
+  if (Object.keys(myDoc.plots).length >= maxPlots()) return toast(`섬에는 ${maxPlots()}채까지 지을 수 있어요`, 2000);
   // the two wants that most need a place: people waiting for it, and more so when my island has none
   const dm = sim.demand(), have = new Set(allPlots().filter(p => p.owner === me && p.b).map(p => roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves));
   const score = (k) => dm[k].waiting + (have.has(k) ? 0 : 4) + Math.random() * 2;
@@ -627,7 +647,7 @@ function celebrate(title, sub) {
   document.querySelector('.celebrate')?.remove(); clearTimeout(celebT);
   const c = el('div', { class: 'celebrate' }, el('b', {}, title), el('span', {}, sub)); document.body.append(c); celebT = setTimeout(() => c.remove(), 2600);
 }
-$('d-home').onclick = () => { setBuildMode(false); panel.hidden || current ? (current ? showHome() : closePanel()) : showHome(); };
+$('d-home').onclick = () => { setBuildMode(false); if (panel.hidden || current) showHome(); else closePanel(); };   // open my island; a second press closes it
 $('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.manual = !myDoc.wallet.manual; save(true); dockState(); toast(myDoc.wallet.manual ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
 function dockState() { const auto = !!myDoc && !myDoc.wallet.manual; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = auto ? '자동 켬' : '자동 끔'; }
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && buildMode) setBuildMode(false); });
@@ -668,9 +688,9 @@ function showHome(msg) {
   show(el('h2', {}, `${mySlot}번 섬 · 내 섬`),
     (() => { const w = G(), lv = levelOf(w.served), nx = LEVELS[lv + 1]; return el('div', { class: 'card' }, el('span', {}, `Lv.${lv + 1} ${LEVELS[lv].name} · 받은 손님 ${w.served}명`, el('div', { class: 'note' }, nx ? `손님 ${nx.at - w.served}명 더 받으면 ${nx.name} — ${nx.size !== LEVELS[lv].size ? nx.size + ' 크기가 열려요' : '번화가!'}` : '최고 단계예요')),
       el('span', {}, `🎫 ${w.permits}`, el('div', { class: 'note' }, `다음까지 ${w.nextAt - w.served}명`))); })(),
-    el('div', { class: 'note' }, `내 건물 ${mine}/${MAX_PLOTS}`), boatCard(), el('div', { class: 'card' }, el('span', {}, myDoc.wallet.manual ? '가구는 직접 들여요' : '가구가 자동으로 들어와요', el('div', { class: 'note' }, '재료 값은 남겨 두고, 수입을 가장 많이 올리는 가구부터')),
+    el('div', { class: 'note' }, `내 건물 ${mine}/${maxPlots()}`), boatCard(), el('div', { class: 'card' }, el('span', {}, myDoc.wallet.manual ? '가구는 직접 들여요' : '가구가 자동으로 들어와요', el('div', { class: 'note' }, '재료 값은 남겨 두고, 수입을 가장 많이 올리는 가구부터')),
       el('button', { class: 'ghost', on: { click: () => { myDoc.wallet.manual = !myDoc.wallet.manual; save(true); showHome(); } } }, myDoc.wallet.manual ? '자동으로' : '직접 하기')),
-    msg ? el('div', { class: 'err' }, msg) : null,
+    landCard(), msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃 섬과 다리'), bridgeCards(), inviteCard());
 }
 function boatCard() {
@@ -680,7 +700,7 @@ function boatCard() {
 }
 async function join(s) {
   if (owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');
-  myDoc = { slot: s, at: now(), plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0 } };
+  myDoc = { slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0 } };
   docs.set(me, myDoc); rebuild(); await save(true); closePanel(); scrollToSlot(s); guide();
 }
 async function unlock(s) {
@@ -868,7 +888,7 @@ function fitToLot(input, n) {
 }
 const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어빵 노점'], M: ['동네 빵집', '할머니 분식집', '네온사인 PC방'], L: ['12층 아파트', '레트로 볼링장', '작은 기차역'] };
 function startBuild(x, z, door) {
-  if (Object.keys(myDoc.plots).length >= MAX_PLOTS) return showHome(`내 섬에는 ${MAX_PLOTS}채까지 지을 수 있어요.`);
+  if (Object.keys(myDoc.plots).length >= maxPlots()) return showHome(`내 섬에는 ${maxPlots()}채까지 지을 수 있어요.`);
   if (G().permits <= 0) return toast('허가증이 없어요', 1800);
   const n = PLOT[size], sz = size, req = card?.need ? REQ[card.need] : null, need = card?.need ?? null; current = { kind: 'build' }; tutSpot = null; setTimeout(() => tutEvent('place'), 0);
   const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
@@ -933,7 +953,7 @@ function boardShape(entries) {   // owners, joined islands, bridges and plots of
   return { owners, joined, bridges, taken, buildings, mine: [...owners.values()].includes(me) };
 }
 const colOf = (id) => id === 'main' ? 'i' : 'i-' + id;
-async function boardEntries(id) { try { return db ? (await db.collection(colOf(id)).get()).docs.map(d => [d.id, d.data()]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
+async function boardEntries(id) { try { return db ? (await db.collection(colOf(id)).get()).docs.map(d => [d.id, moveWithIsland(d.id, d.data())]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
 // every board keeps a small summary (friends, buildings, which users) so the world map never reads every island
 async function loadBoards() {
   let meta = [];
@@ -1076,20 +1096,31 @@ function saveSummary() {
 }
 setInterval(saveSummary, 10000);
 
+// islands moved apart (wider spacing): plots, doors and keys move with their island's centre
+function moveWithIsland(uid, d) {
+  if (!d?.slot || (d.gap ?? OLD_GAP) === GAP) return d;
+  const [ox, oz] = centerOfGap(d.slot, d.gap ?? OLD_GAP), [nx, nz] = centerOfGap(d.slot, GAP), dx = nx - ox, dz = nz - oz, plots = {};
+  for (const [key, p] of Object.entries(d.plots ?? {})) {
+    const q = { ...p, x: p.x + dx, z: p.z + dz, door: p.door ? [p.door[0] + dx, p.door[1] + dz] : p.door };
+    plots[`${d.slot}_${q.x}_${q.z}`] = q;
+  }
+  return { ...d, plots, gap: GAP };
+}
+
 // ---------- load ----------
 if (db && BOARD !== 'main') db.doc('boards/' + BOARD).get().then(d => { boardName = d.data()?.name ?? ''; }).catch(() => {});
 if (db) {
   db.collection(COL).onSnapshot(snap => {
     docs = new Map();
-    for (const d of snap.docs) docs.set(d.id, d.data() ?? {});
+    for (const d of snap.docs) docs.set(d.id, moveWithIsland(d.id, d.data() ?? {}));
     // my own doc: take the stored copy only when it is newer than what this page holds (another tab, or an edit from outside)
     if (me && docs.has(me)) { const remote = docs.get(me);
-      if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { ...(remote.wallet ?? {}), coins: remote.wallet?.coins ?? 0 } };
-      docs.set(me, myDoc); }
+      if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, land: remote.land ?? 0, gap: remote.gap, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { ...(remote.wallet ?? {}), coins: remote.wallet?.coins ?? 0 } };
+      docs.set(me, myDoc); if (remote.gap === GAP && snap.docs.find(x => x.id === me)?.data()?.gap !== GAP) { dirty = true; save(true); } }
     else if (me && myDoc) docs.set(me, myDoc);
     rebuild(); resolveNames();
   }, () => show(el('p', { class: 'err' }, '군도를 불러오지 못했어요.')));
-} else { docs = new Map(BOARD === 'main' ? Object.entries(ISLES_SEED) : []); rebuild(); }
+} else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, moveWithIsland(u, d)])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
 window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; } };
