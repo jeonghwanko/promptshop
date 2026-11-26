@@ -15,25 +15,56 @@
   .hud { position:fixed; z-index:5; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
   .hud > * { pointer-events:auto; }
   .pill { background:rgba(251,246,236,.95); border-radius:14px; padding:6px 12px; box-shadow:0 3px 0 rgba(20,40,60,.35); display:flex; align-items:center; gap:8px; }
-  .tl { top:12px; left:12px; align-items:flex-start; } .tr { top:12px; right:12px; align-items:flex-end; }
+  .tl { top:12px; left:12px; align-items:flex-start; } .tr { top:12px; right:12px; align-items:flex-end; z-index:16; }
   .isle { font:400 20px var(--f-disp); } .isle small { font:400 13px var(--f-ui); color:var(--dim); margin-left:6px; }
   .coins { font:400 24px var(--f-disp); color:#b07a12; font-variant-numeric:tabular-nums; } .coins i { font-style:normal; display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--gold); color:#6a4500; font:900 13px var(--f-ui); box-shadow:inset 0 -2px 0 #9a6f14; }
   .boatline.callable { cursor:pointer; background:#fff3cf; box-shadow:0 3px 0 #9a6f14; animation:nudge 1.6s infinite; } .callb { margin-left:6px; color:#b0560e; } .callw { color:var(--dim); }
   .fixbtn { padding:7px 14px; animation:nudge 1.6s infinite; } .fixbtn:disabled { animation:none; }
   .stars { color:#c98f1c; font-size:18px; letter-spacing:1px; } .checks { display:flex; flex-wrap:wrap; gap:4px; } .checks span { font-size:12px; background:#efe6d4; color:var(--dim); border-radius:999px; padding:1px 8px; } .checks span.ok { background:#dcefd8; color:#2f6b3a; font-weight:700; }
   .rate { font-size:13px; color:var(--accent); font-weight:700; } .boatline { font-size:13px; }
-  .wants { display:flex; gap:6px; flex-wrap:wrap; max-width:min(560px, 60vw); }
-  .want { display:flex; align-items:center; gap:5px; background:rgba(251,246,236,.92); border-radius:999px; padding:2px 10px 2px 4px; font-size:12px; }
-  .want .dot { width:14px; height:14px; border-radius:50%; display:inline-block; } .want b { font-variant-numeric:tabular-nums; }
-  .want.none { box-shadow:inset 0 0 0 2px var(--hot); } .want.none .tag { color:var(--hot); font-weight:700; }
-  .dock { position:fixed; z-index:7; bottom:12px; left:50%; transform:translateX(-50%); display:flex; gap:6px; align-items:flex-end; background:rgba(46,36,26,.92); border-radius:18px; padding:8px; box-shadow:0 6px 0 rgba(0,0,0,.25); max-width:calc(100vw - 16px); overflow-x:auto; }
-  .dock button { display:flex; flex-direction:column; align-items:center; gap:2px; min-width:64px; padding:6px 10px; background:transparent; box-shadow:none; color:#fbf1dc; font:700 12px var(--f-ui); border-radius:12px; }
-  .dock button .ic { font-size:22px; line-height:1; } .dock button.on { background:var(--gold); color:#3a2a00; }
-  .dock .sizes { display:flex; gap:4px; padding-right:6px; border-right:1px solid rgba(255,255,255,.2); margin-right:2px; } .dock .sizes[hidden] { display:none; }
-  .dock .sizes button { min-width:54px; background:rgba(255,255,255,.1); } .dock .sizes button.on { background:#fbf1dc; color:var(--ink); }
-  .toast { position:fixed; z-index:7; bottom:96px; left:50%; transform:translateX(-50%); background:rgba(46,36,26,.92); color:#fbf1dc; padding:7px 14px; border-radius:12px; font-size:13px; white-space:nowrap; }
+  .dock { position:fixed; z-index:7; left:12px; right:12px; bottom:12px; display:flex; justify-content:space-between; align-items:flex-end; pointer-events:none; }
+  .dock > div { display:flex; gap:10px; align-items:flex-end; pointer-events:auto; }
+  .rb { position:relative; display:flex; flex-direction:column; align-items:center; gap:0; width:58px; height:58px; padding:0; justify-content:center; border-radius:18px; background:#fbf1dc; color:var(--ink);
+        box-shadow:inset 0 0 0 3px #2e241a, inset 0 -6px 0 #d9c49a, 0 4px 0 rgba(20,30,40,.45); }
+  .rb .ic { width:32px; height:32px; display:block; } .rb .ic img { width:32px; height:32px; image-rendering:pixelated; display:block; }
+  .rb .lb { position:absolute; top:100%; margin-top:3px; font:400 13px var(--f-disp); color:#fff; white-space:nowrap; -webkit-text-stroke:3px #2e241a; paint-order:stroke fill; }
+  .dock .rb { margin-bottom:18px; }
+  .rb:hover { background:#fff8e6; } .rb:active:not(:disabled) { transform:translateY(3px); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -3px 0 #d9c49a, 0 1px 0 rgba(20,30,40,.45); }
+  .rb.on { background:#ffe08a; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -6px 0 #d9a52a, 0 4px 0 rgba(20,30,40,.45); }
+  .rb.sm { width:46px; height:46px; border-radius:14px; } .rb.sm .ic, .rb.sm .ic img { width:24px; height:24px; }
+  .rb.sm::after { content:''; position:absolute; top:5px; right:5px; width:7px; height:7px; border-radius:2px; background:#a99a80; box-shadow:0 0 0 2px #2e241a; } .rb.sm.on::after { background:#4fd16b; }
+  .rb.big { width:84px; height:84px; border-radius:24px; background:var(--gold); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -8px 0 #b47d14, 0 5px 0 rgba(20,30,40,.45); }
+  .rb.big .ic, .rb.big .ic img { width:48px; height:48px; } .rb.big .lb { font-size:16px; }
+  .rb.big:hover { background:#f2bb45; } .rb.big.on { background:#fbf1dc; }
+  .rb .badge { position:absolute; top:-8px; right:-8px; min-width:26px; height:26px; display:grid; place-items:center; padding:0 6px; border-radius:13px; background:var(--hot); color:#fff; font:400 15px var(--f-disp); box-shadow:0 0 0 3px #2e241a; }
+  .rb.ready { animation:nudge 1.6s infinite; } @keyframes nudge { 0%, 70%, 100% { transform:none; } 80% { transform:translateY(-6px); } 90% { transform:translateY(0); } }
+  .boatb { width:64px; height:64px; border-radius:50%; } .boatb .ic, .boatb .ic img { width:36px; height:36px; }
+  .boatb .ring { position:absolute; inset:5px; border-radius:50%; background:conic-gradient(var(--sea) calc(var(--p,0) * 1turn), rgba(61,127,166,.15) 0); -webkit-mask:radial-gradient(circle, transparent 58%, #000 60%); mask:radial-gradient(circle, transparent 58%, #000 60%); }
+  .boatb .cnt { position:absolute; top:-6px; left:-6px; min-width:24px; height:22px; display:grid; place-items:center; padding:0 5px; border-radius:11px; background:#fbf1dc; color:var(--ink); font:400 14px var(--f-disp); box-shadow:0 0 0 3px #2e241a; }
+  .boatb .cnt:empty { display:none; }
+  .boatb.docked .ic { animation:bobb 1s ease-in-out infinite; } @keyframes bobb { 50% { transform:translateY(-3px) rotate(-4deg); } }
+  .boatb.callable { background:#ffe08a; animation:nudge 1.6s infinite; } .boatb.callable .ring { display:none; }
+  .boatb.idle { opacity:.55; }
+  .dock .sizes { display:flex; gap:6px; align-self:center; margin-bottom:18px; } .dock .sizes[hidden] { display:none; }
+  .dock .sizes button { min-width:54px; background:#fbf1dc; color:var(--ink); box-shadow:inset 0 0 0 3px #2e241a, 0 3px 0 rgba(20,30,40,.45); font:400 16px var(--f-disp); }
+  .dock .sizes button.on { background:var(--gold); color:#3a2a00; }
+  .isleb { display:flex; align-items:center; gap:10px; padding:4px 14px 4px 4px; border-radius:30px; background:rgba(46,36,26,.82); color:#fbf1dc; box-shadow:0 4px 0 rgba(20,30,40,.35); font:400 18px var(--f-disp); }
+  .isleb:hover { background:rgba(46,36,26,.92); } .isleb:active:not(:disabled) { transform:translateY(2px); box-shadow:0 2px 0 rgba(20,30,40,.35); }
+  .isleb .lvr { position:relative; width:48px; height:48px; border-radius:50%; display:grid; place-items:center; background:conic-gradient(#ffd166 calc(var(--p,0) * 1turn), rgba(255,255,255,.18) 0); }
+  .isleb .lvr b { width:38px; height:38px; border-radius:50%; display:grid; place-items:center; background:var(--accent); color:#fff; font:400 20px var(--f-disp); box-shadow:inset 0 -3px 0 #2a524e; }
+  .isleb .nm { display:flex; flex-direction:column; align-items:flex-start; line-height:1.15; } .isleb .nm small { font:400 12px var(--f-disp); color:#e6d3ad; }
+  .isleb .tk { display:flex; align-items:center; gap:3px; font:400 20px var(--f-disp); color:#ffd166; } .isleb .tk img { width:24px; height:24px; image-rendering:pixelated; }
+  .isleb .tk.got { animation:pop2 .5s; } @keyframes pop2 { 40% { transform:scale(1.4); } }
+  .coinb { position:relative; display:flex; align-items:center; gap:6px; padding:4px 16px 4px 6px; border-radius:30px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); }
+  .coinb .cic img { width:36px; height:36px; image-rendering:pixelated; display:block; }
+  .coinb b { font:400 28px var(--f-disp); color:#ffd166; font-variant-numeric:tabular-nums; min-width:2ch; text-align:right; }
+  .coinb small { position:absolute; top:100%; right:14px; margin-top:4px; font:400 14px var(--f-disp); color:#fff; -webkit-text-stroke:3px #2e241a; paint-order:stroke fill; }
+  .dock, .hud.tl { transition:opacity .25s, transform .25s; } body.inshop .dock, body.inshop .hud.tl { opacity:0; pointer-events:none; transform:translateY(12px); } body.inshop .dock > div { pointer-events:none; }
+  @media (max-width:440px) { .dock > div { gap:7px; } .rb { width:48px; height:48px; border-radius:15px; } .rb .ic, .rb .ic img { width:28px; height:28px; } .rb.sm { width:40px; height:40px; } .rb.big { width:70px; height:70px; } .rb.big .ic, .rb.big .ic img { width:40px; height:40px; } .boatb { width:54px; height:54px; } .boatb .ic, .boatb .ic img { width:30px; height:30px; } .rb .lb { font-size:12px; } .isleb .nm small { display:none; } .coinb b { font-size:24px; } }
+  .coinb.up b { animation:pop2 .35s; } .coinb.down b { color:#ff9a8a; }
+  .toast { position:fixed; z-index:7; bottom:128px; left:50%; transform:translateX(-50%); background:rgba(46,36,26,.92); color:#fbf1dc; padding:7px 14px; border-radius:12px; font-size:13px; white-space:nowrap; }
   .toast[hidden] { display:none; }
-  .panel { position:fixed; z-index:6; right:12px; top:84px; bottom:96px; width:360px; overflow:auto; background:var(--card); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; box-shadow:0 6px 0 rgba(20,40,60,.35); }
+  .panel { position:fixed; z-index:6; right:12px; top:84px; bottom:124px; width:360px; overflow:auto; background:var(--card); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; box-shadow:0 6px 0 rgba(20,40,60,.35); }
   .panel[hidden] { display:none; }
   .panel .x { position:sticky; top:0; align-self:flex-end; margin:-6px -6px -34px 0; z-index:1; padding:4px 10px; }
   .pill.isle { cursor:pointer; } .pill.isle:hover { background:#fff; }
@@ -72,11 +103,9 @@
   .celebrate { position:fixed; z-index:40; left:50%; top:38%; transform:translate(-50%, -50%); background:var(--gold); color:#3a2a00; border-radius:20px; padding:14px 26px; text-align:center; box-shadow:0 8px 0 #9a6f14, 0 0 0 9999px rgba(0,0,0,.12); pointer-events:none; animation:pop .45s cubic-bezier(.2,1.6,.4,1); }
   .celebrate b { display:block; font:400 30px var(--f-disp); } .celebrate span { font-size:14px; font-weight:700; }
   @keyframes pop { from { transform:translate(-50%, -50%) scale(.4); opacity:0; } }
-  .dock button .badge { position:absolute; margin:-6px 0 0 30px; background:var(--hot); color:#fff; border-radius:999px; font:900 11px var(--f-ui); padding:1px 6px; }
-  .dock button.ready { animation:nudge 1.6s infinite; } @keyframes nudge { 0%, 70%, 100% { transform:none; } 80% { transform:translateY(-4px); } 90% { transform:translateY(0); } }
   .gauge { display:inline-block; width:70px; height:8px; background:#e2d6bd; border-radius:999px; overflow:hidden; vertical-align:middle; margin-left:4px; } .gauge i { display:block; height:100%; background:var(--accent); border-radius:999px; }
   .lv { font:700 12px var(--f-ui); color:#fff; background:var(--accent); border-radius:999px; padding:1px 8px; margin-right:6px; }
-  .guide { position:fixed; z-index:45; left:14px; bottom:96px; display:flex; align-items:flex-end; gap:8px; max-width:min(440px, calc(100vw - 28px)); animation:pop .4s cubic-bezier(.2,1.6,.4,1); pointer-events:none; }
+  .guide { position:fixed; z-index:45; left:14px; bottom:128px; display:flex; align-items:flex-end; gap:8px; max-width:min(440px, calc(100vw - 28px)); animation:pop .4s cubic-bezier(.2,1.6,.4,1); pointer-events:none; }
   .guide[hidden] { display:none; } .inside:not([hidden]) ~ .guide { left:auto; right:14px; bottom:16px; flex-direction:row-reverse; } .inside:not([hidden]) ~ .guide .gbub::before { left:auto; right:-8px; border-right-color:transparent; border-left:8px solid #fff; } .gbird { font-size:52px; line-height:1; animation:bob 1.2s ease-in-out infinite; filter:drop-shadow(0 3px 0 rgba(0,0,0,.25)); }
   @keyframes bob { 50% { transform:translateY(-6px) rotate(-4deg); } }
   .gbub { position:relative; background:#fff; border-radius:16px; padding:10px 14px; box-shadow:0 5px 0 rgba(0,0,0,.25); font-size:15px; line-height:1.5; white-space:pre-line; pointer-events:auto; }
@@ -85,7 +114,7 @@
   .garrow { position:fixed; z-index:46; color:var(--gold); font-size:34px; text-shadow:0 3px 0 #9a6f14, 0 0 8px #fff; transform:translate(-50%, -100%); pointer-events:none; animation:point .7s ease-in-out infinite; }
   .garrow[hidden] { display:none; } @keyframes point { 50% { margin-top:-10px; } }
   .glow { box-shadow:0 0 0 4px #fff, 0 0 0 8px var(--gold), 0 0 24px 8px rgba(227,167,47,.8) !important; border-radius:12px; }
-  @media (max-width:760px) { .panel { left:8px; right:8px; top:auto; width:auto; max-height:52vh; } .wants { display:none; } }
+  @media (max-width:760px) { .panel { left:8px; right:8px; top:auto; width:auto; max-height:52vh; } }
   .panel h2 { margin:0; font:400 21px var(--f-disp); } .panel h3 { margin:4px 0 0; font:400 16px var(--f-disp); }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
   input[type=text] { flex:1; min-width:0; font:15px var(--f-ui); padding:10px 11px; border-radius:10px; border:1px solid var(--line); background:#fbf6ec; color:var(--ink); }
@@ -131,8 +160,8 @@
 <div class="inside" id="inside" hidden><div class="ibox"><div class="row"><h2 id="iname"></h2><button class="ghost" id="iclose">닫기</button></div><div class="note" id="ihint"></div><div class="iscroll" id="istage"></div><div id="iflow"></div><div class="istats" id="istats" hidden></div></div></div>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
-<div class="hud tl"><div class="pill isle" id="who">한 줄 군도</div><div class="wants" id="wants"></div></div>
-<div class="hud tr"><div class="pill"><span class="coins" id="wallet"></span><span class="rate" id="rate"></span></div><div class="pill boatline" id="boat"></div></div>
+<div class="hud tl"><button class="isleb" id="who"></button></div>
+<div class="hud tr"><div class="coinb" id="coinb"><span class="cic"></span><b id="wallet"></b><small id="rate"></small></div></div>
 <aside class="panel" id="panel" hidden></aside>
 <div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><div class="shopacts" id="shopacts"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
 <div class="world" id="world" hidden><canvas class="wmap" id="wmap"></canvas><div id="spots"></div>
@@ -142,13 +171,14 @@
 <div class="cards" id="cards" hidden></div>
 <div class="guide" id="guide" hidden><div class="gbird" data-icon-size="64">🐦</div><div class="gbub"><div class="gname">끼룩이</div><div id="gtext"></div><div class="grow2" id="gbtns"></div></div></div>
 <div class="garrow" id="garrow" hidden>▼</div>
-<nav class="dock" id="dock" data-icon-size="32">
-  <div class="sizes" id="sizes" hidden></div>
-  <button id="d-build"><span class="ic">🏗️</span>짓기</button>
-  <button id="d-home"><span class="ic">🏝️</span>내 섬</button>
-  <button id="d-auto"><span class="ic">🛋️</span><span id="d-auto-t">자동</span></button>
-  <button id="zoom"><span class="ic">🗺️</span><span id="zoom-t">전체</span></button>
-  <button id="d-world"><span class="ic">🌏</span>세계</button>
+<nav class="dock" id="dock">
+  <div class="dl"><button class="rb" id="d-world"><span class="ic" data-i="globe"></span><span class="lb">세계</span></button>
+    <button class="rb" id="zoom"><span class="ic"></span><span class="lb" id="zoom-t">전체</span></button>
+    <button class="rb" id="d-home"><span class="ic" data-i="island"></span><span class="lb">내 섬</span></button>
+    <button class="rb sm" id="d-auto"><span class="ic" data-i="chair"></span><span class="lb" id="d-auto-t">자동</span></button></div>
+  <div class="dr"><div class="sizes" id="sizes" hidden></div>
+    <button class="rb boatb" id="boat" hidden><span class="ring" id="boatring"></span><span class="ic" data-i="boat" id="boatic"></span><span class="cnt" id="boatn"></span><span class="lb" id="boatt"></span></button>
+    <button class="rb big" id="d-build"><span class="ic" data-i="hammer"></span><span class="lb">짓기</span></button></div>
 </nav>
 <script type="module">
 import { lineReader } from './src/steps.js';
@@ -321,7 +351,7 @@ async function resolveNames() { if (!user) return; const ids = [...owners.values
 const pr = islesProjection(), map = $('map'); map.width = pr.width; map.height = pr.height;
 // native pixels by default (crisp), scrolled to my island; "전체 보기" fits the whole archipelago
 let fit = false;
-const applyZoom = () => { map.style.width = fit ? '100vw' : pr.width + 'px'; $('zoom-t').textContent = fit ? '가까이' : '전체'; $('zoom').classList.toggle('on', fit); };
+const applyZoom = () => { map.style.width = fit ? '100vw' : pr.width + 'px'; $('zoom-t').textContent = fit ? '가까이' : '전체'; { const z = $('zoom').querySelector('.ic'); if (z) z.replaceChildren(iconEl(fit ? 'pin' : 'map', 32, '')); } $('zoom').classList.toggle('on', fit); };
 function scrollToSlot(s) { if (fit) return; const box = $('mapbox'), [cx, cz] = centerOf(s), [px, py] = pr.P(cx, cz); box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
@@ -391,6 +421,13 @@ function frame(t) {
   g.font = '900 12px "Noto Sans KR", sans-serif';
   // my shops running low on stock show a red mark
   for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
+  // what guests at my pier want and cannot find on the archipelago: thought bubbles over the pier
+  if (mySlot && unmet.length && !watching?.inPlace) { const d = dockOf(mySlot), [bx, by] = pr.P(d.pier[0][0] + .5, d.pier[0][1] + .5), n = unmet.length, tt = performance.now() / 1000;
+    unmet.forEach(([k, c], i) => { const x = Math.round(bx + (i - (n - 1) / 2) * 30), y = Math.round(by - 34 + Math.sin(tt * 2.2 + i) * 2);
+      g.fillStyle = '#fff'; g.strokeStyle = '#2e241a'; g.lineWidth = 2; g.beginPath(); g.arc(x, y, 13, 0, 7); g.fill(); g.stroke();
+      g.beginPath(); g.arc(x - 4, y + 17, 3, 0, 7); g.fill(); g.stroke();
+      g.imageSmoothingEnabled = false; const ic = iconCanvas(NEED_ICON[k]); if (ic) g.drawImage(ic, x - 9, y - 9, 18, 18);
+      g.font = '900 10px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeText(String(c), x + 11, y + 13); g.fillStyle = '#ff8a7a'; g.fillText(String(c), x + 11, y + 13); }); }
   drawSplash(dt);
   drawn = items; lastTops = tops;
   if (tutSpot && buildMode && tutOn() && TUT[tutStep()].map === 'spot') { const t = (Math.sin(performance.now() / 180) + 1) / 2; outline(tutSpot.x, tutSpot.z, PLOT[size], `rgba(255,${200 + 55 * t | 0},80,${.6 + .4 * t})`); }
@@ -442,26 +479,36 @@ function drawBoat(b) {
 requestAnimationFrame(frame);
 applyZoom(); $('zoom').onclick = () => { fit = !fit; applyZoom(); if (!fit) scrollToSlot(mySlot || 1); };
 let scrolled = false;
+for (const e of document.querySelectorAll('[data-i]')) e.replaceChildren(iconEl(e.dataset.i, 32, ''));
+$('coinb').querySelector('.cic').replaceChildren(iconEl('coin', 36, ''));
+let shownCoins = null, shownPermits = null;
 function hud() {
-  $('wallet').replaceChildren(el('i', {}, '¢'), myDoc ? myDoc.wallet.coins.toLocaleString('ko-KR') : '—');
+  const coins = myDoc ? myDoc.wallet.coins : null;
+  if (coins !== shownCoins) { const cb = $('coinb'); cb.classList.remove('up', 'down'); if (shownCoins != null && coins != null) { void cb.offsetWidth; cb.classList.add(coins > shownCoins ? 'up' : 'down'); setTimeout(() => cb.classList.remove('down'), 400); }
+    shownCoins = coins; $('wallet').textContent = coins == null ? '—' : coins.toLocaleString('ko-KR'); }
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
-  $('rate').textContent = myDoc ? `+${earned.reduce((a, e) => a + e[1], 0)}/분` : '';
-  const mine = mySlot ? allPlots().filter(p => p.slot === mySlot && p.b) : [];
-  if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), pct = Math.min(100, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt) * 100);
-    $('who').replaceChildren(el('span', { class: 'lv' }, `Lv.${lv + 1} ${LEVELS[lv].name}`), (boardName ? boardName + ' · ' : '') + `${mySlot}번 섬`,
-      el('small', {}, `🎫 ${w.permits}`, el('span', { class: 'gauge', title: `다음 허가증까지 손님 ${w.nextAt - w.served}명` }, Object.assign(el('i'), { style: `width:${pct}%` })), ` ${w.nextAt - w.served}명`));
-    const bt = $('d-build'); bt.querySelector('.badge')?.remove(); if (w.permits > 0) bt.prepend(el('span', { class: 'badge' }, String(w.permits))); bt.classList.toggle('ready', w.permits > 0 && !buildMode);
-  } else $('who').replaceChildren(boardName || '한 줄 군도', ' · 섬 고르기');
+  const per = earned.reduce((a, e) => a + e[1], 0); $('rate').textContent = myDoc && per ? `+${per}/분` : '';
+  if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), p = Math.min(1, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt));
+    const tk = el('span', { class: 'tk' + (shownPermits != null && w.permits > shownPermits ? ' got' : '') }, iconEl('ticket', 24, ''), String(w.permits)); shownPermits = w.permits;
+    $('who').replaceChildren(el('span', { class: 'lvr', style: `--p:${p.toFixed(3)}` }, el('b', {}, String(lv + 1))),
+      el('span', { class: 'nm' }, (boardName || '한 줄 군도'), el('small', {}, `${mySlot}번 섬 · ${LEVELS[lv].name}`)), tk);
+    $('who').title = `다음 허가증까지 손님 ${w.nextAt - w.served}명`;
+    const bt = $('d-build'); bt.querySelector('.badge')?.remove(); if (w.permits > 0) bt.append(el('span', { class: 'badge' }, String(w.permits))); bt.classList.toggle('ready', w.permits > 0 && !buildMode);
+  } else { $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, boardName || '한 줄 군도', el('small', {}, '섬 고르기'))); }
+  const B = $('boat');
   if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot && b.state !== 'out');
     const cd = Math.ceil(callReady - t / 1000), can = bp.shops && !docked && cd <= 0;
-    $('boat').textContent = !bp.shops ? '⛵ 가게를 지으면 배가 와요' : docked ? `⛵ 배가 들어와요 · ${docked.people}명` : `⛵ 다음 배 ${Math.max(0, Math.ceil(nb))}초 · ${bp.people}명`;
-    $('boat').append(can ? el('b', { class: 'callb' }, '📣 지금 부르기') : bp.shops && !docked && cd > 0 ? el('small', { class: 'callw' }, ` 부르기 ${cd}초`) : '');
-    $('boat').classList.toggle('callable', !!can); $('boat').hidden = false; }
-  else $('boat').hidden = true;
+    B.hidden = false; B.classList.toggle('callable', !!can); B.classList.toggle('docked', !!docked); B.classList.toggle('idle', !bp.shops);
+    const ic = can ? 'horn' : 'boat'; if ($('boatic').dataset.i !== ic) { $('boatic').dataset.i = ic; $('boatic').replaceChildren(iconEl(ic, 36, '')); }
+    $('boatring').style.setProperty('--p', docked || !bp.shops ? 1 : Math.max(0, Math.min(1, 1 - nb / Math.max(1, bp.every))).toFixed(3));
+    $('boatn').textContent = docked ? String(docked.people) : bp.shops ? String(bp.people) : '';
+    $('boatt').textContent = can ? '부르기' : docked ? '도착!' : bp.shops ? `${Math.max(0, Math.ceil(nb))}초` : '';
+  } else B.hidden = true;
   dockState();
-  const dm = sim.demand();
-  $('wants').replaceChildren(...NEED_KEYS.map(k => { const d = dm[k], none = !d.served && d.waiting; return el('span', { class: 'want' + (none ? ' none' : '') }, el('span', { class: 'dot', style: `background:${NEEDS[k].color}` }), NEEDS[k].ko, el('b', {}, String(d.waiting)), none ? el('span', { class: 'tag' }, '· 군도에 없음') : null); }));
+  const dm = sim.demand(); unmet = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => [k, dm[k].waiting]);
 }
+let unmet = [];
+const NEED_ICON = { food: 'food', cafe: 'cafe', shop: 'bag', fun: 'heart', rest: 'bed' };
 setInterval(hud, 500); hud();
 // furniture comes in by itself: every 3 s, the next piece (of any shop) that raises income most per coin,
 // keeping enough for the next batch of supplies. Off when the owner turns it off on the home panel.
@@ -555,9 +602,9 @@ let dragged = false;
   addEventListener('pointerup', () => { down = null; box.classList.remove('drag'); setTimeout(() => { dragged = false; }, 0); }); }
 let toastT = 0;
 function toast(text, ms) { const t = $('toast'); t.textContent = text; t.hidden = !text; clearTimeout(toastT); if (ms) toastT = setTimeout(() => { t.hidden = !buildMode; if (buildMode) t.textContent = buildHint(); }, ms); }
-const buildHint = () => `${card?.need ? REQ[card.need].icon + ' ' + REQ[card.need].sub : '✏️ 마음대로'} · ${size} 크기 — 내 섬 땅을 누르세요 (초록이면 지을 수 있어요)`;
+const buildHint = () => `${card?.need ? REQ[card.need].icon + ' ' + REQ[card.need].sub : '✏️ 마음대로'} · ${size}`;
 function setBuildMode(on) {
-  buildMode = on && !!mySlot; $('d-build').classList.toggle('on', buildMode); $('sizes').hidden = !buildMode; hover = null;
+  buildMode = on && !!mySlot; $('d-build').classList.toggle('on', buildMode); { const bb = $('d-build'); bb.querySelector('.lb').textContent = buildMode ? '그만' : '짓기'; bb.querySelector('.ic').replaceChildren(iconEl(buildMode ? 'close' : 'hammer', 48, '')); } $('sizes').hidden = !buildMode; hover = null;
   if (buildMode) { const lv = levelOf(G().served), open = sizesOpen(lv); if (!open.includes(size)) size = 'S';
     $('sizes').replaceChildren(...Object.keys(PLOT).map(k => { const ok = open.includes(k), b = el('button', { class: k === size ? 'on' : '', on: { click: () => { if (!ok) return toast(`${k} 크기는 ${LEVELS.find(l => l.size === k).name}부터 지을 수 있어요`, 1800); size = k; setBuildMode(true); } } }, ok ? k : `🔒 ${k}`); return b; })); toast(buildHint()); scrollToSlot(mySlot); }
   else toast('');
@@ -707,7 +754,7 @@ function celebrate(title, sub) {
 }
 $('d-home').onclick = () => { setBuildMode(false); if (panel.hidden || current) showHome(); else closePanel(); };   // open my island; a second press closes it
 $('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.autoInvest = !myDoc.wallet.autoInvest; save(true); dockState(); toast(!myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
-function dockState() { const auto = !!myDoc && !!myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = auto ? '자동 켬' : '자동 끔'; }
+function dockState() { const auto = !!myDoc && !!myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !myDoc; }
 addEventListener('keydown', (e) => { if (e.key === 'Escape' && buildMode) setBuildMode(false); if (e.key === 'Escape' && moving) cancelMove(); });
 // ---------- moving a building: it lifts, follows the pointer, and lands where it fits; landing on another of mine of the same size swaps them ----------
 let moving = null;
@@ -915,7 +962,7 @@ function openInside(key, { inPlace = false } = {}) {
   view.sim.setHelpers(helpersOf(p), levelsOf(p));
   const flow = new FlowView(); if (!inPlace) $('iflow').replaceChildren(flow.el);
   watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0, inPlace };
-  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; $('shopmore').hidden = true; watching.actKey = ''; placeActs(); rebuild(); return; }
+  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop'); $('shopmore').hidden = true; watching.actKey = ''; placeActs(); rebuild(); return; }
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
   if (roleOf(n.type, n.levels).serves) $('iname').append(' ', el('span', { class: 'stars' }, starText(starsInfo(p).stars)));
   $('ihint').textContent = mineP ? '반투명 가구의 노란 + 를 누르면 들여요. 배 손님이 문에 줄을 서고, 앉아서 먹고, 테이블에서 돈을 내요.' : `${nameOf(p.owner)}의 가게예요. 구경만 할 수 있어요.`;
@@ -929,7 +976,7 @@ function closeInside(quiet) {
   if (watching.inPlace) {   // the roof settles back, the camera steps away
     const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
     if (w.mine && left) { myDoc.wallet.coins += left * w.view.sim.price; dirty = true; }
-    watching = null; $('shopwrap').hidden = true; $('shopstage').replaceChildren(); map.style.transform = ''; if (zoomShop) zoomShop.dir = -1; rebuild(); guide(); return;
+    watching = null; $('shopwrap').hidden = true; document.body.classList.remove('inshop'); $('shopstage').replaceChildren(); map.style.transform = ''; if (zoomShop) zoomShop.dir = -1; rebuild(); guide(); return;
   }
   // guests still inside pay as they would have
   const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
