@@ -1,0 +1,13 @@
+<!doctype html><meta charset="utf-8"><title>render hash</title>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<pre id="out">…</pre>
+<script type="module">
+// Prints a hash of each render, to check that a refactor of the renderer changes no pixel.
+import { renderView } from '../src/v2/render.js';
+import { voxelURL, VOXEL_NAMES } from '../src/ui/voxelui.js';
+const hash = (c) => { const d = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; let h = 2166136261; for (let i = 0; i < d.length; i++) { h ^= d[i]; h = Math.imul(h, 16777619); } return c.width + 'x' + c.height + ':' + (h >>> 0).toString(16); };
+const docs = await (await fetch('/api/db/i/dev-me')).json(), out = [];
+for (const p of Object.values(docs.plots)) { out.push(p.b.input.name + ' ext ' + hash(renderView(p.b.input, 'ext').canvas)); out.push(p.b.input.name + ' sec ' + hash(renderView(p.b.input, 'section', { owned: new Set(p.own) }).canvas)); out.push(p.b.input.name + ' sec0 ' + hash(renderView(p.b.input, 'section', { owned: new Set(p.own), floor: 0 }).canvas)); }
+for (const n of VOXEL_NAMES) { const im = new Image(); im.src = voxelURL(n, 4); await im.decode(); const c = document.createElement('canvas'); c.width = im.width; c.height = im.height; c.getContext('2d').drawImage(im, 0, 0); out.push('voxel ' + n + ' ' + hash(c)); }
+document.getElementById('out').textContent = out.join('\n'); document.title = 'done';
+</script>

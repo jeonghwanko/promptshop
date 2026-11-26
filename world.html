@@ -71,7 +71,8 @@ import { TYPE_KO } from './src/v2/catalog.js';
 import { toXY, cellCenter, cellPoint, placeLabel, search, suggestions } from './src/v2/geo.js';
 import { Globe } from './src/v2/globe.js';
 import { makeArea, canPlace, takenTiles, areaProjection, drawArea, PLOT } from './src/v2/area.js';
-import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
+import { TownSim, NEEDS, NEED_KEYS, roleOf } from './src/v2/townsim.js';
+import { drawPerson } from './src/v2/townview.js';
 import { WORLD_SEED } from './examples/world-seed.js';
 
 const $ = (id) => document.getElementById(id);

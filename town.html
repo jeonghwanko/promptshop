@@ -63,7 +63,8 @@ import { normalize } from './src/v2/spec.js';
 import { TYPE_KO } from './src/v2/catalog.js';
 import { SEED } from './examples/town-seed.js';
 import { LOTS, makeProjection, drawGround, lotAtPixel } from './src/v2/town.js';
-import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
+import { TownSim, NEEDS, NEED_KEYS, roleOf } from './src/v2/townsim.js';
+import { drawPerson } from './src/v2/townview.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
