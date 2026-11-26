@@ -1,0 +1,136 @@
+// A shop opens where it stands: the camera comes close, the roof lifts, and the cut-away runs its own simulation.
+// Beside it, a few big buttons: the next piece, the best level-up, a helper, one more floor, move, close.
+import { PLOT } from '../v2/isles.js';
+import { normalize } from '../v2/spec.js';
+import { TYPE_KO } from '../v2/catalog.js';
+import { roleOf } from '../v2/townsim.js';
+import { InsideView } from '../v2/insideview.js';
+import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, costOf, flowCaps, LV_MAX, upgradeCost } from '../v2/inside.js';
+import { iconEl } from '../ui/icons.js';
+import { BASE_COIN, HELPER_MAX, helperCost } from './rules.js';
+import { $, el } from './ui.js';
+import { S, me, pr, map, earned } from './state.js';
+import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, G, rebuild } from './model.js';
+import { save } from './persist.js';
+import { applyZoom } from './camera.js';
+import { toast } from './hud.js';
+import { guide, tutEvent, tutInEvent } from './guide.js';
+import { closePanel } from './panel.js';
+import { setBuildMode, startExtend } from './build.js';
+import { startMove } from './move.js';
+
+export function openShop(key) {
+  const p = allPlots().find(x => x.key === key); if (!p?.b) return;
+  if (S.watching) closeInside(true); setBuildMode(false); closePanel();
+  const box = $('mapbox'); S.camBefore = { zoom: S.zoom, left: box.scrollLeft, top: box.scrollTop };   // put the camera back where it was when the shop closes
+  if (S.zoom !== 1) { S.zoom = 1; applyZoom(); }
+  const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2);
+  const lv = normalize(p.b.input).levels;   // taller cut-aways need more room above the building
+  box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - box.clientHeight * Math.min(.86, .62 + .12 * (Math.min(lv, 4) - 1)) });
+  requestAnimationFrame(() => {
+    // the origin does not move when scaling, so the building's base stays where it was on screen
+    map.style.transformOrigin = `${px}px ${py}px`; map.style.transform = 'scale(2)';
+    const st = $('shopstage'); st.style.left = ((innerWidth - 270) / 2 + 6) + 'px'; st.style.top = (innerHeight / 2) + 'px';   // the cut-away takes the middle of the screen; the building behind it lifts away
+    $('shopwrap').style.setProperty('--sx', st.style.left); $('shopwrap').style.setProperty('--sy', st.style.top);
+    S.zoomShop = { key, t: 0, dir: 1 };
+    openInside(key);
+  });
+}
+function openInside(key) {   // the cut-away in place, over the zoomed map (openShop moves the camera first)
+  setTimeout(() => tutEvent('inside'), 0);
+  const p = allPlots().find(x => x.key === key); if (!p?.b) return;
+  const myDoc = S.myDoc, mineP = p.owner === me && !!myDoc?.plots[key], owned = ownedOf(p);
+  const view = new InsideView(p.b.input, owned, {
+    every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
+    maxWidth: innerWidth - 380, tags: true, maxHeight: innerHeight - 70, maxZoom: 4,
+    onThud: () => { const st = $('shopstage'); st.classList.remove('thud'); void st.offsetWidth; st.classList.add('thud'); },
+    levels: levelsOf(p),
+    upgrade: (i, kind, cost, L) => { if (!mineP || S.myDoc.wallet.coins < cost) return false;
+      S.myDoc.wallet.coins -= cost; levelsOf(p)[i] = L; S.dirty = true; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
+    coins: mineP ? () => S.myDoc.wallet.coins : undefined,
+    buy: (i, kind, cost) => { if (S.myDoc.wallet.coins < cost) return false;
+      setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); S.myDoc.wallet.coins -= cost; const mp = S.myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
+  });
+  view.sim.setHelpers(helpersOf(p), levelsOf(p));
+  S.watching = { key, view, mine: mineP, earned: 0, ins: [], outs: [], losts: [], lost0: 0, inPlace: true, actKey: '' };
+  if (mineP && myDoc.wallet.tutIn === undefined) myDoc.wallet.tutIn = 0;   // the first time inside a shop of mine: the inside guide
+  $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop');
+  view.onFloorChange = () => placeActs(); placeActs(); rebuild(); guide();   // the first time inside, the guide's inside steps start here
+}
+/** The roof settles back, the camera steps away. Guests still inside pay on the way out. */
+export function closeInside() {
+  const w = S.watching; if (!w) return;
+  const left = w.view.sim.people.filter(q => q.state !== 'out').length;
+  if (w.mine && left) { S.myDoc.wallet.coins += left * w.view.sim.price; S.dirty = true; }
+  S.watching = null; $('shopwrap').hidden = true; document.body.classList.remove('inshop'); $('shopstage').replaceChildren(); map.style.transform = '';
+  if (S.zoomShop) S.zoomShop.dir = -1;
+  if (S.camBefore) { const c = S.camBefore; S.camBefore = null;
+    if (c.zoom !== S.zoom) { map.style.transition = 'none'; requestAnimationFrame(() => requestAnimationFrame(() => { map.style.transition = ''; })); }
+    S.zoom = c.zoom; applyZoom(); $('mapbox').scrollTo({ left: c.left, top: c.top }); }
+  rebuild(); guide();
+}
+/** To the right of the cut-away, level with its middle; from the stage's own place and size, not its on-screen box (that one moves while the stage shakes). */
+export function placeActs() {
+  const s0 = $('shopstage'), a = $('shopacts'), cx = parseFloat(s0.style.left) || innerWidth / 2, cy = parseFloat(s0.style.top) || innerHeight / 2;
+  a.style.left = Math.min(innerWidth - 240, cx + s0.offsetWidth / 2 + 16) + 'px'; a.style.top = Math.max(150, Math.min(innerHeight - 160, cy)) + 'px';
+}
+function shopActions(w, p) {
+  const fx = fixturesOf(p), own = ownedOf(p), base = BASE_COIN[p.size] ?? 1, lv = levelsOf(p), h = helpersOf(p), coins = S.myDoc.wallet.coins, out = [];
+  const caps = (o, l, hh) => flowCaps(fx, o, base, hh ?? h, l ?? lv), sup = w.supply ?? Infinity, now0 = caps(own);
+  const gain = (b) => Math.min(b.gpm, sup) - Math.min(now0.gpm, sup);
+  const popTxt = (b) => { const d = gain(b); return d > .05 ? `+${d.toFixed(1)}명/분` : b.price > now0.price ? `+${b.price - now0.price}동전` : ''; };
+  const gainTxt = (b) => { const d = gain(b); return d > .05 ? `받는 손님 +${d.toFixed(1)}/분` : b.price > now0.price ? `한 명 +${b.price - now0.price}동전` : '배가 조금 빨리 와요'; };
+  // the next piece: the one that lifts income most
+  const kinds = bestNext(fx, own, base, p.b.input.order, h, lv), up = Object.values(nextUp(fx, own, undefined, p.b.input.order));
+  const i = up.find(j => kinds.includes(fx[j].kind)) ?? up.sort((a, b) => costOf(fx[a].kind) - costOf(fx[b].kind))[0];
+  if (i !== undefined) { const f = fx[i], c = costOf(f.kind), b = caps(new Set([...own, i])); out.push({ icon: 'chair', title: `${FIX_INFO[f.kind]?.[0] ?? f.kind} 들이기`, sub: gainTxt(b), cost: c, ok: coins >= c, hi: i, run: () => { if (w.view.buyIndex(i)) w.view.thud(i, popTxt(b), 'buy'); } }); }
+  // the best level-up
+  let best = null; for (const j of own) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const b = caps(own, { ...lv, [j]: L + 1 }), c = upgradeCost(fx[j].kind, L), v = (Math.max(0, gain(b)) + (b.price - now0.price) * .5 + .01) / c; if (!best || v > best.v) best = { j, L, c, v, b }; }
+  if (best) out.push({ icon: 'up', title: `${FIX_INFO[fx[best.j].kind]?.[0] ?? fx[best.j].kind} Lv${best.L + 1}`, sub: gainTxt(best.b), cost: best.c, ok: coins >= best.c, hi: best.j, run: () => { if (w.view.upgradeIndex(best.j)) w.view.thud(best.j, `Lv${best.L + 1}! ${popTxt(best.b)}`, 'up'); } });
+  // a helper, when ordering is what holds guests up and the shop is full
+  if (i === undefined && now0.order <= now0.seat && h < HELPER_MAX) { const c = helperCost(h); out.push({ icon: 'helper', title: '알바 뽑기', sub: gainTxt(caps(own, lv, h + 1)), cost: c, ok: coins >= c, run: () => { if (S.myDoc.wallet.coins < c) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); toast('알바가 왔어요!', 1200); } }); }
+  // one more floor, when every piece is in
+  if (i === undefined) out.push({ icon: 'extend', title: '한 층 올리기', sub: '새 자리가 생겨요', cost: `🎫1`, ok: G().permits > 0, run: () => startExtend(p.key, { inShop: true }) });
+  out.push({ icon: 'move', title: '옮기기', run: () => { const k = p.key; closeInside(); startMove(k); } });
+  return out;
+}
+export function renderActs(w, p) {
+  if (w.extending) return;   // the extension form is showing
+  const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok]));
+  if (key === w.actKey) return; w.actKey = key;
+  const box = $('shopacts'), info = w.mine ? null : (() => { const n = normalize(p.b.input), st = roleOf(n.type, n.levels).serves ? starsInfo(p).stars : 0;   // someone else's shop: whose it is, its line, and nothing to buy
+    return el('div', { class: 'actinfo' }, el('b', {}, n.name || TYPE_KO[n.type] || '건물'), el('small', {}, `${nameOf(p.owner)}의 가게 · ${n.levels}층`), st ? el('span', { class: 'stars' }, starText(st)) : null, el('q', {}, p.b.line)); })();
+  box.replaceChildren(...(info ? [info] : []), ...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
+      a.cost !== undefined ? el('span', { class: 'price' }, typeof a.cost === 'number' ? iconEl('coin', 18) : '', String(a.cost)) : null);
+    b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; };
+    if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
+    return b; }), el('button', { class: 'act close', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, '✕ 닫기'));
+  placeActs();
+}
+/** Run the open shop for one frame: its guests, who pays, where it is slow, and the buttons beside it. */
+let istatT = 0;
+export function stepInside(dt) {
+  const w = S.watching; if (!w) return;
+  const paid = w.view.frame(dt), t = performance.now(), keep = (a) => { while (a.length && a[0] < t - 60000) a.shift(); };
+  for (const e of paid) w.outs.push(t);
+  const lostNow = w.view.sim.stats.lostLine + w.view.sim.stats.lostSeat; for (let k = w.lost0; k < lostNow; k++) w.losts.push(t); w.lost0 = lostNow;
+  keep(w.ins); keep(w.outs); keep(w.losts);
+  const span = Math.max(15, Math.min(60, (t - (w.opened ??= t)) / 1000)), per = (a) => a.length / span * 60;
+  const p = allPlots().find(x => x.key === w.key);
+  { const bp = p ? boatPlan(p.slot) : null, expect = bp && bp.shops ? bp.people / bp.every * 60 / bp.shops : 0;
+    w.supply = (t - w.opened) / 1000 > 30 ? Math.max(per(w.ins), .5) : Math.max(expect, per(w.ins)); }
+  if (p) { const fx = fixturesOf(p), fc = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, helpersOf(p), levelsOf(p)), isim = w.view.sim;
+    const q = isim.counters.reduce((n, c) => n + c.q.length, 0) + isim.kitchen.length;
+    // the slow step: guests (0), ordering (1) or seats (2); its owned fixtures steam when guests pile up there
+    const slow = w.supply < Math.min(fc.order, fc.seat) ? 0 : fc.slow === 'seat' ? 2 : 1; w.slow = slow;
+    if (w.inPlace) renderActs(w, p);
+    const roles = slow === 2 ? ['seat'] : slow === 1 ? ['serve', 'cook'] : [];
+    w.view.blocked = new Set([...ownedOf(p)].filter(j => roles.includes(FIX_ROLE(fx[j].kind)) && (q >= 2 || w.losts.length))); }
+  for (const e of paid) { w.earned += e.n; if (w.mine) { earned.push([performance.now(), e.n]); S.myDoc.wallet.coins += e.n; S.dirty = true; } }
+  if ((istatT += dt) < .3) return; istatT = 0;
+  if (w.mine && p) w.view.suggest = new Set(bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order, helpersOf(p), levelsOf(p)));   // what raises income most: its price tag bobs
+}
+export function initShop() {
+  $('shopwrap').addEventListener('click', (e) => { if (e.target === $('shopwrap')) closeInside(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });
+}

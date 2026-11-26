@@ -62,6 +62,20 @@ await ev(`document.querySelector('#panel .xb').click()`); await sleep(300);
 await ev(`document.getElementById('d-build').click()`); await sleep(800); check('request cards', (await ev(`document.querySelectorAll('#cards .rcard').length`)) >= 2); await ev(`document.querySelector('#cards .ghost').click()`); await sleep(300);
 await ev(`document.getElementById('d-world').click()`); await sleep(2000); check('world spots', (await ev(`document.querySelectorAll('#spots .spot, #spots .bubble').length`)) > 0); await shot('world');
 await ev(`document.getElementById('wclose').click()`); await sleep(500);
+// moving a building: it lands on the first free spot that fits
+const moved = await ev(`(()=>{ const k = Object.keys(__isles.myDoc.plots)[0], p = __isles.myDoc.plots[k]; __isles.startMove(k);
+  for (let d = 0; d < 400; d++) { const x = p.x - 10 + d % 20, z = p.z - 10 + Math.floor(d / 20), t = __isles.target(x + .5, z + .5); if (t?.door) { __isles.tryDrop(x + .5, z + .5); return k + ' → ' + x + ',' + z; } }
+  __isles.cancel(); return ''; })()`);
+await sleep(400); check('move lands', !!moved && !(await ev(`!!__isles.S.moving`)), moved);
+// widening my island: the land card's button, with coins enough
+await ev(`__isles.myDoc.wallet.coins += 5000`); await ev(`document.getElementById('d-home').click()`); await sleep(400);
+const land0 = await ev(`__isles.myDoc.land ?? 0`), canWiden = await ev(`(()=>{ const b = [...document.querySelectorAll('#panel .card.tile')].find(c => c.textContent.includes('땅 넓히기'))?.querySelector('.gold'); if (!b || b.disabled) return false; b.click(); return true; })()`);
+await sleep(600); check('widen land', !canWiden || (await ev(`__isles.myDoc.land`)) === land0 + 1, canWiden ? `${land0} → ${await ev(`__isles.myDoc.land`)}` : 'nothing to widen');
+await sleep(3000);
+// furniture comes in by itself when 자동 is on
+const fxSig = `JSON.stringify(Object.values(__isles.myDoc.plots).map(p => [p.own, p.lv]))`, f0 = await ev(fxSig);
+await ev(`__isles.myDoc.wallet.autoInvest = true`); await sleep(3600);
+check('auto furnish', (await ev(fxSig)) !== f0); await ev(`__isles.myDoc.wallet.autoInvest = false`);
 // construction site and celebration render without errors
 await ev(`__isles.site(11,10,'S',true)`); await sleep(600); await ev(`__isles.site(11,10,'S',false)`); await ev(`__isles.celebrate('테스트','')`); await sleep(800);
 check('no errors', errs.length === 0, errs.slice(0, 3).join(' || '));

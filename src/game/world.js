@@ -6,10 +6,9 @@ import { drawLand, countryAt, placeLabel } from '../v2/geo.js';
 import { SLOTS, neighbours, bridgeId, PLOT, makeIsles, drawIsles, centerOf } from '../v2/isles.js';
 import { moveWithIsland } from './migrate.js';
 import { ISLES_SEED } from '../../examples/isles-seed.js';
+import { db, me, BOARD, pr } from './state.js';
+import { setBuildMode } from './build.js';
 
-/** ctx: { db, me, BOARD, pr (the island projection), setBuildMode } — what the world map needs from the game. */
-let ctx = null;
-export function initWorld(c) { ctx = c; }
 
 // ---------- the world: every board (ten islands of one group of friends) is a spot on a map ----------
 // The map pans and zooms like a map app. Spots close together on screen merge into one bubble with a count;
@@ -22,14 +21,14 @@ function boardShape(entries) {   // owners, joined islands, bridges and plots of
   for (const s of joined) for (const n of neighbours(s)) if (n > s && joined.has(n)) bridges.set(bridgeId(s, n), { a: !!docsB.get(owners.get(s))?.half?.[n], b: !!docsB.get(owners.get(n))?.half?.[s] });
   const taken = new Set(); let buildings = 0;
   for (const uid of owners.values()) for (const p of Object.values(docsB.get(uid)?.plots ?? {})) { buildings++; for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) taken.add(i + ',' + k); }
-  return { owners, joined, bridges, taken, buildings, mine: [...owners.values()].includes(ctx.me) };
+  return { owners, joined, bridges, taken, buildings, mine: [...owners.values()].includes(me) };
 }
 const colOf = (id) => id === 'main' ? 'i' : 'i-' + id;
-async function boardEntries(id) { try { return ctx.db ? (await ctx.db.collection(colOf(id)).get()).docs.map(d => [d.id, moveWithIsland(d.data())]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
+async function boardEntries(id) { try { return db ? (await db.collection(colOf(id)).get()).docs.map(d => [d.id, moveWithIsland(d.data())]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
 // every board keeps a small summary (friends, buildings, which users) so the world map never reads every island
 async function loadBoards() {
   let meta = [];
-  try { meta = ctx.db ? (await ctx.db.collection('boards').get()).docs.map(d => ({ id: d.id, ...d.data() })) : []; } catch {}
+  try { meta = db ? (await db.collection('boards').get()).docs.map(d => ({ id: d.id, ...d.data() })) : []; } catch {}
   let main = meta.find(b => b.id === 'main'); if (!main) { main = { id: 'main' }; meta.unshift(main); }
   Object.assign(main, { name: main.name ?? '첫 군도', lat: main.lat ?? 37.5, lng: main.lng ?? 127 });
   for (const b of meta) if (b.n === undefined) { const sh = boardShape(await boardEntries(b.id)); b.n = sh.joined.size; b.bld = sh.buildings; b.users = [...sh.owners.values()]; }
@@ -38,7 +37,7 @@ async function loadBoards() {
     meta.push({ id: 'demo' + i, name: `예시 군도 ${i + 1}`, lat: seoul ? 35 + r(1) * 3.2 : 20 + r(1) * 40, lng: seoul ? 126.4 + r(2) * 3 : -120 + r(2) * 260, n: Math.floor(r(3) * 11), bld: Math.floor(r(4) * 40), demo: true }); }
   return meta;
 }
-const mineIn = (b) => (b.users ?? []).includes(ctx.me);
+const mineIn = (b) => (b.users ?? []).includes(me);
 function setView(cx, cy, k) {   // view centred on map point (cx, cy) in world units (0..360, 0..180) at k px per unit
   const vw = innerWidth, vh = innerHeight, kMin = Math.max(vw / 360, vh / 140);
   k = Math.max(kMin, Math.min(kMin * 48, k));
@@ -72,16 +71,16 @@ function drawSpots() {
   const box = $('spots'), placed = []; box.replaceChildren();
   for (const c of clusters().sort((a, b) => a.x - b.x)) {
     if (c.list.length === 1) {
-      const b = c.list[0], btn = el('button', { class: 'spot' + (mineIn(b) ? ' mine' : '') + (b.id === ctx.BOARD ? ' here' : ''), on: { click: (e) => { e.stopPropagation(); showBoard(b); } } },
+      const b = c.list[0], btn = el('button', { class: 'spot' + (mineIn(b) ? ' mine' : '') + (b.id === BOARD ? ' here' : ''), on: { click: (e) => { e.stopPropagation(); showBoard(b); } } },
         el('span', { class: 'tag' }, b.name, el('small', {}, `${b.n ?? 0}/10`)), voxelEl(mineIn(b) ? 'isleMine' : 'isle', 3));
       btn.style.left = c.x + 'px'; btn.style.top = c.y + 'px'; box.append(btn);
       // far away, a lone board is a dot (its name shows on hover); close up, or if it is mine or here, it is labelled
-      if (wv.k < wv.kMin * 6 && !mineIn(b) && b.id !== ctx.BOARD) { btn.classList.add('dot'); continue; }
+      if (wv.k < wv.kMin * 6 && !mineIn(b) && b.id !== BOARD) { btn.classList.add('dot'); continue; }
       const r = { x0: c.x - 60, x1: c.x + 60, y0: c.y - 44, y1: c.y - 18 };
       if (placed.some(q => q.x0 < r.x1 && r.x0 < q.x1 && q.y0 < r.y1 && r.y0 < q.y1)) { btn.style.flexDirection = 'column-reverse'; btn.style.transform = 'translate(-50%, -16px)'; placed.push({ x0: r.x0, x1: r.x1, y0: c.y + 2, y1: c.y + 28 }); } else placed.push(r);
       continue;
     }
-    const n = c.list.length, mine = c.list.some(mineIn), here = c.list.some(b => b.id === ctx.BOARD), [lat, lng] = wv.toLL(c.x, c.y);
+    const n = c.list.length, mine = c.list.some(mineIn), here = c.list.some(b => b.id === BOARD), [lat, lng] = wv.toLL(c.x, c.y);
     const where = wv.k < wv.kMin * 4 ? (countryAt(lat, lng)?.ko ?? '바다') : (placeLabel(lat, lng).city?.ko ?? countryAt(lat, lng)?.ko ?? '바다');
     const size = Math.round(34 + Math.min(30, Math.log2(n) * 6));
     const btn = el('button', { class: 'bubble' + (mine ? ' mine' : '') + (here ? ' here' : ''), on: { click: (e) => { e.stopPropagation(); openCluster(c); } } },
@@ -112,26 +111,26 @@ async function showBoard(b) {
   const card = $('wcard'); card.hidden = false;
   const go = () => { const q = new URLSearchParams(location.search); if (b.id === 'main') q.delete('board'); else q.set('board', b.id); q.delete('world'); location.search = q.toString(); };
   const sh = b.demo ? { joined: new Set(), bridges: new Map(), taken: new Set(), buildings: 0, owners: new Map(), mine: false } : boardShape(await boardEntries(b.id));
-  const mySlotThere = [...(sh.owners ?? [])].find(([, u]) => u === ctx.me)?.[0] ?? 0;
-  const wd = makeIsles(sh.joined, sh.bridges), g0 = drawIsles(wd, ctx.pr, { taken: sh.taken, mine: mySlotThere });
+  const mySlotThere = [...(sh.owners ?? [])].find(([, u]) => u === me)?.[0] ?? 0;
+  const wd = makeIsles(sh.joined, sh.bridges), g0 = drawIsles(wd, pr, { taken: sh.taken, mine: mySlotThere });
   const th = document.createElement('canvas'); th.width = 560; th.height = Math.round(560 * g0.height / g0.width); const tg = th.getContext('2d'); tg.drawImage(g0, 0, 0, th.width, th.height);
   { const k = th.width / g0.width; tg.textAlign = 'center';   // every island numbered; mine ringed in gold
-    for (let sl = 1; sl <= SLOTS; sl++) { const [cx, cz] = centerOf(sl), [px, py] = ctx.pr.P(cx, cz), x = px * k, y = py * k, me0 = sl === mySlotThere;
+    for (let sl = 1; sl <= SLOTS; sl++) { const [cx, cz] = centerOf(sl), [px, py] = pr.P(cx, cz), x = px * k, y = py * k, me0 = sl === mySlotThere;
       if (me0) { tg.strokeStyle = '#ffcf3f'; tg.lineWidth = 3; tg.beginPath(); tg.ellipse(x, y, 34, 18, 0, 0, 7); tg.stroke(); }
       tg.font = '400 13px Jua, sans-serif'; tg.lineWidth = 3; tg.strokeStyle = '#2e241a'; const lab = me0 ? '내 섬' : sh.joined.has(sl) ? String(sl) : ''; if (!lab) continue; tg.strokeText(lab, x, y + 5); tg.fillStyle = me0 ? '#ffe08a' : '#fff'; tg.fillText(lab, x, y + 5); } }
   card.replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, b.name), xbtn(() => { card.hidden = true; })), el('div', { class: 'note' }, placeLabel(b.lat, b.lng).text), el('div', { class: 'nb' }, el('span', {}, `친구 ${sh.joined.size || b.n || 0}/10`), el('span', {}, `건물 ${sh.buildings || b.bld || 0}`), sh.mine ? el('span', { class: 'ok' }, '내 섬') : null), th,
-    el('div', { class: 'row' }, b.id === ctx.BOARD ? el('button', { on: { click: closeWorld } }, '여기로 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 군도예요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '섬 고르기' : '구경하기')));
+    el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기로 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 군도예요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '섬 고르기' : '구경하기')));
 }
 export async function openWorld() {
-  ctx.setBuildMode(false); $('world').hidden = false; $('wcard').hidden = true; placing = null;
+  setBuildMode(false); $('world').hidden = false; $('wcard').hidden = true; placing = null;
   wboards = await loadBoards();
-  const here = wboards.find(b => b.id === ctx.BOARD) ?? wboards[0];
+  const here = wboards.find(b => b.id === BOARD) ?? wboards[0];
   setView(here.lng + 180, 90 - here.lat, Math.max(innerWidth / 360, innerHeight / 140) * 1.6);
 }
 function closeWorld() { $('world').hidden = true; placing = null; }
 $('wclose').append(iconEl('close', 22, '')); $('wclose').onclick = closeWorld; $('d-world').onclick = openWorld; $('who').onclick = openWorld;
 addEventListener('resize', () => { if (!$('world').hidden && wv) setView(wv.cx, wv.cy, wv.k); });
-$('wnew').onclick = () => { if (!ctx.db || !ctx.me) return; placing = {}; $('wcard').hidden = true; drawSpots(); };
+$('wnew').onclick = () => { if (!db || !me) return; placing = {}; $('wcard').hidden = true; drawSpots(); };
 $('wplus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k * 2); $('wminus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k / 2);
 // pan by dragging, zoom with the wheel or two fingers, around the pointer
 { const box = $('world'), ptrs = new Map(); let moved = false, pinch = null;
@@ -154,7 +153,7 @@ function placeAt(x, y) {
   const input = el('input', { type: 'text', maxlength: '12', placeholder: '군도 이름 (예: 붕어빵 연합)' }), err = el('div', { class: 'err' });
   const make = async () => {
     const name = input.value.trim(); if (!name) { err.textContent = '이름을 써 주세요'; return; } if (bad(name)) { err.textContent = '그 이름은 쓸 수 없어요'; return; }
-    const id = 'b' + Date.now().toString(36); await ctx.db.doc('boards/' + id).set({ name, lat, lng, owner: ctx.me, at: Date.now(), n: 0, bld: 0, users: [] });
+    const id = 'b' + Date.now().toString(36); await db.doc('boards/' + id).set({ name, lat, lng, owner: me, at: Date.now(), n: 0, bld: 0, users: [] });
     const q = new URLSearchParams(location.search); q.set('board', id); q.delete('world'); location.search = q.toString();
   };
   $('wcard').hidden = false;
