@@ -112,6 +112,12 @@
   .shopstage { position:absolute; transform:translate(-50%, -88%); animation:rise .4s cubic-bezier(.2,1.3,.4,1); filter:drop-shadow(0 10px 0 rgba(0,0,0,.25)); }
   @keyframes rise { from { opacity:0; transform:translate(-50%, -70%) scale(.85); } }
   .shopstage.thud { animation:thud .25s; } @keyframes thud { 30% { transform:translate(-50%, calc(-88% + 4px)); } 60% { transform:translate(-50%, calc(-88% - 1px)); } }
+  .shopacts { position:absolute; display:flex; flex-direction:column; gap:8px; transform:translateY(-50%); animation:fadein .35s .1s backwards; }
+  .act { display:flex; align-items:center; gap:10px; min-width:210px; padding:8px 12px 8px 8px; border:0; border-radius:14px; background:#fbf6ec; color:var(--ink); box-shadow:0 4px 0 rgba(0,0,0,.3); text-align:left; font:700 14px var(--f-ui); }
+  .act .pxi { width:32px; height:32px; image-rendering:pixelated; flex:none; } .act small { display:block; font:400 12px var(--f-ui); color:var(--dim); }
+  .act .price { margin-left:auto; display:flex; align-items:center; gap:3px; font:400 17px var(--f-disp); color:#9a6a10; } .act .price .pxi { width:18px; height:18px; }
+  .act.buy { background:#fff3cf; box-shadow:0 4px 0 #9a6f14; } .act:disabled { opacity:.55; } .act:active:not(:disabled) { transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.3); }
+  .act.close { min-width:0; align-self:flex-start; padding:6px 10px; }
   .shopmore { position:absolute; right:14px; top:120px; font-size:20px; padding:4px 12px; }
   #map { transition:transform .35s cubic-bezier(.3,.9,.4,1); }
   .inside { position:fixed; inset:0; z-index:20; background:rgba(30,24,18,.55); display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:24px 12px; }
@@ -128,7 +134,7 @@
 <div class="hud tl"><div class="pill isle" id="who">한 줄 군도</div><div class="wants" id="wants"></div></div>
 <div class="hud tr"><div class="pill"><span class="coins" id="wallet"></span><span class="rate" id="rate"></span></div><div class="pill boatline" id="boat"></div></div>
 <aside class="panel" id="panel" hidden></aside>
-<div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
+<div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><div class="shopacts" id="shopacts"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
 <div class="world" id="world" hidden><canvas class="wmap" id="wmap"></canvas><div id="spots"></div>
   <div class="wtop"><div class="pill">세계</div><div class="pill" id="wcount"></div><span class="grow"></span><button class="gold" id="wnew">새 군도 만들기</button><button class="ghost" id="wclose" style="background:#fbf6ec">돌아가기</button></div>
   <div class="wzoom"><button id="wplus">＋</button><button id="wminus">－</button></div><div class="wcard" id="wcard" hidden></div></div>
@@ -161,7 +167,7 @@ import { InsideView, startingFixtures } from './src/v2/insideview.js';
 import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCaps, LV_MAX, upgradeCost, starsOf, starBonus } from './src/v2/inside.js';
 import { FlowView } from './src/v2/flowview.js';
 import { applyTheme } from './src/ui/theme.js';
-import { pixelIcons, iconCanvas, EMOJI } from './src/ui/icons.js';
+import { pixelIcons, iconCanvas, iconEl, EMOJI } from './src/ui/icons.js';
 
 const $ = (id) => document.getElementById(id);
 // the game skin: ?theme=wood|sea to compare, remembered per browser
@@ -909,7 +915,7 @@ function openInside(key, { inPlace = false } = {}) {
   view.sim.setHelpers(helpersOf(p), levelsOf(p));
   const flow = new FlowView(); if (!inPlace) $('iflow').replaceChildren(flow.el);
   watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0, inPlace };
-  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; $('shopmore').hidden = !mineP; rebuild(); return; }
+  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; $('shopmore').hidden = true; watching.actKey = ''; placeActs(); rebuild(); return; }
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
   if (roleOf(n.type, n.levels).serves) $('iname').append(' ', el('span', { class: 'stars' }, starText(starsInfo(p).stars)));
   $('ihint').textContent = mineP ? '반투명 가구의 노란 + 를 누르면 들여요. 배 손님이 문에 줄을 서고, 앉아서 먹고, 테이블에서 돈을 내요.' : `${nameOf(p.owner)}의 가게예요. 구경만 할 수 있어요.`;
@@ -934,6 +940,39 @@ function closeInside(quiet) {
 $('iclose').onclick = closeInside; $('inside').addEventListener('click', (e) => { if (e.target === $('inside')) closeInside(); });
 addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });   // closes the in-place shop too
 // the one thing that unblocks the red step, as a button under the diagram
+// ---------- the few big buttons beside an opened shop: the next piece, the best level-up, a helper, one more floor, move, close ----------
+function placeActs() {   // to the right of the cut-away, level with its middle
+  const st = $('shopstage').getBoundingClientRect(), a = $('shopacts');
+  a.style.left = Math.min(innerWidth - 240, st.right + 16) + 'px'; a.style.top = Math.max(150, Math.min(innerHeight - 160, st.top + st.height / 2)) + 'px';
+}
+function shopActions(w, p) {
+  const fx = fixturesOf(p), own = ownedOf(p), base = BASE_COIN[p.size] ?? 1, lv = levelsOf(p), h = helpersOf(p), coins = myDoc.wallet.coins, out = [];
+  const caps = (o, l, hh) => flowCaps(fx, o, base, hh ?? h, l ?? lv), sup = w.supply ?? Infinity, now0 = caps(own);
+  const gain = (b) => Math.min(b.gpm, sup) - Math.min(now0.gpm, sup), gainTxt = (b) => { const d = gain(b); return d > .05 ? `받는 손님 +${d.toFixed(1)}/분` : b.price > now0.price ? `한 명 +${b.price - now0.price}동전` : '배가 조금 빨리 와요'; };
+  // the next piece: the one that lifts income most
+  const kinds = bestNext(fx, own, base, p.b.input.order, h, lv), up = Object.values(nextUp(fx, own, undefined, p.b.input.order));
+  const i = up.find(j => kinds.includes(fx[j].kind)) ?? up.sort((a, b) => costOf(fx[a].kind) - costOf(fx[b].kind))[0];
+  if (i !== undefined) { const f = fx[i], c = costOf(f.kind); out.push({ icon: 'chair', title: `${FIX_INFO[f.kind]?.[0] ?? f.kind} 들이기`, sub: gainTxt(caps(new Set([...own, i]))), cost: c, ok: coins >= c, hi: i, run: () => { if (w.view.buyIndex(i)) w.view.thud(i); } }); }
+  // the best level-up
+  let best = null; for (const j of own) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const b = caps(own, { ...lv, [j]: L + 1 }), c = upgradeCost(fx[j].kind, L), v = (Math.max(0, gain(b)) + (b.price - now0.price) * .5 + .01) / c; if (!best || v > best.v) best = { j, L, c, v, b }; }
+  if (best) out.push({ icon: 'up', title: `${FIX_INFO[fx[best.j].kind]?.[0] ?? fx[best.j].kind} Lv${best.L + 1}`, sub: gainTxt(best.b), cost: best.c, ok: coins >= best.c, hi: best.j, run: () => { if (w.view.upgradeIndex(best.j)) w.view.thud(best.j); } });
+  // a helper, when ordering is what holds guests up and the shop is full
+  if (i === undefined && now0.order <= now0.seat && h < HELPER_MAX) { const c = helperCost(h); out.push({ icon: 'helper', title: '알바 뽑기', sub: gainTxt(caps(own, lv, h + 1)), cost: c, ok: coins >= c, run: () => { if (myDoc.wallet.coins < c) return; myDoc.wallet.coins -= c; myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); toast('알바가 왔어요!', 1200); } }); }
+  // one more floor, when every piece is in
+  if (i === undefined) out.push({ icon: 'extend', title: '한 층 올리기', sub: '새 자리가 생겨요', cost: `🎫1`, ok: G().permits > 0, run: () => { const k = p.key; closeInside(); startExtend(k); } });
+  out.push({ icon: 'move', title: '옮기기', run: () => { const k = p.key; closeInside(); startMove(k); } });
+  return out;
+}
+function renderActs(w, p) {
+  const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok]));
+  if (key === w.actKey) return; w.actKey = key;
+  const box = $('shopacts'); box.replaceChildren(...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
+      a.cost !== undefined ? el('span', { class: 'price' }, typeof a.cost === 'number' ? iconEl('coin', 18) : '', String(a.cost)) : null);
+    b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; };
+    if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
+    return b; }), el('button', { class: 'act close', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, '✕ 닫기'));
+  placeActs();
+}
 function fixAction(w, p, fc) {
   const slow = w.flow.data.slow;
   if (!w.mine) return w.flow.action(null);
@@ -979,7 +1018,7 @@ function stepInside(dt) {
         { icon: '🪑', label: fc.seats ? '자리' : '포장', sub: fc.seats ? `자리 ${fc.seats}` : '앉지 않음', cap: fc.seat, state: fc.seats ? `${used}/${fc.seats} 앉음` : '' },
         { icon: '💰', label: '계산', sub: `한 명 ${fc.price}동전`, state: '' }],
         slow: w.supply < Math.min(fc.order, fc.seat) ? 0 : fc.slow === 'seat' ? 2 : 1, inRate: per(w.ins), outRate: per(w.outs), lostRate: per(w.losts), coinRate: per(w.outs) * fc.price });
-      fixAction(w, p0, fc);
+      fixAction(w, p0, fc); if (w.inPlace) renderActs(w, p0);
       { const slow = w.flow.data.slow, fx = fixturesOf(p0), roles = slow === 2 ? ['seat'] : slow === 1 ? ['serve', 'cook'] : [];
         w.view.blocked = new Set([...ownedOf(p0)].filter(j => roles.includes(FIX_ROLE(fx[j].kind)) && (q >= 2 || w.losts.length))); }
       w.flow.frame(dt); } }

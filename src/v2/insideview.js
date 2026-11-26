@@ -139,6 +139,8 @@ export class InsideView {
         if (L < 5) tag(x, y, `Lv${L + 1} · ${upgradeCost(f.kind, L)}`, this.coins() >= upgradeCost(f.kind, L), true); }
       g.textAlign = 'center';
     }
+    if (this.flash >= 0 && this.fx[this.flash]) { const f = this.fx[this.flash], [x, y] = P(f.x, f.y + .3, f.z), pul = 6 + Math.sin(performance.now() / 120) * 2;
+      g.strokeStyle = '#ffd23a'; g.lineWidth = 2; g.beginPath(); g.ellipse(Math.round(x), Math.round(y), pul + 6, pul * .55 + 3, 0, 0, 7); g.stroke(); }
     // the step that holds guests up steams red
     for (const i of this.blocked) { const f = this.fx[i]; if (!f) continue; for (let k = 0; k < 3; k++) { const ph = (performance.now() / 900 + k / 3) % 1, [x, y] = P(f.x + (k - 1) * .12, f.y + .7 + ph * .9, f.z);
       g.globalAlpha = (1 - ph) * .75; g.fillStyle = k === 1 ? '#e2685a' : '#f0a090'; g.beginPath(); g.arc(Math.round(x), Math.round(y), 2 + ph * 3, 0, 7); g.fill(); } g.globalAlpha = 1; }
