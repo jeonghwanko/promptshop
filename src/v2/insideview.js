@@ -36,8 +36,8 @@ export class InsideView {
    * @param opts.every  seconds between walk-ins (Infinity: the caller calls sim.spawn())
    * @param opts.maxWidth  CSS pixels available
    */
-  constructor(input, owned, { coins, buy, upgrade, levels = {}, every = 2.1, seed = 3, maxWidth = 900, price, onHover, tags = false, onThud, maxHeight = Infinity } = {}) {
-    this.maxHeight = maxHeight;
+  constructor(input, owned, { coins, buy, upgrade, levels = {}, every = 2.1, seed = 3, maxWidth = 900, price, onHover, tags = false, onThud, maxHeight = Infinity, maxZoom = 3 } = {}) {
+    this.maxHeight = maxHeight; this.maxZoom = maxZoom;
     this.tags = tags; this.onThud = onThud; this.sel = -1; this.blocked = new Set(); this.onHover = onHover; this.upgradeFn = upgrade; this.levels = levels; this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
     this.el = document.createElement('div'); Object.assign(this.el.style, { position: 'relative', maxWidth: '100%' });
     this.floats = []; this.hot = -1;
@@ -54,7 +54,7 @@ export class InsideView {
   redraw() {
     const v = renderView(this.input, 'section', { owned: this.owned });
     this.view = v; this.fx = v.fixtures;
-    const W = v.canvas.width, H = v.canvas.height, z = Math.max(1, Math.min(3, Math.floor(this.maxWidth / W), Math.floor(this.maxHeight / H)));
+    const W = v.canvas.width, H = v.canvas.height, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 4) / 4);   // whole steps when there is room, quarter steps for tall buildings
     this.zoom = z; this.top.width = W; this.top.height = H;
     for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = 'pixelated'; c.style.display = 'block'; }
     this.el.replaceChildren(v.canvas, this.top);
@@ -79,7 +79,7 @@ export class InsideView {
     return best;
   }
   /** A thump where a fixture lands: dust, and the caller shakes the view. */
-  thud(i) { const f = this.fx[i]; this.floats.push({ text: '쿵', x: f.x, y: f.y + .9, z: f.z, t: 0 }); this.dust = { i, t: 0 }; this.onThud?.(i); }
+  thud(i, text, kind = 'buy') { const f = this.fx[i]; this.floats.push({ text: text || (kind === 'up' ? '레벨업!' : '쿵!'), x: f.x, y: f.y + 1, z: f.z, t: 0, big: true }); this.dust = { i, t: 0 }; this.burst = { i, t: 0, kind }; this.onThud?.(i); }
   /** Raise an owned fixture one level. */
   upgradeIndex(i) {
     const f = this.fx[i], L = this.levels[i] ?? 1; if (L >= LV_MAX) return false;
@@ -144,6 +144,10 @@ export class InsideView {
     // the step that holds guests up steams red
     for (const i of this.blocked) { const f = this.fx[i]; if (!f) continue; for (let k = 0; k < 3; k++) { const ph = (performance.now() / 900 + k / 3) % 1, [x, y] = P(f.x + (k - 1) * .12, f.y + .7 + ph * .9, f.z);
       g.globalAlpha = (1 - ph) * .75; g.fillStyle = k === 1 ? '#e2685a' : '#f0a090'; g.beginPath(); g.arc(Math.round(x), Math.round(y), 2 + ph * 3, 0, 7); g.fill(); } g.globalAlpha = 1; }
+    if (this.burst) { const b = this.burst; b.t += dt; const f = this.fx[b.i]; if (f && b.t < .9) { const [x, y] = P(f.x, f.y + .2, f.z), r = 4 + b.t * 40;
+        g.strokeStyle = `rgba(255,210,58,${1 - b.t / .9})`; g.lineWidth = 2; g.beginPath(); g.ellipse(Math.round(x), Math.round(y), r, r * .5, 0, 0, 7); g.stroke();
+        if (b.kind === 'up') for (let k = 0; k < 7; k++) { const a = k / 7 * 6.28 + b.t * 3, rr = 6 + b.t * 22; g.fillStyle = `rgba(255,230,120,${1 - b.t / .9})`; g.fillRect(Math.round(x + Math.cos(a) * rr), Math.round(y - b.t * 30 + Math.sin(a) * rr * .5), 2, 2); }
+        g.fillStyle = `rgba(255,250,220,${.5 * (1 - b.t / .9)})`; g.beginPath(); g.ellipse(Math.round(x), Math.round(y) - 4, 9, 7, 0, 0, 7); g.fill(); } else this.burst = null; }
     if (this.dust) { this.dust.t += dt; const f = this.fx[this.dust.i]; if (f && this.dust.t < .5) { const [x, y] = P(f.x, f.y, f.z); g.fillStyle = `rgba(200,180,140,${.8 - this.dust.t * 1.6})`; for (let k = 0; k < 8; k++) { const a = k / 8 * 6.28, r = 4 + this.dust.t * 26; g.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * .5), 2, 2); } } else this.dust = null; }
     if (this.coins && !this.tags) this.fx.forEach((f, i) => {
       if (!can.has(i)) return; const [x, y] = P(f.x, f.y + .55, f.z), cx = Math.round(x), cy = Math.round(y), ok = this.coins() >= costOf(f.kind);
@@ -167,7 +171,7 @@ export class InsideView {
     }
     g.font = 'bold 10px system-ui'; g.textAlign = 'center';
     for (const f of this.floats) {
-      f.t += dt; const [x, y] = P(f.x, f.y, f.z);
+      f.t += dt * (f.big ? .7 : 1); const [x, y] = P(f.x, f.y, f.z); g.font = f.big ? 'bold 11px system-ui' : 'bold 10px system-ui';
       g.globalAlpha = Math.max(0, 1 - f.t / 1.4); g.fillStyle = '#2e241a'; g.fillText(f.text, Math.round(x) + 1, Math.round(y - f.t * 14) + 1);
       g.fillStyle = f.bad ? '#e2685a' : f.tip ? '#f08ab0' : '#ffd25a'; g.fillText(f.text, Math.round(x), Math.round(y - f.t * 14));
     }
