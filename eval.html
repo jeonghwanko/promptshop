@@ -130,11 +130,18 @@ $('go').onclick = async () => {
     if (!db) { $('status').textContent = '저장소에 접근할 수 없어 지난 결과를 읽지 못했어요.'; return; }
     const runs = (await db.collection('runs').orderBy('at', 'desc').limit(10).get()).docs;
     let prev = null;
-    for (const r of runs) { const items = (await db.collection(`runs/${r.id}/items`).get()).docs.map(d => d.data()); if (items.some(x => x.ok != null)) { prev = { id: r.id, items }; break; } }
-    if (!prev) { $('status').textContent = '판정한 지난 실행이 없어요. 60줄 전부를 먼저 돌려 주세요.'; return; }
+    // baseline: the latest full run that finished all lines and was judged (an interrupted run is not a baseline)
+    for (const r of runs) {
+      const d = r.data(); if (d.mode === 'failed' || (d.done ?? 0) < EVAL.length) continue;
+      const items = (await db.collection(`runs/${r.id}/items`).get()).docs.map(x => x.data());
+      if (items.some(x => x.ok != null)) { prev = { id: r.id, items }; break; }
+    }
+    if (!prev) { $('status').textContent = '끝까지 돌리고 판정한 60줄 실행이 없어요. 60줄 전부를 먼저 돌려 주세요.'; return; }
     const failed = new Set(prev.items.filter(x => x.ok === false).map(x => x.i));
     todo = todo.filter(t => failed.has(t.i));
     carried = { from: prev.id, yes: prev.items.filter(x => x.ok === true).length, total: EVAL.length };
+    if (!todo.length) { $('status').textContent = '지난 실행에 "아님"으로 표시한 줄이 없어요.'; carried = null; return; }
+    $('status').textContent = `기준: ${prev.items.filter(x => x.ok === true).length}개 통과, ${todo.length}줄 다시 짓기`;
   } else todo = todo.slice(0, +mode);
   const count = todo.length;
   results = []; $('grid').replaceChildren(); stopReq = false; runId = 'r' + Date.now();
