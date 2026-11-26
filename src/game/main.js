@@ -16,6 +16,7 @@ import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCa
 import { applyTheme } from '../ui/theme.js';
 import { pixelIcons, iconCanvas, iconEl, EMOJI } from '../ui/icons.js';
 import { voxelEl, setVoxelPalette } from '../ui/voxelui.js';
+import { moveWithIsland, migrateLayout, refundOf } from './migrate.js';
 import { START_COINS, START_STOCK, RESTOCK, BASE_COIN, BRIDGE, HELPER_MAX, helperCost, vipBonus, REQ_BONUS, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, maxPlots as maxPlotsOf, LEVELS, levelOf, sizesOpen, payPermits, boatPlanOf, FEST, festNeeds, festCapacity, festTip, festStars, festBonus, bad } from './rules.js';
 setVoxelPalette(new URLSearchParams(location.search).get('vx') || 'a');   // ?vx=a|b|c to compare palettes
 
@@ -671,13 +672,10 @@ function startExtend(key, { inShop = false } = {}) {
       const rd = lineReader((st) => { steps.push(st); wv?.construct(Math.min(.9, .15 + steps.length * .1)); note({ floor: '층', fixture: '가구', order: '순서' }[st.step] ?? st.step, st.note || st.name || ''); });
       await sample(extendPrompt(line, p.b.input), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd.push(delta) }); rd.end();
       const next = applyExtension(p.b.input, steps); if (!next) throw { code: 'nothing' };
-      // keep what was bought: the same fixture (floor, zone, kind, n-th of its kind) in the new layout
-      const oldFx = fixturesOf(p), newFx = buildSection(normalize(next)).fixtures, keyOf = (list, i) => { const f = list[i]; let k = 0; for (let j = 0; j < i; j++) if (list[j].fi === f.fi && list[j].zone === f.zone && list[j].kind === f.kind) k++; return `${f.fi}|${f.zone}|${f.kind}|${k}`; };
-      const newIndex = new Map(newFx.map((_, i) => [keyOf(newFx, i), i])), own = new Set();
-      let refund = 0;
-      for (const i of ownedOf(p)) { const j = newIndex.get(keyOf(oldFx, i)) ?? newFx.findIndex((f, jj) => !own.has(jj) && f.kind === oldFx[i]?.kind && f.fi === oldFx[i]?.fi); if (j >= 0) own.add(j); else refund += costOf(oldFx[i]?.kind); }
+      // keep what was bought: each fixture (and its level) goes to the nearest of its kind on its floor; ones with no place are refunded
+      const oldFx = fixturesOf(p), newFx = buildSection(normalize(next)).fixtures, r = remapFixtures(oldFx, newFx, [...ownedOf(p)], levelsOf(p)), own = new Set(r.own), refund = refundOf(r.lost);
       if (refund) { myDoc.wallet.coins += refund; note('정리', `자리가 바뀐 가구 값 ${refund}동전을 돌려받았어요`); }
-      const mp = myDoc.plots[key]; mp.b = { ...mp.b, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size;
+      const mp = myDoc.plots[key]; mp.b = { ...mp.b, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size; mp.lv = r.lv; mp.lay = LAYOUT;
       wv?.construct(1); G().permits--; rebuild(); await save(true);
       const nn = normalize(next);
       note('완공', `${nn.levels}층 · 새 가구 ${newFx.length - own.size}개`);
@@ -1037,7 +1035,7 @@ function boardShape(entries) {   // owners, joined islands, bridges and plots of
   return { owners, joined, bridges, taken, buildings, mine: [...owners.values()].includes(me) };
 }
 const colOf = (id) => id === 'main' ? 'i' : 'i-' + id;
-async function boardEntries(id) { try { return db ? (await db.collection(colOf(id)).get()).docs.map(d => [d.id, moveWithIsland(d.id, d.data())]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
+async function boardEntries(id) { try { return db ? (await db.collection(colOf(id)).get()).docs.map(d => [d.id, moveWithIsland(d.data())]) : (id === 'main' ? Object.entries(ISLES_SEED) : []); } catch { return []; } }
 // every board keeps a small summary (friends, buildings, which users) so the world map never reads every island
 async function loadBoards() {
   let meta = [];
@@ -1185,35 +1183,13 @@ function saveSummary() {
 setInterval(saveSummary, 10000);
 
 // islands moved apart (wider spacing): plots, doors and keys move with their island's centre
-/** Plots bought under the old "fill every wall" layout: carry the bought fixtures (and their levels) to the new layout once; ones with no place left are refunded. */
-function migrateLayout(d) {
-  if (!d?.plots) return d; let changed = false, refund = 0; const plots = {};
-  for (const [key, p] of Object.entries(d.plots)) {
-    if (!p.b || (p.lay ?? 1) >= LAYOUT) { plots[key] = p; continue; }
-    let oldFx, newFx; try { const n = normalize(p.b.input); oldFx = buildSection(n, { layout: 1 }).fixtures; newFx = buildSection(n).fixtures; } catch { plots[key] = p; continue; }
-    const own = Array.isArray(p.own) ? p.own : p.fx === undefined ? [...startingFixtures(oldFx, p.b.input.order)] : Array.from({ length: Math.min(oldFx.length, p.fx) }, (_, i) => i);
-    const r = remapFixtures(oldFx, newFx, own, p.lv ?? {});
-    for (const l of r.lost) { refund += costOf(l.kind); for (let L = 1; L < l.level; L++) refund += upgradeCost(l.kind, L); }
-    plots[key] = { ...p, own: r.own, fx: r.own.length, lv: r.lv, lay: LAYOUT }; changed = true;
-  }
-  return changed ? { ...d, plots, _refund: refund, _migrated: true } : d;
-}
-function moveWithIsland(uid, d) {
-  if (!d?.slot || (d.gap ?? OLD_GAP) === GAP) return d;
-  const [ox, oz] = centerOfGap(d.slot, d.gap ?? OLD_GAP), [nx, nz] = centerOfGap(d.slot, GAP), dx = nx - ox, dz = nz - oz, plots = {};
-  for (const [key, p] of Object.entries(d.plots ?? {})) {
-    const q = { ...p, x: p.x + dx, z: p.z + dz, door: p.door ? [p.door[0] + dx, p.door[1] + dz] : p.door };
-    plots[`${d.slot}_${q.x}_${q.z}`] = q;
-  }
-  return { ...d, plots, gap: GAP };
-}
 
 // ---------- load ----------
 if (db && BOARD !== 'main') db.doc('boards/' + BOARD).get().then(d => { boardName = d.data()?.name ?? ''; }).catch(() => {});
 if (db) {
   db.collection(COL).onSnapshot(snap => {
     docs = new Map();
-    for (const d of snap.docs) docs.set(d.id, migrateLayout(moveWithIsland(d.id, d.data() ?? {})));
+    for (const d of snap.docs) docs.set(d.id, migrateLayout(moveWithIsland(d.data() ?? {})));
     // my own doc: take the stored copy only when it is newer than what this page holds (another tab, or an edit from outside)
     if (me && docs.has(me)) { const remote = docs.get(me);
       if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, land: remote.land ?? 0, gap: remote.gap, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { ...(remote.wallet ?? {}), coins: remote.wallet?.coins ?? 0 } };
@@ -1222,7 +1198,7 @@ if (db) {
     else if (me && myDoc) docs.set(me, myDoc);
     rebuild(); resolveNames();
   }, () => show(el('p', { class: 'err' }, '군도를 불러오지 못했어요.')));
-} else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(u, d))])); rebuild(); }
+} else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(d))])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
 window.__isles = { screenOf: (k) => { const tp = lastTops[k], r = map.getBoundingClientRect(); return tp && [r.left + tp[0] * r.width / map.width, r.top + (tp[1] + 30) * r.height / map.height]; }, dbgRates: () => JSON.stringify(allPlots().filter(p => p.owner === me && p.b).map(p => { const r = ratesOf(p), sh = sim.shops.get(p.key); return [p.key, roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves, +r.interval.toFixed(2), r.cap, sh && [sh.cap, +(sh.interval ?? 0).toFixed(2), sh.stock]]; })), fest: (sec = 3) => { nextFest = performance.now() / 1000; setTimeout(() => { if (fest) { fest.arrive = performance.now() / 1000 + sec; fest.t0 = fest.arrive - FEST.warn; } }, 100); }, get festState() { return fest && { state: fest.state, served: fest.served, total: fest.total, needs: fest.needs }; }, celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
