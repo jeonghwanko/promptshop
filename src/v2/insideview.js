@@ -86,13 +86,14 @@ export class InsideView {
     t.textContent = `${name} · ${what} · ${c}동전${this.coins() < c ? ' (모자람)' : ''}`;
     t.style.display = 'block'; t.style.left = e.clientX + 12 + 'px'; t.style.top = e.clientY + 12 + 'px';
   }
-  tryBuy(e) {
-    const i = this.ghostAt(e); if (i < 0) return;
+  tryBuy(e) { const i = this.ghostAt(e); if (i >= 0) { this.buyIndex(i); this.hover(e); } }
+  /** Buy fixture i (also used by the flow diagram's fix button). */
+  buyIndex(i) {
     const f = this.fx[i], c = costOf(f.kind);
     if (this.coins() < c || !this.buyFn(i, f.kind, c)) { this.floats.push({ text: '동전 모자람', x: f.x, y: f.y + 1, z: f.z, t: 0, bad: true }); return; }
     this.owned.add(i); this.sim.setOwned(this.owned); this.redraw();
     this.floats.push({ text: (FIX_INFO[f.kind]?.[0] ?? f.kind) + '!', x: f.x, y: f.y + 1, z: f.z, t: 0 });
-    this.hover(e);
+    return true;
   }
   /** Step the sim and draw. Returns the coin events of this step ({n, tip}). */
   frame(dt) {

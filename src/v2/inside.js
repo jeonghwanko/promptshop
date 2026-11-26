@@ -40,15 +40,15 @@ export function profileOf(fixtures) {
  * The same setup seen from the map, where a shop is a door with a queue: how often it can take the next guest,
  * how long its queue may grow and what a guest pays. Bottleneck of ordering (counters and cooks) and of seats.
  */
-export function shopRates(fixtures, owned, baseCoin = 3) {
+export function shopRates(fixtures, owned, baseCoin = 3, helpers = 0) {
   const own = fixtures.filter((_, i) => owned.has(i));
   const counters = own.filter(f => f.kind === 'counter').length, cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
   const seats = own.reduce((t, f) => t + (SEATS[f.kind]?.length ?? 0), 0), decor = own.filter(f => DECOR.has(f.kind)).length, browse = own.filter(f => BROWSE.has(f.kind)).length;
-  const st = 4.2 / (1 + .7 * cooks);
+  const st = 4.2 / (1 + .7 * cooks) / (1 + helpers);
   const order = counters ? counters / st : seats ? 1 / st : .3 + browse * .08;
   const seat = seats ? seats / 13 : Infinity;
   const rate = Math.min(order, seat);
-  return { interval: Math.max(.5, .46 / rate), cap: 3 + 2 * counters + Math.floor(seats / 4), price: baseCoin + Math.min(3, decor) + Math.floor(browse / 2), seats, counters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
+  return { interval: Math.max(.5, 1 / rate), cap: 3 + 2 * counters + Math.floor(seats / 4), price: baseCoin + Math.min(3, decor) + Math.floor(browse / 2), seats, counters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
 }
 
 // ---------- the order fixtures come in ----------
@@ -79,19 +79,19 @@ export function nextUp(fixtures, owned, door, order) {
 }
 
 /** What each step of the flow can take, in guests per minute on the map's scale, for the diagram. */
-export function flowCaps(fixtures, owned, baseCoin = 3) {
+export function flowCaps(fixtures, owned, baseCoin = 3, helpers = 0) {
   const own = fixtures.filter((_, i) => owned.has(i));
   const counters = own.filter(f => f.kind === 'counter').length, cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
   const seats = own.reduce((t, f) => t + (SEATS[f.kind]?.length ?? 0), 0), browse = own.filter(f => BROWSE.has(f.kind)).length;
-  const st = 4.2 / (1 + .7 * cooks), k = 60 / .46;
+  const st = 4.2 / (1 + .7 * cooks) / (1 + helpers), k = 60;
   const order = (counters ? counters / st : seats ? 1 / st : .3 + browse * .08) * k, seat = seats ? seats / 13 * k : Infinity;
-  const r = shopRates(fixtures, owned, baseCoin);
-  return { order, seat, gpm: Math.min(order, seat), price: r.price, counters, cooks: Math.round(cooks * 10) / 10, seats, browse, slow: seat < order ? 'seat' : 'order' };
+  const r = shopRates(fixtures, owned, baseCoin, helpers);
+  return { helpers, order, seat, gpm: Math.min(order, seat), price: r.price, counters, cooks: Math.round(cooks * 10) / 10, seats, browse, slow: seat < order ? 'seat' : 'order' };
 }
 
 /** Unbought fixtures that would raise income (price per guest ÷ seconds per guest) the most, by kind. */
-export function bestNext(fixtures, owned, baseCoin = 3, order) {
-  const rev = (set) => { const r = shopRates(fixtures, set, baseCoin); return r.price / r.interval; }, now = rev(owned);
+export function bestNext(fixtures, owned, baseCoin = 3, order, helpers = 0) {
+  const rev = (set) => { const r = shopRates(fixtures, set, baseCoin, helpers); return r.price / r.interval; }, now = rev(owned);
   const gain = new Map();
   const allowed = new Set(Object.values(nextUp(fixtures, owned, undefined, order)));
   fixtures.forEach((f, i) => { if (owned.has(i) || !allowed.has(i)) return; const g = rev(new Set([...owned, i])) - now; if (g > (gain.get(f.kind) ?? 0)) gain.set(f.kind, g); });
@@ -121,9 +121,11 @@ export class InsideSim {
     this.toilets = own.filter(f => f.kind === 'toilet').map(f => (this.toilets ?? []).find(t => t.i === f.i) ?? { ...f, who: null });
     this.cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
     this.decor = new Map(); for (const f of own) if (DECOR.has(f.kind)) this.decor.set(f.fi, (this.decor.get(f.fi) ?? 0) + 1);
-    this.staff = [...this.counters.map(c => ({ f: c.fi, x: c.x + .45, z: c.z - .05, kind: 'clerk' })), ...own.filter(f => COOK[f.kind] >= .7).map(f => ({ f: f.fi, x: f.x, z: f.z + .4, kind: 'cook' }))];
+    this.staff = [...this.counters.map(c => ({ f: c.fi, x: c.x + .45, z: c.z - .05, kind: 'clerk' })), ...Array.from({ length: Math.min(4, this.helpers ?? 0) }, (_, k) => { const c = this.counters[k % Math.max(1, this.counters.length)]; return c ? { f: c.fi, x: c.x - .45 - .35 * Math.floor(k / Math.max(1, this.counters.length)), z: c.z - .05, kind: 'clerk' } : null; }).filter(Boolean), ...own.filter(f => COOK[f.kind] >= .7).map(f => ({ f: f.fi, x: f.x, z: f.z + .4, kind: 'cook' }))];
   }
-  get serviceTime() { return 4.2 / (1 + .7 * this.cooks); }
+  get serviceTime() { return 4.2 / (1 + .7 * this.cooks) / (1 + (this.helpers ?? 0)); }
+  /** hired helpers: each stands by a counter and speeds up taking orders */
+  setHelpers(n) { this.helpers = n; this.setOwned(this.owned); }
   floorY(f) { return this.plan.floors[f]?.y ?? 0; }
 
   // walking: a list of waypoints; a floor change goes through the lift

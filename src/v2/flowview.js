@@ -9,13 +9,22 @@ export class FlowView {
     this.el = document.createElement('div');
     this.c = document.createElement('canvas'); this.c.style.width = '100%'; this.c.style.display = 'block'; this.c.style.maxWidth = W + 'px';
     this.line = document.createElement('div'); Object.assign(this.line.style, { font: '13px system-ui, "Noto Sans KR", sans-serif', minHeight: '20px', marginTop: '4px' });
-    this.el.append(this.c, this.line);
+    this.bar = document.createElement('div'); Object.assign(this.bar.style, { display: 'flex', gap: '8px', alignItems: 'center', flexWrap: 'wrap', marginTop: '6px', minHeight: '38px' });
+    this.el.append(this.c, this.line, this.bar); this.barKey = '';
     const dpr = Math.min(2, devicePixelRatio || 1); this.c.width = W * dpr; this.c.height = H * dpr; this.g = this.c.getContext('2d'); this.g.scale(dpr, dpr);
     this.dots = []; this.acc = 0; this.flash = []; this.data = null; this.previewText = '';
   }
   /** data: { nodes: [{ icon, label, sub, cap, state }], slow: index of the bottleneck node, inRate, outRate, lostRate, coinRate } */
   set(data) { this.data = data; }
   preview(text) { this.previewText = text; }
+  /** What fixes the bottleneck: { title, button, onClick, disabled, note } — redrawn only when it changes */
+  action(a) {
+    const k = JSON.stringify([a?.title, a?.button, a?.disabled, a?.note]); if (k === this.barKey) return; this.barKey = k; this.bar.replaceChildren();
+    if (!a) return;
+    const t = document.createElement('b'); t.textContent = a.title; t.style.color = '#c0392b'; this.bar.append(t);
+    if (a.button) { const b = document.createElement('button'); b.textContent = a.button; b.className = 'gold fixbtn'; b.disabled = !!a.disabled; b.onclick = a.onClick; this.bar.append(b); }
+    if (a.note) { const n = document.createElement('span'); n.textContent = a.note; n.style.color = '#7a6a55'; n.style.fontSize = '13px'; this.bar.append(n); }
+  }
   pop(nodeIndex, text) { this.flash.push({ i: nodeIndex, text, t: 0 }); }
   frame(dt) {
     const d = this.data, g = this.g; if (!d) return;

@@ -19,6 +19,7 @@
   .isle { font:400 20px var(--f-disp); } .isle small { font:400 13px var(--f-ui); color:var(--dim); margin-left:6px; }
   .coins { font:400 24px var(--f-disp); color:#b07a12; font-variant-numeric:tabular-nums; } .coins i { font-style:normal; display:inline-grid; place-items:center; width:22px; height:22px; border-radius:50%; background:var(--gold); color:#6a4500; font:900 13px var(--f-ui); box-shadow:inset 0 -2px 0 #9a6f14; }
   .boatline.callable { cursor:pointer; background:#fff3cf; box-shadow:0 3px 0 #9a6f14; animation:nudge 1.6s infinite; } .callb { margin-left:6px; color:#b0560e; } .callw { color:var(--dim); }
+  .fixbtn { padding:7px 14px; animation:nudge 1.6s infinite; } .fixbtn:disabled { animation:none; }
   .rate { font-size:13px; color:var(--accent); font-weight:700; } .boatline { font-size:13px; }
   .wants { display:flex; gap:6px; flex-wrap:wrap; max-width:min(560px, 60vw); }
   .want { display:flex; align-items:center; gap:5px; background:rgba(251,246,236,.92); border-radius:999px; padding:2px 10px 2px 4px; font-size:12px; }
@@ -232,7 +233,9 @@ function ownedOf(p) {
   if (d.fx === undefined) return new Set(startingFixtures(fixturesOf(p), p.b.input.order));   // never furnished: a counter and a table
   return new Set(Array.from({ length: Math.min(fxTotal(p), d.fx ?? 1) }, (_, i) => i));
 }
-const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1);
+const helpersOf = (p) => (p.owner === me && myDoc?.plots[p.key] ? myDoc.plots[p.key].helpers : p.helpers) ?? 0;
+const HELPER_MAX = 4, helperCost = (n) => 30 * 2 ** n;
+const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, helpersOf(p));
 function allPlots() { const out = []; for (const [s, uid] of owners) { const d = docs.get(uid); for (const [key, p] of Object.entries(d?.plots ?? {})) out.push({ ...p, key, owner: uid, slot: s }); } return out; }
 async function save(force) {
   if (!db || !me || !myDoc) return;
@@ -363,7 +366,7 @@ function hud() {
     const bt = $('d-build'); bt.querySelector('.badge')?.remove(); if (w.permits > 0) bt.prepend(el('span', { class: 'badge' }, String(w.permits))); bt.classList.toggle('ready', w.permits > 0 && !buildMode);
   } else $('who').replaceChildren(boardName || '한 줄 군도', ' · 섬 고르기');
   if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot && b.state !== 'out');
-    const cd = Math.ceil(callReady - t / 1000), can = bp.shops && !docked && cd <= 0 && nb > 2;
+    const cd = Math.ceil(callReady - t / 1000), can = bp.shops && !docked && cd <= 0;
     $('boat').textContent = !bp.shops ? '⛵ 가게를 지으면 배가 와요' : docked ? `⛵ 배가 들어와요 · ${docked.people}명` : `⛵ 다음 배 ${Math.max(0, Math.ceil(nb))}초 · ${bp.people}명`;
     $('boat').append(can ? el('b', { class: 'callb' }, '📣 지금 부르기') : bp.shops && !docked && cd > 0 ? el('small', { class: 'callw' }, ` 부르기 ${cd}초`) : '');
     $('boat').classList.toggle('callable', !!can); $('boat').hidden = false; }
@@ -381,10 +384,10 @@ setInterval(() => {
   for (const p of allPlots()) {
     if (p.owner !== me || !p.b || !roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves) continue;
     const fx = fixturesOf(p), owned = ownedOf(p), order = p.b.input.order, base = BASE_COIN[p.size] ?? 1;
-    const kinds = bestNext(fx, owned, base, order), up = Object.values(nextUp(fx, owned, undefined, order)); if (!up.length) continue;
+    const kinds = bestNext(fx, owned, base, order, helpersOf(p)), up = Object.values(nextUp(fx, owned, undefined, order)); if (!up.length) continue;
     // the piece that raises income most; when none does, the cheapest next piece (every piece still brings boats sooner)
     const i = up.find(j => kinds.includes(fx[j].kind)) ?? up.sort((a, b) => costOf(fx[a].kind) - costOf(fx[b].kind))[0];
-    const r0 = shopRates(fx, owned, base), r1 = shopRates(fx, new Set([...owned, i]), base), cost = costOf(fx[i].kind);
+    const r0 = shopRates(fx, owned, base, helpersOf(p)), r1 = shopRates(fx, new Set([...owned, i]), base, helpersOf(p)), cost = costOf(fx[i].kind);
     const value = (Math.max(0, r1.price / r1.interval - r0.price / r0.interval) + 1e-4) / cost;
     if (!best || value > best.value) best = { p, i, cost, value, kind: fx[i].kind };
   }
@@ -662,7 +665,7 @@ function openInside(key) {
     maxWidth: Math.min(innerWidth - 60, 1100),
     onHover: (i) => {   // what one more fixture would change, before it is bought
       if (i < 0) return flow.preview('');
-      const f = fixturesOf(p)[i], name = FIX_INFO[f.kind]?.[0] ?? f.kind, base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base);
+      const f = fixturesOf(p)[i], name = FIX_INFO[f.kind]?.[0] ?? f.kind, base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p));
       const sup = watching?.supply ?? Infinity, ea = Math.min(a.gpm, sup), eb = Math.min(b.gpm, sup), dg = eb - ea, dc = eb * b.price - ea * a.price;
       flow.preview(dg > .05 ? `＋ ${name}: 받는 손님 ${ea.toFixed(1)} → ${eb.toFixed(1)}명/분 · 수입 +${Math.round(dc)}동전/분` : b.price > a.price ? `＋ ${name}: 손님 한 명이 ${a.price} → ${b.price}동전을 내요 · 수입 +${Math.round(dc)}동전/분`
         : b.gpm - a.gpm > .05 ? `＋ ${name}: 더 받을 수 있게 되지만, 지금은 오는 손님이 모자라요 (배가 1초 빨리 와요)` : `＋ ${name}: 지금 막힌 곳이 아니라 당장은 그대로예요 (배가 1초 빨리 와요)`);
@@ -670,10 +673,11 @@ function openInside(key) {
     },
     coins: mineP ? () => myDoc.wallet.coins : undefined,
     buy: (i, kind, cost) => { if (myDoc.wallet.coins < cost) return false;
-      { const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base), role = FIX_ROLE(kind);
+      { const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p)), b = flowCaps(fixturesOf(p), new Set([...ownedOf(p), i]), base, helpersOf(p)), role = FIX_ROLE(kind);
         const node = role === 'seat' ? 2 : role === 'decor' ? 3 : 1, sup = watching?.supply ?? Infinity, dg = Math.min(b.gpm, sup) - Math.min(a.gpm, sup); setTimeout(() => flow.pop(node, dg > .05 ? `+${dg.toFixed(1)}명/분` : b.price > a.price ? `+${b.price - a.price}동전` : '+1'), 50); flow.preview(''); }
       setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); myDoc.wallet.coins -= cost; const mp = myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
   });
+  view.sim.setHelpers(helpersOf(p));
   const flow = new FlowView(); $('iflow').replaceChildren(flow.el);
   watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0 };
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
@@ -693,6 +697,25 @@ function closeInside() {
 }
 $('iclose').onclick = closeInside; $('inside').addEventListener('click', (e) => { if (e.target === $('inside')) closeInside(); });
 addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });
+// the one thing that unblocks the red step, as a button under the diagram
+function fixAction(w, p, fc) {
+  const slow = w.flow.data.slow;
+  if (!w.mine) return w.flow.action(null);
+  if (slow === 0) {   // the shop has room: what is missing is guests
+    const can = $('boat').classList.contains('callable'), wl = G();
+    if (can) return w.flow.action({ title: '가게는 여유 있어요 · 손님이 더 와야 해요', button: '📣 배 부르기', onClick: () => $('boat').click() });
+    if (wl.permits > 0) return w.flow.action({ title: '가게는 여유 있어요 · 손님이 더 와야 해요', button: '🎫 섬에 가게 하나 더 짓기', onClick: () => { closeInside(); openCards(); }, note: '가게가 늘면 배가 더 자주, 더 많이 와요' });
+    return w.flow.action({ title: '가게는 여유 있어요 · 손님이 더 와야 해요', note: `가게가 늘면 배가 더 많이 와요 · 다음 🎫까지 손님 ${wl.nextAt - wl.served}명 · 배 부르기 대기 중` }); }
+  const fx = fixturesOf(p), up = nextUp(fx, ownedOf(p), undefined, p.b.input.order), track = slow === 1 ? 'order' : 'seat', i = up[track];
+  if (i !== undefined) { const f = fx[i], c = costOf(f.kind), name = FIX_INFO[f.kind]?.[0] ?? f.kind;
+    return w.flow.action({ title: slow === 1 ? '주문이 밀려요' : '자리가 모자라요', button: `＋ ${name} 들이기 · ${c}동전`, disabled: myDoc.wallet.coins < c, onClick: () => { if (w.view.buyIndex(i)) { w.view.onHover?.(-1); } }, note: myDoc.wallet.coins < c ? `동전 ${c - myDoc.wallet.coins}개 더 필요해요` : '' }); }
+  if (slow === 1) { const h = helpersOf(p), c = helperCost(h);
+    if (h >= HELPER_MAX) return w.flow.action({ title: '주문이 밀려요', note: '알바도 다 뽑았어요 — 옆에 가게를 하나 더 지어 손님을 나눠 보세요' });
+    return w.flow.action({ title: '주문이 밀려요', button: `🧑‍🍳 알바 고용 · ${c}동전`, disabled: myDoc.wallet.coins < c, note: `가구는 다 채웠어요 · 알바가 서면 주문이 빨라져요 (${h}/${HELPER_MAX})`,
+      onClick: () => { if (myDoc.wallet.coins < c) return; const a = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h), b = flowCaps(fx, ownedOf(p), BASE_COIN[p.size] ?? 1, h + 1);
+        myDoc.wallet.coins -= c; myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); w.flow.pop(1, `+${(b.order - a.order).toFixed(1)}명/분`); toast('🧑‍🍳 알바가 왔어요!', 1500); } }); }
+  return w.flow.action({ title: '자리가 모자라요', note: '자리를 다 채웠어요 — 더 큰 가게를 지어 보세요' });
+}
 let istatT = 0;
 function stepInside(dt) {
   if (!watching) return;
@@ -704,7 +727,7 @@ function stepInside(dt) {
     { const pp = allPlots().find(x => x.key === w.key), bp = pp ? boatPlan(pp.slot) : null, expect = bp && bp.shops ? bp.people / bp.every * 60 / bp.shops : 0;
       w.supply = (now0 - w.opened) / 1000 > 30 ? Math.max(per(w.ins), .5) : Math.max(expect, per(w.ins)); }
     const p0 = allPlots().find(x => x.key === w.key);
-    if (p0) { const fc = flowCaps(fixturesOf(p0), ownedOf(p0), BASE_COIN[p0.size] ?? 1), isim = w.view.sim, used = isim.seats.filter(x => x.who).length;
+    if (p0) { const fc = flowCaps(fixturesOf(p0), ownedOf(p0), BASE_COIN[p0.size] ?? 1, helpersOf(p0)), isim = w.view.sim, used = isim.seats.filter(x => x.who).length;
       const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, door = sim.shops.get(w.key)?.queue.length ?? 0;
       w.flow.set({ nodes: [
         { icon: '🚪', label: '들어옴', sub: '배 손님', cap: w.supply, state: `문 앞 줄 ${door}` },
@@ -712,6 +735,7 @@ function stepInside(dt) {
         { icon: '🪑', label: fc.seats ? '자리' : '포장', sub: fc.seats ? `자리 ${fc.seats}` : '앉지 않음', cap: fc.seat, state: fc.seats ? `${used}/${fc.seats} 앉음` : '' },
         { icon: '💰', label: '계산', sub: `한 명 ${fc.price}동전`, state: '' }],
         slow: w.supply < Math.min(fc.order, fc.seat) ? 0 : fc.slow === 'seat' ? 2 : 1, inRate: per(w.ins), outRate: per(w.outs), lostRate: per(w.losts), coinRate: per(w.outs) * fc.price });
+      fixAction(w, p0, fc);
       w.flow.frame(dt); } }
   for (const e of paid) { watching.earned += e.n; if (watching.mine) { earned.push([performance.now(), e.n]); myDoc.wallet.coins += e.n; dirty = true; } }
   if ((istatT += dt) < .3) return; istatT = 0;
@@ -719,7 +743,7 @@ function stepInside(dt) {
   const q = isim.counters.reduce((t, c) => t + c.q.length, 0) + isim.kitchen.length, seats = isim.seats.length, used = isim.seats.filter(x => x.who).length;
   const cell = (label, v, bad) => `<div class="${bad ? 'bad' : ''}"><span>${label}</span><br><b>${v}</b></div>`;
   if (watching.mine && r) {   // what to do next: the fixtures that would raise income the most blink
-    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order);
+    const k = bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order, helpersOf(p));
     watching.view.suggest = new Set(k);
     const names = k.map(x => FIX_INFO[x]?.[0] ?? x).slice(0, 3).join('·'), t = (nextBoat.get(p.slot) ?? 0) - performance.now() / 1000;
     const up = nextUp(fixturesOf(p), ownedOf(p), undefined, p.b.input.order), fx = fixturesOf(p);
