@@ -33,6 +33,22 @@
   .panel { position:fixed; z-index:6; right:12px; top:84px; bottom:96px; width:360px; overflow:auto; background:var(--card); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:10px; box-shadow:0 6px 0 rgba(20,40,60,.35); }
   .panel[hidden] { display:none; }
   .panel .x { position:sticky; top:0; align-self:flex-end; margin:-6px -6px -34px 0; z-index:1; padding:4px 10px; }
+  .pill.isle { cursor:pointer; } .pill.isle:hover { background:#fff; }
+  .world { position:fixed; inset:0; z-index:30; background:#3d7fa6; overflow:hidden; }
+  .world[hidden] { display:none; }
+  .world .wmap { position:absolute; image-rendering:pixelated; }
+  .spot { position:absolute; transform:translate(-50%, -100%); display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; border:0; background:none; padding:0; box-shadow:none; }
+  .spot .tag { background:rgba(251,246,236,.96); color:var(--ink); border-radius:10px; padding:2px 8px; font:400 14px var(--f-disp); white-space:nowrap; box-shadow:0 2px 0 rgba(0,0,0,.3); }
+  .spot .tag small { font:700 11px var(--f-ui); color:var(--dim); margin-left:4px; }
+  .spot .pin { width:16px; height:16px; border-radius:50%; background:var(--accent); border:3px solid #fbf6ec; box-shadow:0 0 0 0 rgba(255,255,255,.7); animation:ping 2s infinite; }
+  .spot.mine .pin { background:var(--gold); } .spot.mine .tag { background:var(--gold); color:#3a2a00; } .spot.here .tag { outline:2px solid #fff; }
+  .spot.new .pin { background:#fff; border-color:var(--hot); }
+  @keyframes ping { 0% { box-shadow:0 0 0 0 rgba(255,255,255,.7); } 70% { box-shadow:0 0 0 14px rgba(255,255,255,0); } 100% { box-shadow:0 0 0 0 rgba(255,255,255,0); } }
+  .world .wtop { position:absolute; top:12px; left:12px; right:12px; display:flex; gap:8px; align-items:center; z-index:2; }
+  .world .wtop .pill { font:400 20px var(--f-disp); } .world .wtop .grow { flex:1; }
+  .world .wcard { position:absolute; z-index:2; right:12px; bottom:12px; width:320px; max-width:calc(100vw - 24px); background:var(--card); border-radius:16px; padding:14px; display:flex; flex-direction:column; gap:8px; box-shadow:0 6px 0 rgba(0,0,0,.3); }
+  .world .wcard[hidden] { display:none; } .world .wcard h2 { margin:0; font:400 21px var(--f-disp); }
+  .world .wcard canvas { width:100%; border-radius:10px; background:var(--sea); image-rendering:auto; }
   @media (max-width:760px) { .panel { left:8px; right:8px; top:auto; width:auto; max-height:52vh; } .wants { display:none; } }
   .panel h2 { margin:0; font:400 21px var(--f-disp); } .panel h3 { margin:4px 0 0; font:400 16px var(--f-disp); }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -69,6 +85,9 @@
 <div class="hud tl"><div class="pill isle" id="who">한 줄 군도</div><div class="wants" id="wants"></div></div>
 <div class="hud tr"><div class="pill"><span class="coins" id="wallet"></span><span class="rate" id="rate"></span></div><div class="pill boatline" id="boat"></div></div>
 <aside class="panel" id="panel" hidden></aside>
+<div class="world" id="world" hidden><canvas class="wmap" id="wmap"></canvas><div id="spots"></div>
+  <div class="wtop"><div class="pill">세계</div><div class="pill" id="wcount"></div><span class="grow"></span><button class="gold" id="wnew">새 군도 만들기</button><button class="ghost" id="wclose" style="background:#fbf6ec">돌아가기</button></div>
+  <div class="wcard" id="wcard" hidden></div></div>
 <div class="toast" id="toast" hidden></div>
 <nav class="dock" id="dock">
   <div class="sizes" id="sizes" hidden></div>
@@ -76,6 +95,7 @@
   <button id="d-home"><span class="ic">🏝️</span>내 섬</button>
   <button id="d-auto"><span class="ic">🛋️</span><span id="d-auto-t">자동</span></button>
   <button id="zoom"><span class="ic">🗺️</span><span id="zoom-t">전체</span></button>
+  <button id="d-world"><span class="ic">🌏</span>세계</button>
 </nav>
 <script type="module">
 import { lineReader } from './src/steps.js';
@@ -89,6 +109,7 @@ import { SLOTS, WORLD, centerOf, neighbours, bridgeId, makeIsles, placePlot, PLO
 import { buildSection } from './src/v2/interior.js';
 import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
+import { landCanvas } from './src/v2/geo.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
 import { shopRates, bestNext, FIX_INFO, nextUp, TRACKS, costOf } from './src/v2/inside.js';
 
@@ -108,6 +129,9 @@ let docs = new Map();             // uid → { slot, at, plots, half, wallet }
 let owners = new Map();           // slot → uid (first to take it)
 let myDoc = null, mySlot = 0, dirty = false, lastSave = 0, names = {}, roadSig = null;
 let world = makeIsles(new Set(), new Map());
+// which board (ten islands of one group of friends) this page shows; the first board keeps the old collection name
+const BOARD = new URLSearchParams(location.search).get('board') || 'main';
+const COL = BOARD === 'main' ? 'i' : 'i-' + BOARD;
 const nameOf = (uid) => uid?.startsWith('seed') ? (docs.get(uid)?.name ?? '예시 친구') : uid === me ? '나' : (names[uid] || '친구');
 function rebuild() {
   owners = new Map();
@@ -148,7 +172,7 @@ async function save(force) {
   if (!force && (!dirty || now() - lastSave < 5000)) return;
   dirty = false; lastSave = now();
   myDoc.rev = (myDoc.rev ?? 0) + 1;   // each save is numbered, so an older copy never replaces a newer one
-  try { await db.doc('i/' + me).set(myDoc); } catch { dirty = true; }
+  try { await db.doc(COL + '/' + me).set(myDoc); } catch { dirty = true; }
 }
 setInterval(() => save(false), 2000);
 async function resolveNames() { if (!user) return; const ids = [...owners.values()].filter(u => !u.startsWith('seed')); if (!ids.length) return; const ps = await user.profiles(ids); for (const id of ids) names[id] = ps[id]?.name || '친구'; }
@@ -163,7 +187,7 @@ const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
 const sprites = new Map(), pops = [];
 let current = null, size = 'S', hover = null, building = null, drawn = [], buildMode = false;
-let watching = null, joinShown = false;   // the building whose inside is open; the join card is up
+let watching = null, joinShown = false, boardName = BOARD === 'main' ? '첫 군도' : '';   // the building whose inside is open; the join card is up
 const earned = [];           // [time, coins] my shops earned, for coins per minute
 function sprite(p) {
   const k = p.key + ':' + p.b.at, s = sprites.get(p.key); if (s && s.k === k) return s;
@@ -264,7 +288,7 @@ function hud() {
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
   $('rate').textContent = myDoc ? `+${earned.reduce((a, e) => a + e[1], 0)}/분` : '';
   const mine = mySlot ? allPlots().filter(p => p.slot === mySlot && p.b) : [];
-  $('who').replaceChildren(mySlot ? `${mySlot}번 섬` : '한 줄 군도', mySlot ? el('small', {}, `건물 ${mine.length} · 가구 ${mine.reduce((a, p) => a + ownedOf(p).size, 0)}`) : '');
+  $('who').replaceChildren(boardName ? boardName + ' · ' : '', mySlot ? `${mySlot}번 섬` : '섬 고르기', mySlot ? el('small', {}, `건물 ${mine.length} · 가구 ${mine.reduce((a, p) => a + ownedOf(p).size, 0)}`) : '');
   if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot);
     $('boat').textContent = !bp.shops ? '⛵ 가게를 지으면 배가 와요' : docked ? `⛵ 배가 들어와요 · ${docked.people}명` : `⛵ 다음 배 ${Math.max(0, Math.ceil(nb))}초 · ${bp.people}명`; $('boat').hidden = false; }
   else $('boat').hidden = true;
@@ -372,7 +396,7 @@ function showHome(msg) {
   joinShown = false;
   if (!mySlot) {
     const can = db && me; joinShown = true;
-    return show(el('h2', {}, '한 줄 군도'),
+    return show(el('h2', {}, boardName || '한 줄 군도'),
       el('p', { class: 'note' }, '친구 열 명이 섬 하나씩 맡아 한 줄로 건물을 짓고, 다리를 반씩 놓아 섬을 잇는 곳이에요. 다리가 이어지면 친구 섬 사람들이 건너와 내 가게에서 돈을 써요.'),
       can ? el('h3', {}, '빈 섬을 골라 들어오세요') : el('p', { class: 'note' }, 'claude.ai에서 이 페이지에 Contributor로 초대받으면 섬을 고를 수 있어요.'),
       can ? el('div', { class: 'slots' }, Array.from({ length: SLOTS }, (_, i) => i + 1).map(s => { const b = el('button', { class: owners.has(s) ? 'ghost' : '', on: { click: () => join(s) } }, String(s)); b.disabled = owners.has(s); return b; })) : null,
@@ -494,7 +518,7 @@ function stepInside(dt) {
 }
 async function demolish(p) {
   if (p.owner === me) { const ps = { ...myDoc.plots }; delete ps[p.key]; myDoc.plots = ps; rebuild(); await save(true); return showHome(); }
-  try { const ref = db.doc('i/' + p.owner), cur = await ref.get(), data = cur.data() ?? {}; const ps = { ...(data.plots ?? {}) }; delete ps[p.key]; await ref.set({ ...data, plots: ps }); showHome(); } catch { showHome('철거하지 못했어요.'); }
+  try { const ref = db.doc(COL + '/' + p.owner), cur = await ref.get(), data = cur.data() ?? {}; const ps = { ...(data.plots ?? {}) }; delete ps[p.key]; await ref.set({ ...data, plots: ps }); showHome(); } catch { showHome('철거하지 못했어요.'); }
 }
 function fitToLot(input, n) {
   input.scale = Object.keys(PLOT).find(k => PLOT[k] === n);
@@ -551,9 +575,86 @@ function startBuild(x, z, door) {
   go.onclick = build; input.addEventListener('keydown', e => { if (e.key === 'Enter') build(); });
 }
 
+// ---------- the world: every board (ten islands of one group of friends) is a spot on a map ----------
+const WMAP = { w: 720, h: 360, top: 78, bottom: -58 };
+let wland = null, wboards = [], placing = null, wview = null;
+function boardShape(entries) {   // owners, joined islands, bridges and plots of one board, from its island docs
+  const owners = new Map(); for (const [uid, d] of [...entries].sort((a, b) => (a[1].at ?? 0) - (b[1].at ?? 0))) if (d.slot >= 1 && d.slot <= SLOTS && !owners.has(d.slot)) owners.set(d.slot, uid);
+  const docsB = new Map(entries), joined = new Set(owners.keys()), bridges = new Map();
+  for (const s of joined) for (const n of neighbours(s)) if (n > s && joined.has(n)) bridges.set(bridgeId(s, n), { a: !!docsB.get(owners.get(s))?.half?.[n], b: !!docsB.get(owners.get(n))?.half?.[s] });
+  const taken = new Set(); let buildings = 0;
+  for (const uid of owners.values()) for (const p of Object.values(docsB.get(uid)?.plots ?? {})) { buildings++; for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) taken.add(i + ',' + k); }
+  return { owners, joined, bridges, taken, buildings, mine: [...owners.values()].includes(me) };
+}
+async function loadBoards() {
+  let meta = [];
+  try { meta = db ? (await db.collection('boards').get()).docs.map(d => ({ id: d.id, ...d.data() })) : []; } catch {}
+  if (!meta.some(b => b.id === 'main')) meta.unshift({ id: 'main', name: '첫 군도', lat: 37.5, lng: 127 });
+  for (const b of meta) {
+    let entries = [];
+    try { entries = db ? (await db.collection(b.id === 'main' ? 'i' : 'i-' + b.id).get()).docs.map(d => [d.id, d.data()]) : (b.id === 'main' ? Object.entries(ISLES_SEED) : []); } catch {}
+    b.shape = boardShape(entries);
+  }
+  return meta;
+}
+function layoutWorld() {
+  const c = $('wmap'), vw = innerWidth, vh = innerHeight, y0 = (90 - WMAP.top) / 180 * WMAP.h, hh = (WMAP.top - WMAP.bottom) / 180 * WMAP.h;
+  const k = Math.min(vw / WMAP.w, vh / hh), ox = (vw - WMAP.w * k) / 2, oy = (vh - hh * k) / 2 - y0 * k;   // the whole world fits, poles cut
+  Object.assign(c.style, { width: WMAP.w * k + 'px', height: hh * k + 'px', left: ox + 'px', top: oy + y0 * k + 'px' });
+  wview = { k, ox, oy, toPx: (lat, lng) => [ox + (lng + 180) / 360 * WMAP.w * k, oy + (90 - lat) / 180 * WMAP.h * k], toLL: (x, y) => [90 - (y - oy) / k / WMAP.h * 180, (x - ox) / k / WMAP.w * 360 - 180] };
+}
+function drawSpots() {
+  const box = $('spots'), placed = []; box.replaceChildren();
+  for (const b of [...wboards].sort((a, b) => a.lng - b.lng)) {
+    const [x, y] = wview.toPx(b.lat, b.lng), sh = b.shape;
+    const btn = el('button', { class: 'spot' + (sh.mine ? ' mine' : '') + (b.id === BOARD ? ' here' : ''), on: { click: (e) => { e.stopPropagation(); showBoard(b); } } },
+      el('span', { class: 'tag' }, b.name, el('small', {}, `${sh.joined.size}/10`)), el('span', { class: 'pin' }));
+    btn.style.left = x + 'px'; btn.style.top = y + 'px'; box.append(btn);
+    // a label that would cover another one goes below its pin
+    const r = { x0: x - 60, x1: x + 60, y0: y - 44, y1: y - 18 };
+    if (placed.some(q => q.x0 < r.x1 && r.x0 < q.x1 && q.y0 < r.y1 && r.y0 < q.y1)) { btn.style.flexDirection = 'column-reverse'; btn.style.transform = 'translate(-50%, -16px)'; placed.push({ x0: r.x0, x1: r.x1, y0: y + 2, y1: y + 28 }); }
+    else placed.push(r);
+  }
+  if (placing?.lat !== undefined) { const [x, y] = wview.toPx(placing.lat, placing.lng), n = el('div', { class: 'spot new' }, el('span', { class: 'tag' }, '새 군도'), el('span', { class: 'pin' })); n.style.left = x + 'px'; n.style.top = y + 'px'; box.append(n); }
+  $('wcount').textContent = placing ? '새 군도를 세울 곳을 누르세요' : `군도 ${wboards.length}개 · 친구 ${wboards.reduce((t, b) => t + b.shape.joined.size, 0)}명`;
+}
+function showBoard(b) {
+  const card = $('wcard'), sh = b.shape, wd = makeIsles(sh.joined, sh.bridges), g0 = drawIsles(wd, pr, { taken: sh.taken });
+  const th = document.createElement('canvas'); th.width = 560; th.height = Math.round(560 * g0.height / g0.width); th.getContext('2d').drawImage(g0, 0, 0, th.width, th.height);
+  const go = () => { const q = new URLSearchParams(location.search); if (b.id === 'main') q.delete('board'); else q.set('board', b.id); location.search = q.toString(); };
+  card.hidden = false;
+  card.replaceChildren(el('h2', {}, b.name), el('div', { class: 'note' }, `친구 ${sh.joined.size}/10 · 건물 ${sh.buildings}채${sh.mine ? ' · 내 섬이 있어요' : ''}`), th,
+    el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기 있어요 · 돌아가기') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '들어가서 섬 고르기' : '구경하기'),
+      el('button', { class: 'ghost', on: { click: () => { card.hidden = true; } } }, '닫기')));
+}
+async function openWorld() {
+  setBuildMode(false); $('world').hidden = false; $('wcard').hidden = true; placing = null;
+  if (!wland) { wland = landCanvas(WMAP.w, WMAP.h, { borders: false }); const c = $('wmap'), y0 = Math.round((90 - WMAP.top) / 180 * WMAP.h), hh = Math.round((WMAP.top - WMAP.bottom) / 180 * WMAP.h); c.width = WMAP.w; c.height = hh; c.getContext('2d').drawImage(wland, 0, -y0); }
+  layoutWorld(); wboards = await loadBoards(); drawSpots();
+}
+function closeWorld() { $('world').hidden = true; placing = null; }
+$('wclose').onclick = closeWorld; $('d-world').onclick = openWorld; $('who').onclick = openWorld;
+addEventListener('resize', () => { if (!$('world').hidden) { layoutWorld(); drawSpots(); } });
+$('wnew').onclick = () => { if (!db || !me) return; placing = {}; $('wcard').hidden = true; drawSpots(); };
+$('world').addEventListener('click', (e) => {
+  if (!placing || e.target.closest('.wcard, .wtop')) return;
+  const [lat, lng] = wview.toLL(e.clientX, e.clientY); placing = { lat, lng }; drawSpots();
+  const input = el('input', { type: 'text', maxlength: '12', placeholder: '군도 이름 (예: 붕어빵 연합)' }), err = el('div', { class: 'err' });
+  const make = async () => {
+    const name = input.value.trim(); if (!name) { err.textContent = '이름을 써 주세요'; return; } if (bad(name)) { err.textContent = '그 이름은 쓸 수 없어요'; return; }
+    const id = 'b' + Date.now().toString(36); await db.doc('boards/' + id).set({ name, lat, lng, owner: me, at: now() });
+    const q = new URLSearchParams(location.search); q.set('board', id); location.search = q.toString();
+  };
+  $('wcard').hidden = false;
+  $('wcard').replaceChildren(el('h2', {}, '새 군도'), el('div', { class: 'note' }, '친구 열 명이 섬 하나씩 맡는 새 판을 이 자리에 세워요. 세우면 1번 섬부터 고를 수 있어요.'), el('div', { class: 'row' }, input, el('button', { class: 'gold', on: { click: make } }, '세우기')), err,
+    el('button', { class: 'ghost', on: { click: () => { placing = null; $('wcard').hidden = true; drawSpots(); } } }, '그만두기'));
+  input.focus(); input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') make(); });
+});
+
 // ---------- load ----------
+if (db && BOARD !== 'main') db.doc('boards/' + BOARD).get().then(d => { boardName = d.data()?.name ?? ''; }).catch(() => {});
 if (db) {
-  db.collection('i').onSnapshot(snap => {
+  db.collection(COL).onSnapshot(snap => {
     docs = new Map();
     for (const d of snap.docs) docs.set(d.id, d.data() ?? {});
     // my own doc: take the stored copy only when it is newer than what this page holds (another tab, or an edit from outside)
@@ -563,8 +664,10 @@ if (db) {
     else if (me && myDoc) docs.set(me, myDoc);
     rebuild(); resolveNames();
   }, () => show(el('p', { class: 'err' }, '군도를 불러오지 못했어요.')));
-} else { docs = new Map(Object.entries(ISLES_SEED)); rebuild(); }
+} else { docs = new Map(BOARD === 'main' ? Object.entries(ISLES_SEED) : []); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
+// ?world=1 opens the world map at once (for checks)
+if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
 { const k = new URLSearchParams(location.search).get('open'); if (k) setTimeout(() => { showBuilding(k); openInside(k); }, 300); }
 </script>

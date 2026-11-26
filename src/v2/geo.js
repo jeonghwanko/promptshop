@@ -69,14 +69,18 @@ export function search(q) {
 export const suggestions = (q) => { if (!q) return []; const low = q.toLowerCase(); return [...CITIES.filter(c => c[0].includes(q) || c[1].toLowerCase().includes(low)).map(c => c[0]), ...POLYS.filter(c => c.ko.includes(q) || c.n.toLowerCase().includes(low)).map(c => c.ko)].slice(0, 8); };
 
 /** An equirectangular land map for the globe: sea, land, borders. */
-export function landCanvas(w = 2048, h = 1024) {
+export function landCanvas(w = 2048, h = 1024, { borders = true } = {}) {
   const c = document.createElement('canvas'); c.width = w; c.height = h; const g = c.getContext('2d');
   g.fillStyle = '#3d7fa6'; g.fillRect(0, 0, w, h);
   g.fillStyle = '#4a8db3'; for (let y = 0; y < h; y += 8) for (let x = (y / 8) % 2 ? 4 : 0; x < w; x += 16) g.fillRect(x, y, 2, 1);
   const X = (lng) => (lng + 180) / 360 * w, Y = (lat) => (90 - lat) / 180 * h;
-  for (const c2 of POLYS) for (const r of c2.rings) {
-    g.beginPath(); r.forEach(([lng, lat], i) => (i ? g.lineTo(X(lng), Y(lat)) : g.moveTo(X(lng), Y(lat)))); g.closePath();
-    g.fillStyle = c2.n === 'Antarctica' ? '#e8eef2' : '#8cbf6a'; g.fill(); g.strokeStyle = '#6f9e55'; g.lineWidth = 1; g.stroke();
+  // rings that cross the date line are drawn in two pieces, each closed on its own side (no strip across the map)
+  const pieces = (r) => { const out = [[]]; r.forEach(([lng, lat], i) => { if (i && Math.abs(lng - r[i - 1][0]) > 180) out.push([]); out[out.length - 1].push([lng, lat]); }); return out; };
+  for (const c2 of POLYS) for (const r of c2.rings) for (const p of pieces(r)) {
+    if (p.length < 3) continue;
+    g.beginPath(); p.forEach(([lng, lat], i) => (i ? g.lineTo(X(lng), Y(lat)) : g.moveTo(X(lng), Y(lat)))); g.closePath();
+    g.fillStyle = c2.n === 'Antarctica' ? '#e8eef2' : '#8cbf6a'; g.fill();
+    if (borders) { g.strokeStyle = '#6f9e55'; g.lineWidth = 1; g.stroke(); }
   }
   return c;
 }
