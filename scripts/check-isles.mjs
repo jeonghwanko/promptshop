@@ -1,0 +1,68 @@
+// Regression check for isles.html against the local dev server (node scripts/dev.mjs 5300).
+// Copies the dev island (dev-me) to a throwaway board, drives the main paths in headless Chrome, prints PASS/FAIL lines,
+// then deletes the copy. Usage: node scripts/check-isles.mjs   (needs google-chrome)
+import { spawn, execSync } from 'node:child_process';
+import { mkdtempSync } from 'node:fs'; import { tmpdir } from 'node:os';
+const S = mkdtempSync(tmpdir() + '/isles-check-');
+execSync(`curl -s localhost:5300/api/db/i/dev-me -o ${S}/qa26.json`);
+const put = (path, file) => execSync(`curl -s -X PUT localhost:5300/api/db/${path} --data-binary @${file}`);
+const del = (path) => execSync(`curl -s -X DELETE localhost:5300/api/db/${path}`);
+(await import('node:fs')).writeFileSync(S + '/rb.json', '{"name":"회귀","lat":-35,"lng":-58}');
+const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 7; delete doc.wallet.tutIn; doc.rev = 1;
+(await import('node:fs')).writeFileSync(S + '/rd.json', JSON.stringify(doc));
+del('i-qarg/qa-x'); put('boards/qarg', S + '/rb.json'); put('i-qarg/qa-x', S + '/rd.json');
+const port = 9370, chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=/tmp/cdp-rg-${Date.now()}`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
+process.on('exit', () => { try { chrome.kill(); } catch {} });   // never leave a browser saving to the copy
+await new Promise(r => setTimeout(r, 1500));
+const tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json();
+const ws = new WebSocket(tabs.find(t => t.type === 'page').webSocketDebuggerUrl); let id = 0; const wait = new Map(); const errs = [];
+const send = (method, params = {}) => new Promise(r => { const i = ++id; wait.set(i, r); ws.send(JSON.stringify({ id: i, method, params })); });
+ws.onmessage = (m) => { const d = JSON.parse(m.data); if (d.id && wait.has(d.id)) { wait.get(d.id)(d.result); wait.delete(d.id); }
+  if (d.method === 'Runtime.exceptionThrown') errs.push((d.params.exceptionDetails.url ?? '') + ':' + d.params.exceptionDetails.lineNumber + ' ' + d.params.exceptionDetails.exception?.description?.split('\n').slice(0, 2).join('|'));
+  if (d.method === 'Runtime.consoleAPICalled' && d.params.type === 'error') errs.push('console: ' + JSON.stringify(d.params.args.map(a => a.value ?? a.description)).slice(0, 200)); };
+await new Promise(r => ws.onopen = r); await send('Runtime.enable'); await send('Page.navigate', { url: 'http://127.0.0.1:5300/isles.html?board=qarg&me=qa-x' });
+const ev = async (e) => { const r = await send('Runtime.evaluate', { expression: e, awaitPromise: true }); return r.result.value ?? r.result.description; }, sleep = (ms) => new Promise(r => setTimeout(r, ms));
+const click = async (x, y) => { for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }); };
+const shot = async (n) => { const r = await send('Page.captureScreenshot', { format: 'png' }); (await import('node:fs')).writeFileSync(`${S}/rg_${n}.png`, Buffer.from(r.data, 'base64')); };
+const check = (name, ok, info = '') => console.log(ok ? 'PASS' : 'FAIL', name, info);
+await sleep(9000); await shot('map');
+check('loaded', await ev(`!!window.__isles && !!__isles.myDoc`));
+check('hud', (await ev(`document.getElementById('wallet').textContent`)).length > 0, await ev(`document.getElementById('who').textContent`));
+// tutorial step 7: tap the shop → inside guide
+const a = JSON.parse(await ev(`(()=>{const a=document.getElementById('garrow'); return JSON.stringify(a.hidden?null:[parseFloat(a.style.left), parseFloat(a.style.top)])})()`));
+check('guide arrow at shop', !!a);
+if (a) for (const dy of [30, 50, 70]) { if (await ev(`!!__isles.watching`)) break; await click(a[0], a[1] + dy); await sleep(1500); }
+check('shop opened by tap', await ev(`!!__isles.watching?.inPlace`), await ev(`__isles.watching?.key`));
+check('inside guide', (await ev(`document.getElementById('gtext').textContent`)).includes('가게 안'));
+await ev(`document.querySelector('#gbtns .gold')?.click()`); await sleep(500); await ev(`document.querySelector('#gbtns .gold')?.click()`); await sleep(500);
+const acts = await ev(`document.querySelectorAll('#shopacts .act').length`); check('action buttons', acts >= 2, acts); await shot('shop');
+const c0 = await ev(`__isles.myDoc.wallet.coins`); await ev(`document.querySelector('#shopacts .act.buy')?.click()`); await sleep(1200);
+check('buy spends coins', (await ev(`__isles.myDoc.wallet.coins`)) < c0, `${c0} → ${await ev(`__isles.myDoc.wallet.coins`)}`);
+await ev(`document.querySelector('#shopacts .act.close')?.click()`); await sleep(800); check('shop closed', !(await ev(`!!__isles.watching`)));
+await ev(`document.querySelector('#gbtns .gold')?.click()`); await sleep(400);
+// a two-floor shop: floors switch without resizing
+await ev(`__isles.openShop('1_13_16')`); await sleep(1800);
+const s0 = await ev(`shopstage.offsetWidth + 'x' + shopstage.offsetHeight`); await ev(`__isles.watching.view.setFloor(1)`); await sleep(400);
+check('floor switch keeps size', s0 === await ev(`shopstage.offsetWidth + 'x' + shopstage.offsetHeight`), s0);
+await ev(`__isles.close()`); await sleep(600);
+// zoom buttons and wheel
+const z0 = await ev(`__isles.zoom`); await ev(`document.getElementById('zout').click()`); await sleep(300); check('zoom out', (await ev(`__isles.zoom`)) < z0, `${z0} → ${await ev(`__isles.zoom`)}`);
+await send('Input.dispatchMouseEvent', { type: 'mouseWheel', x: 500, y: 400, deltaX: 0, deltaY: -120 }); await sleep(300); check('wheel zoom in', (await ev(`__isles.zoom`)) === z0);
+// long press → move mode
+const pt = JSON.parse(await ev(`JSON.stringify(__isles.screenOf('1_18_13'))`));
+await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt[0], y: pt[1] }); await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pt[0], y: pt[1], button: 'left', clickCount: 1 }); await sleep(800); await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pt[0], y: pt[1], button: 'left', clickCount: 1 }); await sleep(300);
+check('long press moves', (await ev(`document.getElementById('toast').textContent`)).includes('옮길'));
+await ev(`__isles.cancel()`); await sleep(300);
+// festival
+await ev(`__isles.fest(3)`); await sleep(1500); check('festival coming', (await ev(`JSON.stringify(__isles.festState)`)).includes('coming'), await ev(`document.getElementById('festp').textContent`));
+await sleep(4000); check('festival landed', (await ev(`JSON.stringify(__isles.festState)`)).includes('here'));
+// panel, cards, world
+await ev(`document.getElementById('d-home').click()`); await sleep(500); check('home panel', await ev(`!document.getElementById('panel').hidden && document.querySelectorAll('#panel .stat').length === 3`)); await shot('home');
+await ev(`document.querySelector('#panel .xb').click()`); await sleep(300);
+await ev(`document.getElementById('d-build').click()`); await sleep(800); check('request cards', (await ev(`document.querySelectorAll('#cards .rcard').length`)) >= 2); await ev(`document.querySelector('#cards .ghost').click()`); await sleep(300);
+await ev(`document.getElementById('d-world').click()`); await sleep(2000); check('world spots', (await ev(`document.querySelectorAll('#spots .spot, #spots .bubble').length`)) > 0); await shot('world');
+await ev(`document.getElementById('wclose').click()`); await sleep(500);
+// construction site and celebration render without errors
+await ev(`__isles.site(11,10,'S',true)`); await sleep(600); await ev(`__isles.site(11,10,'S',false)`); await ev(`__isles.celebrate('테스트','')`); await sleep(800);
+check('no errors', errs.length === 0, errs.slice(0, 3).join(' || '));
+chrome.kill(); await new Promise(r => setTimeout(r, 500)); del('i-qarg/qa-x'); del('boards/qarg'); process.exit(errs.length ? 1 : 0);

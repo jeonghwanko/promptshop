@@ -16,6 +16,7 @@ import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCa
 import { applyTheme } from '../ui/theme.js';
 import { pixelIcons, iconCanvas, iconEl, EMOJI } from '../ui/icons.js';
 import { voxelEl, setVoxelPalette } from '../ui/voxelui.js';
+import { START_COINS, START_STOCK, RESTOCK, BASE_COIN, BRIDGE, HELPER_MAX, helperCost, vipBonus, REQ_BONUS, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, maxPlots as maxPlotsOf, LEVELS, levelOf, sizesOpen, payPermits, boatPlanOf, FEST, festNeeds, festCapacity, festTip, festStars, festBonus, bad } from './rules.js';
 setVoxelPalette(new URLSearchParams(location.search).get('vx') || 'a');   // ?vx=a|b|c to compare palettes
 
 const $ = (id) => document.getElementById(id);
@@ -25,11 +26,8 @@ const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag)
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
 const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
-const BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 5 };
-const BASE_COIN = { S: 2, M: 3, L: 5 };
 // widening my island: one ring of land a step, more buildings allowed
-const LAND_COST = [80, 200, 450, 900], LAND_LEVEL = [0, 1, 2, 3], PLOTS_PER_LAND = 3;
-const maxPlots = () => MAX_PLOTS + PLOTS_PER_LAND * (myDoc?.land ?? 0);
+const maxPlots = () => maxPlotsOf(myDoc?.land ?? 0);
 function landCard() {
   const k = myDoc.land ?? 0;
   if (k >= LAND_MAX) return el('div', { class: 'card tile' }, iconEl('sprout', 40, ''), el('span', { class: 'tt' }, el('b', {}, `땅 ${k}/${LAND_MAX}`), el('small', {}, '끝까지 넓혔어요')));
@@ -117,7 +115,6 @@ function drawSplash(dt) {
   g.globalAlpha = 1; for (let i = splash.length - 1; i >= 0; i--) if (splash[i].t > .7) splash.splice(i, 1);
 }
 // ---------- growth: guests served fill the permit gauge; a permit builds one building; served guests also raise the island's level ----------
-const LEVELS = [{ at: 0, name: '마을', size: 'S' }, { at: 40, name: '동네', size: 'M' }, { at: 150, name: '거리', size: 'L' }, { at: 400, name: '번화가', size: 'L' }];
 const REQ = {
   food: { ko: '배고파요', sub: '식당 · 포장마차', icon: '🍜', en: 'a place to eat', ex: ['할머니 국밥집', '골목 포장마차', '바다 보이는 횟집'] },
   cafe: { ko: '커피 한잔 하고 싶어요', sub: '카페 · 빵집 · 노점', icon: '☕', en: 'coffee and snacks', ex: ['창가 자리 많은 카페', '아침마다 줄 서는 빵집', '붕어빵 노점'] },
@@ -125,24 +122,14 @@ const REQ = {
   fun: { ko: '놀 데가 없어요', sub: '놀거리 · 구경거리', icon: '🎳', en: 'something fun to do', ex: ['레트로 볼링장', '작은 영화관', '등대 전망대'] },
   rest: { ko: '쉴 곳이 필요해요', sub: '숙소 · 쉼터', icon: '🛏️', en: 'a place to stay and rest', ex: ['바닷가 게스트하우스', '작은 모텔', '조용한 산사'] },
 };
-const REQ_BONUS = 15;
-// the gap to the next permit: 6 guests, then 10, 14, 18 … (the first ones come quickly)
-const permitGap = (earned) => 6 + 4 * earned;
-function G() { const w = myDoc.wallet; w.permits ??= 1; w.served ??= 0; w.prevAt ??= 0; w.earnedP ??= 0; w.nextAt ??= w.prevAt + permitGap(w.earnedP);
-  if (w.nextAt - w.prevAt > permitGap(w.earnedP)) w.nextAt = w.prevAt + permitGap(w.earnedP);   // islands from before the shorter gaps
-  // guests already past the mark (after the gaps got shorter) are paid out at once
-  let got = 0; while (w.served >= w.nextAt) { w.permits++; w.earnedP++; w.prevAt = w.nextAt; w.nextAt = w.prevAt + permitGap(w.earnedP); got++; }
+function G() { const w = myDoc.wallet, got = payPermits(w);   // the permit gauge, paid out when full
   if (got) { dirty = true; setTimeout(() => celebrate(`🎫 허가증 +${got}`, ''), 0); }
   return w; }
-const levelOf = (served) => LEVELS.reduce((i, l, k) => served >= l.at ? k : i, 0);
-const sizesOpen = (lv) => ['S', 'M', 'L'].slice(0, Math.min(3, lv + 1));
 function countGuest() {
   const w = G(), lv0 = levelOf(w.served); w.served++; dirty = true;
   G();   // pays out a permit when the gauge is full
   const lv = levelOf(w.served); if (lv > lv0) setTimeout(() => celebrate(`${LEVELS[lv].name}(으)로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : '섬이 번화가가 됐어요'), 1600);
 }   // what a guest pays at a shop of this size, before decoration
-const BAD = ['시발', '씨발', '병신', '좆', '개새', 'fuck', 'shit', 'bitch', 'nigger', 'nazi', '섹스', 'sex'];
-const bad = (t) => BAD.some(w => (t ?? '').toLowerCase().includes(w));
 const now = () => Date.now();
 
 // ---------- shared state ----------
@@ -193,10 +180,8 @@ function ownedOf(p) {
 }
 const helpersOf = (p) => (p.owner === me && myDoc?.plots[p.key] ? myDoc.plots[p.key].helpers : p.helpers) ?? 0;
 const levelsOf = (p) => (p.owner === me && myDoc?.plots[p.key] ? (myDoc.plots[p.key].lv ??= {}) : p.lv) ?? {};
-const HELPER_MAX = 4, helperCost = (n) => 30 * 2 ** n;
 const starsInfo = (p) => starsOf(fixturesOf(p), ownedOf(p), levelsOf(p));
 const starText = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
-const vipBonus = (stars) => 6 * stars;
 const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, helpersOf(p), levelsOf(p));
 function allPlots() { const out = []; for (const [s, uid] of owners) { const d = docs.get(uid); for (const [key, p] of Object.entries(d?.plots ?? {})) out.push({ ...p, key, owner: uid, slot: s }); } return out; }
 async function save(force) {
@@ -325,10 +310,7 @@ function frame(t) {
 const boats = [], nextBoat = new Map();
 function islandShops(slot) { return allPlots().filter(p => p.slot === slot && p.b && roleOf(normalize(p.b.input).type).serves && (p.owner === me ? (myDoc.plots[p.key]?.stock ?? START_STOCK) : (p.stock ?? START_STOCK)) > 0); }
 /** How often a boat comes to an island and how many it brings: more shops and fuller shops draw more. */
-function boatPlan(slot) {
-  const shops = islandShops(slot), fx = shops.reduce((t, p) => t + ownedOf(p).size, 0);
-  return { every: Math.round(Math.max(6, 18 - 3 * shops.length - Math.floor(fx / 2))), people: Math.min(14, 3 + shops.length + Math.floor(fx / 3)), shops: shops.length, fx };
-}
+function boatPlan(slot) { const shops = islandShops(slot); return boatPlanOf(shops.length, shops.reduce((t, p) => t + ownedOf(p).size, 0)); }
 function stepBoats(dt) {
   const t = performance.now() / 1000;
   for (const s of world.joined) {
@@ -356,49 +338,43 @@ function stepBoats(dt) {
 }
 // ---------- the festival boat: now and then a big boat shows on the horizon; a minute later its crowd lands all at once ----------
 // what it brings is shown in advance, so the owner can get the shops ready; how many get served is the score
-const FEST_FIRST = 90, FEST_EVERY = 240, FEST_WARN = 60;
-let fest = null, nextFest = performance.now() / 1000 + FEST_FIRST;
+let fest = null, nextFest = performance.now() / 1000 + FEST.first;
 /** Who comes: for each kind my shops serve, a little more than those shops can take in the 75 s window (so getting ready pays),
  *  plus a few who want something nobody on my island sells. */
-const FEST_WINDOW = 75, FEST_OVER = 1.25, FEST_PATIENCE = 40, FEST_MAX = 70;
-function festNeeds() {
+function festNeedsNow() {   // what my shops can take in the window, by kind → who comes
   const can = {};
-  for (const p of islandShops(mySlot)) { const n = normalize(p.b.input), need = roleOf(n.type, n.levels).serves; if (!need) continue; const r = ratesOf(p); can[need] = (can[need] ?? 0) + r.cap + FEST_PATIENCE / Math.max(.5, r.interval); }   // a full queue, then what it serves while the guests are still willing to wait
-  const sum = Object.values(can).reduce((a, b) => a + b, 0) * FEST_OVER, k0 = Math.min(1, (FEST_MAX - 4) / Math.max(1, sum));
-  const out = {}; for (const [k, c] of Object.entries(can)) out[k] = Math.max(3, Math.round(c * FEST_OVER * k0));
-  const other = NEED_KEYS.filter(k => !can[k]); if (other.length) { const k = other[Math.floor(Math.random() * other.length)]; out[k] = 2 + Math.floor(Math.random() * 3); }
-  return out;
+  for (const p of islandShops(mySlot)) { const n = normalize(p.b.input), need = roleOf(n.type, n.levels).serves; if (need) can[need] = (can[need] ?? 0) + festCapacity(ratesOf(p)); }
+  return festNeeds(can, NEED_KEYS);
 }
-/** A festival guest's tip: about what the island earns in 1.5 s, at least 5. */
-const festTip = () => { const t = performance.now(); return Math.max(5, Math.round(earned.filter(e => e[0] > t - 60000).reduce((a, e) => a + e[1], 0) / 40)); };
+const perMinute = () => { const t = performance.now(); return earned.filter(e => e[0] > t - 60000).reduce((a, e) => a + e[1], 0); };
 function stepFest(dt) {
   const t = performance.now() / 1000;
   if (!fest) {
     if (!myDoc || !mySlot || tutOn() || t < nextFest) return;
     const shops = islandShops(mySlot).length; if (!shops) { nextFest = t + 30; return; }
-    const needs = festNeeds(), total = Object.values(needs).reduce((a, b) => a + b, 0), d = dockOf(mySlot), from = [d.out[0] + .5, d.out[1] + .5 + 10 * Math.sign(d.out[1] - d.stop[1] || 1)];
-    fest = { id: Math.floor(t), state: 'coming', t0: t, arrive: t + FEST_WARN, total, needs, tip: festTip(), people: [], served: 0, tips: 0, x: from[0], z: from[1], from, to: [d.stop[0] + .5, d.stop[1] + .5], bt: 0 };
+    const needs = festNeedsNow(), total = Object.values(needs).reduce((a, b) => a + b, 0), d = dockOf(mySlot), from = [d.out[0] + .5, d.out[1] + .5 + 10 * Math.sign(d.out[1] - d.stop[1] || 1)];
+    fest = { id: Math.floor(t), state: 'coming', t0: t, arrive: t + FEST.warn, total, needs, tip: festTip(perMinute()), people: [], served: 0, tips: 0, x: from[0], z: from[1], from, to: [d.stop[0] + .5, d.stop[1] + .5], bt: 0 };
     return;
   }
   fest.bt += dt;
   if (fest.state === 'coming') {
-    const u = Math.min(1, (t - fest.t0) / FEST_WARN), e = 1 - (1 - u) ** 2; fest.x = fest.from[0] + (fest.to[0] - fest.from[0]) * e; fest.z = fest.from[1] + (fest.to[1] - fest.from[1]) * e;
+    const u = Math.min(1, (t - fest.t0) / FEST.warn), e = 1 - (1 - u) ** 2; fest.x = fest.from[0] + (fest.to[0] - fest.from[0]) * e; fest.z = fest.from[1] + (fest.to[1] - fest.from[1]) * e;
     if (t >= fest.arrive) {   // landing: everyone off, a few at a time
       fest.state = 'here'; fest.landed = t; const d = dockOf(mySlot); let k = 0;
-      for (const [need, n] of Object.entries(fest.needs)) for (let i = 0; i < n; i++, k++) { const p = sim.spawn(d.road, k * .22, need, d.road); if (p) { p.fest = fest.id; p.patience = FEST_PATIENCE; fest.people.push(p); } }
+      for (const [need, n] of Object.entries(fest.needs)) for (let i = 0; i < n; i++, k++) { const p = sim.spawn(d.road, k * .22, need, d.road); if (p) { p.fest = fest.id; p.patience = FEST.patience; fest.people.push(p); } }
       celebrate('🎉 축제 손님 도착!', `${fest.total}명`);
     }
   } else if (fest.state === 'here') {
     const left = fest.people.filter(p => !p.festServed && !p.gone && p.mood !== 2).length;
-    if (!left || t - fest.landed > FEST_WINDOW) {   // the result: how many got served, as stars; three stars add half the tips again
-      const r = fest.served / fest.total, st = r >= .9 ? 3 : r >= .7 ? 2 : r >= .45 ? 1 : 0, bonus = st === 3 ? Math.round(fest.tips / 2) : 0;
+    if (!left || t - fest.landed > FEST.window) {   // the result: how many got served, as stars; three stars add half the tips again
+      const st = festStars(fest.served, fest.total), bonus = festBonus(st, fest.tips);
       if (bonus) { myDoc.wallet.coins += bonus; earned.push([performance.now(), bonus]); dirty = true; }
       celebrate(`${'★'.repeat(st)}${'☆'.repeat(3 - st)} 축제 ${fest.served}/${fest.total}`, `팁 +${fest.tips + bonus}동전${bonus ? ' (★3 보너스 포함)' : ''}${fest.total - fest.served ? ` · ${fest.total - fest.served}명 돌아감` : ''}`);
       fest.state = 'leave'; fest.left = t;
     }
   } else if (fest.state === 'leave') {
     const u = Math.min(1, (t - fest.left) / 6); fest.x = fest.to[0] + (fest.from[0] - fest.to[0]) * u * u; fest.z = fest.to[1] + (fest.from[1] - fest.to[1]) * u * u;
-    if (u >= 1) { fest = null; nextFest = t + FEST_EVERY; }
+    if (u >= 1) { fest = null; nextFest = t + FEST.every; }
   }
   festHud();
 }
@@ -1249,7 +1225,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(u, d))])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { screenOf: (k) => { const tp = lastTops[k], r = map.getBoundingClientRect(); return tp && [r.left + tp[0] * r.width / map.width, r.top + (tp[1] + 30) * r.height / map.height]; }, dbgRates: () => JSON.stringify(allPlots().filter(p => p.owner === me && p.b).map(p => { const r = ratesOf(p), sh = sim.shops.get(p.key); return [p.key, roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves, +r.interval.toFixed(2), r.cap, sh && [sh.cap, +(sh.interval ?? 0).toFixed(2), sh.stock]]; })), fest: (sec = 3) => { nextFest = performance.now() / 1000; setTimeout(() => { if (fest) { fest.arrive = performance.now() / 1000 + sec; fest.t0 = fest.arrive - FEST_WARN; } }, 100); }, get festState() { return fest && { state: fest.state, served: fest.served, total: fest.total, needs: fest.needs }; }, celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
+window.__isles = { screenOf: (k) => { const tp = lastTops[k], r = map.getBoundingClientRect(); return tp && [r.left + tp[0] * r.width / map.width, r.top + (tp[1] + 30) * r.height / map.height]; }, dbgRates: () => JSON.stringify(allPlots().filter(p => p.owner === me && p.b).map(p => { const r = ratesOf(p), sh = sim.shops.get(p.key); return [p.key, roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves, +r.interval.toFixed(2), r.cap, sh && [sh.cap, +(sh.interval ?? 0).toFixed(2), sh.stock]]; })), fest: (sec = 3) => { nextFest = performance.now() / 1000; setTimeout(() => { if (fest) { fest.arrive = performance.now() / 1000 + sec; fest.t0 = fest.arrive - FEST.warn; } }, 100); }, get festState() { return fest && { state: fest.state, served: fest.served, total: fest.total, needs: fest.needs }; }, celebrate: (a, b) => celebrate(a, b), site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
