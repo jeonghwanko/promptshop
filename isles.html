@@ -220,6 +220,9 @@
   .ftab { position:relative; width:50px; height:50px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; display:grid; place-items:center; font:400 18px var(--f-disp); }
   .ftab + .ftab { border-top:1px solid rgba(251,241,220,.2); } .ftab:hover { background:rgba(255,255,255,.1); } .ftab:active:not(:disabled) { transform:none; box-shadow:none; }
   .ftab.on { background:var(--gold); color:#3a2a00; } .ftab small { position:absolute; right:4px; bottom:3px; font:400 11px var(--f-disp); color:#ffd166; } .ftab.on small { color:#6a4500; }
+  .extcard { width:300px; display:flex; flex-direction:column; gap:8px; padding:14px; border-radius:20px; background:#f6ead2; box-shadow:inset 0 0 0 3px #2e241a, 0 5px 0 rgba(0,0,0,.3); }
+  .extcard h3 { margin:0; font:400 19px var(--f-disp); } .extcard .row button { flex:1; } .extcard input { font:16px var(--f-ui); }
+  body:has(.panel:not([hidden])) .zoomb { opacity:0; pointer-events:none; }
   .zoomb { display:flex; flex-direction:column; margin-top:26px; border-radius:22px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); overflow:hidden; }
   .zb { width:44px; height:44px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; font:700 28px/1 var(--f-ui); display:grid; place-items:center; }
   .zb + .zb { border-top:1px solid rgba(251,241,220,.2); } .zb:hover { background:rgba(255,255,255,.1); } .zb:active:not(:disabled) { transform:none; box-shadow:none; background:rgba(255,255,255,.18); } .zb:disabled { filter:none; color:rgba(251,241,220,.3); } body.inshop .zoomb { opacity:0; pointer-events:none; }
@@ -789,15 +792,21 @@ setInterval(guideArrow, 120);
 
 // ---------- extension: one more floor on top of a full shop, from one line ----------
 const EXT_IDEAS = { food: ['2층에 창가 자리', '루프탑 테라스', '주방 넓히기'], cafe: ['2층 다락 좌석', '루프탑 테라스', '빵 굽는 주방 늘리기'], shop: ['2층 매장 넓히기', '계산대 늘리기', '창고 한 층'], fun: ['2층 관람석', '놀이방 한 층', '휴게실'], rest: ['객실 한 층 더', '루프탑 라운지', '스파 층'] };
-function startExtend(key) {
+function startExtend(key, { inShop = false } = {}) {
   const p = allPlots().find(x => x.key === key); if (!p?.b || p.owner !== me) return;
   if (G().permits <= 0) return toast(`허가증이 있어야 증축해요 · 다음까지 손님 ${G().nextAt - G().served}명`, 2200);
   const n = normalize(p.b.input), role = roleOf(n.type, n.levels), ideas = EXT_IDEAS[role.serves] ?? ['한 층 더 올리기', '루프탑 테라스', '2층 휴게실'];
-  current = { kind: 'build' };
-  const input = el('input', { type: 'text', maxlength: '60', placeholder: '예: ' + ideas[0] }), go = el('button', {}, '한 층 올리기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
-  show(el('h2', {}, `🏗️ ${n.name || TYPE_KO[n.type]} 증축`), el('p', { class: 'note' }, `지금 ${n.levels}층 → ${n.levels + 1}층. 새 층을 한 줄로 써 주세요. 허가증 1장을 써요.`),
-    el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; run(); } } }, t))), err, log,
-    el('button', { class: 'ghost', on: { click: () => showBuilding(key) } }, '취소'));
+  const input = el('input', { type: 'text', maxlength: '60', placeholder: '예: ' + ideas[0] }), go = el('button', { class: 'gold' }, `${n.levels + 1}층 올리기 · 🎫1`), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
+  const body = [el('div', { class: 'row' }, input), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; run(); } } }, t))), err, log];
+  if (inShop) {   // the form takes the place of the shop's buttons; the cut-away stays open
+    const w = watching; if (!w) return; w.extending = true;
+    const cancel = () => { w.extending = false; w.actKey = ''; renderActs(w, allPlots().find(x => x.key === key)); };
+    $('shopacts').replaceChildren(el('div', { class: 'extcard', on: { click: (e) => e.stopPropagation() } }, el('h3', {}, `${n.levels + 1}층에 무엇을?`), ...body, el('div', { class: 'row' }, go, el('button', { class: 'ghost', on: { click: cancel } }, '취소'))));
+    placeActs(); setTimeout(() => input.focus(), 50);
+  } else {
+    current = { kind: 'build' };
+    show(el('h2', {}, `🏗️ ${n.name || TYPE_KO[n.type]} 증축`), ...body, el('div', { class: 'row' }, go, el('button', { class: 'ghost', on: { click: () => showBuilding(key) } }, '취소')));
+  }
   const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
   async function run() {
     const line = input.value.trim() || ideas[0]; err.textContent = ''; log.replaceChildren();
@@ -820,7 +829,7 @@ function startExtend(key) {
       const nn = normalize(next);
       note('완공', `${nn.levels}층 · 새 가구 ${newFx.length - own.size}개`);
       celebrate('🏗️ 증축 완공!', `${nn.name || TYPE_KO[nn.type]} ${nn.levels}층 · 새 자리를 채워 보세요`);
-      setTimeout(() => { showBuilding(key); openInside(key); }, 900);
+      setTimeout(() => { closePanel(); if (watching) closeInside(true); openShop(key); setTimeout(() => watching?.view?.setFloor(nn.levels - 1), 400); }, 900);   // back in the shop, on the new floor
     } catch (e) { err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : '증축하지 못했어요. 다시 눌러 주세요.'; go.disabled = false; }
   }
   go.onclick = run; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
@@ -1110,11 +1119,12 @@ function shopActions(w, p) {
   // a helper, when ordering is what holds guests up and the shop is full
   if (i === undefined && now0.order <= now0.seat && h < HELPER_MAX) { const c = helperCost(h); out.push({ icon: 'helper', title: '알바 뽑기', sub: gainTxt(caps(own, lv, h + 1)), cost: c, ok: coins >= c, run: () => { if (myDoc.wallet.coins < c) return; myDoc.wallet.coins -= c; myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); toast('알바가 왔어요!', 1200); } }); }
   // one more floor, when every piece is in
-  if (i === undefined) out.push({ icon: 'extend', title: '한 층 올리기', sub: '새 자리가 생겨요', cost: `🎫1`, ok: G().permits > 0, run: () => { const k = p.key; closeInside(); startExtend(k); } });
+  if (i === undefined) out.push({ icon: 'extend', title: '한 층 올리기', sub: '새 자리가 생겨요', cost: `🎫1`, ok: G().permits > 0, run: () => startExtend(p.key, { inShop: true }) });
   out.push({ icon: 'move', title: '옮기기', run: () => { const k = p.key; closeInside(); startMove(k); } });
   return out;
 }
 function renderActs(w, p) {
+  if (w.extending) return;   // the extension form is showing
   const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok]));
   if (key === w.actKey) return; w.actKey = key;
   const box = $('shopacts'); box.replaceChildren(...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
