@@ -203,7 +203,8 @@ export function buildSection(b, { owned, floor, layout = LAYOUT } = {}) {
     const hits = (ax) => mine.filter(q => Math.abs(placed[q.idx].x - ax) < AW / 2 + q.w / 2).length;
     let best = want, bc = Infinity;
     for (let ax = x0 + AW; ax <= x1 - AW - (core ? core.w * S : 0); ax += .25) { const c = hits(ax) * 10 + Math.abs(ax - want); if (c < bc) { bc = c; best = ax; } }
-    const ax = Math.round(best * 4) / 4;
+    // the ground floor's aisle starts at the door, always; upper floors take the clearest line near the lift
+    const ax = fi === 0 ? Math.max(x0 + AW / 2 + .1, Math.min(x1 - AW / 2 - .1, want)) : Math.round(best * 4) / 4;
     for (const q of mine) { const f = placed[q.idx]; if (Math.abs(f.x - ax) >= AW / 2 + q.w / 2) continue;
       const zn = fplan.zones.find(zz => zz.zone === q.zone && f.z >= zz.z - .01 && f.z <= zz.z + zz.d + .01) ?? { x: x0, w: x1 - x0 };
       const left = ax - AW / 2 - q.w / 2 - .05, right = ax + AW / 2 + q.w / 2 + .05;
@@ -213,6 +214,7 @@ export function buildSection(b, { owned, floor, layout = LAYOUT } = {}) {
     // a runner carpet with a lighter border: reads as "people walk here"
     const len = zf - zb - .1, run = (w, h, c, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, len), mat(c)); m.position.set(ax, y, (zf + zb) / 2); m.receiveShadow = true; g.add(m); };
     run(AW, .02, '#e9d8b4', .02); run(AW - .16, .03, '#b8684a', .02);
+    if (fi === 0) { const m = new THREE.Mesh(new THREE.BoxGeometry(AW + .3, .05, .35), mat('#4a3a2e')); m.position.set(ax, .045, zf - .2); g.add(m); }   // a door mat where guests come in
     fplan.aisle = { x: ax, z0: zb, z1: zf };
   }
 
