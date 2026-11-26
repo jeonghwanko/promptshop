@@ -112,7 +112,7 @@ function squarify(items, x, z, w, d) {
 /** How far apart the rooms are spread compared with the layout size. */
 export const SPREAD = 1.5;
 export function buildSection(b, { owned, floor } = {}) {
-  const placed = [];   // every fixture placed, in order: { kind, zone, floor, fi, x, y, z }
+  const placed = [], groups = [];   // groups: each fixture's meshes and footprint, to move it off the aisle   // every fixture placed, in order: { kind, zone, floor, fi, x, y, z }
   const isOwned = (i) => owned === undefined || (typeof owned === 'number' ? i < owned : owned.has(i));
   const plan = { floors: [] };   // where things are, in world units, for a sim that runs inside
   let floorName = '', floorIdx = 0;
@@ -168,6 +168,7 @@ export function buildSection(b, { owned, floor } = {}) {
       for (let s = 0; s < 4; s++) box(.4, .1 * (s + 1), .22, mat('#cfc9bd'), ox + core.x + .85, 0, oz + core.d - .15 - s * .22);
     }
     spreadArch(g); for (const zn of fplan.zones) { zn.x *= S; zn.z *= S; zn.w *= S; zn.d *= S; }
+    makeAisle(g, fplan, i);
     labels.push({ pos: new THREE.Vector3((ox - .1) * S, i * GAP + .2, -oz * S), text: f.name, count });
   });
   // one floor at a time: every floor is still laid out (fixture numbers and the sim's plan stay whole), only the others are left out of the picture
@@ -183,6 +184,26 @@ export function buildSection(b, { owned, floor } = {}) {
   spreadArch(root);
   Object.assign(plan, { W: W * S, D: D * S, gap: GAP, spread: S, core: core ? { x: (ox + core.x + core.w / 2) * S, z: (oz + core.d) * S + .25 } : null, door: doorOf(plan.floors[0]?.zones ?? [], -oz * S, ox * S, W * S) });
   return { group: root, labels, fixtures: placed, plan };
+
+  /** A walkway from the door (or the lift) to the back wall, where the fewest fixtures stand; the ones in the way step aside. */
+  function makeAisle(g, fplan, fi) {
+    const AW = .8, x0 = ox * S, x1 = -ox * S, zf = -oz * S, zb = oz * S, mine = groups.filter(q => q.fi === fi);
+    const want = fi === 0 ? doorOf(fplan.zones, zf, x0, W * S).x : core ? (ox + core.x + core.w / 2) * S : 0;
+    const hits = (ax) => mine.filter(q => Math.abs(placed[q.idx].x - ax) < AW / 2 + q.w / 2).length;
+    let best = want, bc = Infinity;
+    for (let ax = x0 + AW; ax <= x1 - AW - (core ? core.w * S : 0); ax += .25) { const c = hits(ax) * 10 + Math.abs(ax - want); if (c < bc) { bc = c; best = ax; } }
+    const ax = Math.round(best * 4) / 4;
+    for (const q of mine) { const f = placed[q.idx]; if (Math.abs(f.x - ax) >= AW / 2 + q.w / 2) continue;
+      const zn = fplan.zones.find(zz => zz.zone === q.zone && f.z >= zz.z - .01 && f.z <= zz.z + zz.d + .01) ?? { x: x0, w: x1 - x0 };
+      const left = ax - AW / 2 - q.w / 2 - .05, right = ax + AW / 2 + q.w / 2 + .05;
+      const okL = left - q.w / 2 >= zn.x - .05, okR = right + q.w / 2 <= zn.x + zn.w + .05;
+      const nx = okL && (!okR || f.x < ax) ? left : okR ? right : (f.x < ax ? left : right);
+      q.fg.position.x += nx - f.x; f.x = nx; }
+    // a runner carpet with a lighter border: reads as "people walk here"
+    const len = zf - zb - .1, run = (w, h, c, y) => { const m = new THREE.Mesh(new THREE.BoxGeometry(w, h, len), mat(c)); m.position.set(ax, y, (zf + zb) / 2); m.receiveShadow = true; g.add(m); };
+    run(AW, .02, '#e9d8b4', .02); run(AW - .16, .03, '#b8684a', .02);
+    fplan.aisle = { x: ax, z0: zb, z1: zf };
+  }
 
   function partition(at, a0, a1, axis) {
     const len = a1 - a0, gap = Math.min(.7, len * .4), mid = (a0 + a1) / 2, m = mat(shade(wallColor, .92));
@@ -201,7 +222,9 @@ export function buildSection(b, { owned, floor } = {}) {
       const before = cur.children.length, idx = placed.length;
       F0.draw(x, z, oo);
       placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x: x * S, z: z * S, y: floorIdx * GAP });
+      if (kind === 'counter') for (let k = 0; k < 4; k++) box(.22, .015, .14, mat(k ? '#e9c46a' : '#f4d35e'), x, 0, z + .55 + k * .32);   // where the line stands
       const parts = cur.children.slice(before), fg = new THREE.Group(); fg.userData.fixture = true; for (const m of parts) { cur.remove(m); fg.add(m); }
+      const rot = oo?.rot === 90; groups.push({ fg, fi: floorIdx, idx, w: rot ? fd : (kind === 'counter' ? (oo?.len ?? fw) : fw), d: rot ? fw : fd, zone: r.zone });
       fg.position.set(x * (S - 1), 0, z * (S - 1)); cur.add(fg);
       if (!isOwned(idx)) for (const m of parts) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
     } };

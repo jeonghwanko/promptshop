@@ -162,6 +162,12 @@ export class InsideSim {
   route(p, f, x, z) {
     const c = this.plan.core;
     if (p.f !== f && c) { p.moves.push({ f: p.f, x: c.x, z: c.z }, { ride: f }, { f, x: c.x, z: c.z }); }
+    // along the aisle: step into it, walk it, step out (only when the walk is long enough to be worth it)
+    const a = this.plan.floors[f]?.aisle, last = [...p.moves].reverse().find(m => m.x !== undefined) ?? p;
+    if (a && Math.hypot(x - last.x, z - last.z) > 1 && Math.abs(z - last.z) > .5) {
+      if (Math.abs(last.x - a.x) > .25) p.moves.push({ f, x: a.x, z: last.z });
+      if (Math.abs(x - a.x) > .25) p.moves.push({ f, x: a.x, z });
+    }
     p.moves.push({ f, x, z });
   }
   spawn() {
