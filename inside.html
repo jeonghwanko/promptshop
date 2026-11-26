@@ -23,16 +23,33 @@
   .lab { position:absolute; transform:translate(-100%, -50%); white-space:nowrap; background:var(--ink); color:var(--card); padding:0 6px; border-radius:5px; font-size:12px; pointer-events:none; }
   .stats { display:flex; gap:14px; flex-wrap:wrap; font-variant-numeric:tabular-nums; margin-top:6px; }
   .stats b { font-size:16px; } .stats .bad b { color:var(--bad); } .stats span { color:var(--mute); font-size:12px; }
+  .bar { display:flex; gap:8px; flex-wrap:wrap; padding:12px 16px 0; }
+  .bar input { flex:1; min-width:220px; font:15px system-ui, "Noto Sans KR", sans-serif; padding:9px 11px; border-radius:8px; border:1px solid var(--line); background:var(--card); color:var(--ink); }
+  .bar button, .chips button, .x { border:1px solid var(--line); background:var(--card); color:var(--ink); border-radius:8px; padding:8px 12px; cursor:pointer; font:inherit; }
+  .bar button.go { background:var(--ink); color:var(--card); border-color:var(--ink); }
+  .bar button:disabled { opacity:.5; cursor:default; }
+  .chips { display:flex; gap:6px; flex-wrap:wrap; padding:8px 16px 0; } .chips button { padding:4px 9px; font-size:13px; }
+  .msg { padding:6px 16px 0; color:var(--mute); font-size:13px; min-height:20px; } .msg.err { color:var(--bad); }
+  .card h2 { display:flex; gap:8px; align-items:baseline; } .card h2 small { color:var(--mute); font-weight:400; font-size:13px; flex:1; } .x { padding:0 8px; font-size:13px; }
+  .prof { color:var(--mute); font-size:13px; margin-bottom:4px; } .prof b { color:var(--ink); }
   .tip { position:fixed; z-index:9; pointer-events:none; background:var(--ink); color:var(--card); border-radius:6px; padding:5px 8px; font-size:12px; display:none; }
   .tip b { color:var(--gold); }
 </style>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <header><h1>가게 안</h1><span class="coins" id="coins"></span><span class="speed" id="speed"></span></header>
+<div class="bar"><input id="line" type="text" placeholder="예: 창가 자리가 많은 브런치 카페" maxlength="80"><button class="go" id="go">한 줄로 짓기</button></div>
+<div class="chips" id="chips"></div>
+<div class="msg" id="msg"></div>
 <main id="out"></main>
 <div class="tip" id="tip"></div>
 <script type="module">
 import { renderView } from './src/v2/render.js';
-import { InsideSim, FIX_INFO, FIX_ROLE, costOf } from './src/v2/inside.js';
+import { InsideSim, FIX_INFO, FIX_ROLE, costOf, profileOf } from './src/v2/inside.js';
+import { lineReader } from './src/steps.js';
+import { emptyBuilding, applyStep, buildPrompt } from './src/v2/steps.js';
+import { check } from './src/v2/check.js';
+import { normalize } from './src/v2/spec.js';
+import { TYPE_KO } from './src/v2/catalog.js';
 
 const SHOPS = [
   { title: '골목 카페 · 1층', input: { type: 'cafe', levels: 1, floors: [{ range: [1, 1], name: '1층', zones: [{ zone: 'counter', weight: 1.2 }, { zone: 'seating', weight: 2 }, { zone: 'kitchen', weight: 1 }, { zone: 'wc', weight: .6 }] }] } },
@@ -45,21 +62,56 @@ let coins = 40, speed = 1;
 const $ = (id) => document.getElementById(id), tip = $('tip');
 const SHIRTS = ['#e2432f', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2', '#d97a3a'];
 
-const shops = SHOPS.map((s, n) => {
-  const first = renderView(s.input, 'section', { owned: new Set() });
-  const fx = first.fixtures;
+let shops = [], seedN = 3;
+function addShop(s, first) {
+  const v0 = renderView(s.input, 'section', { owned: new Set() });
+  const fx = v0.fixtures;
   const firstSeat = fx.findIndex(f => f.kind === 'table4' || f.kind === 'table2');
-  const owned = new Set([fx.findIndex(f => f.kind === 'counter'), firstSeat >= 0 ? firstSeat : fx.findIndex(f => FIX_ROLE(f.kind) === 'seat')].filter(i => i >= 0));
+  const start = [fx.findIndex(f => f.kind === 'counter'), firstSeat >= 0 ? firstSeat : fx.findIndex(f => FIX_ROLE(f.kind) === 'seat')].filter(i => i >= 0);
+  if (!start.length) start.push(...[fx.findIndex(f => FIX_ROLE(f.kind) === 'browse')].filter(i => i >= 0));
+  const owned = new Set(start);
   if (new URLSearchParams(location.search).get('own') === 'all') fx.forEach((_, i) => owned.add(i));
-  const shop = { ...s, fx, owned, sim: new InsideSim(first.plan, fx, owned, { seed: n + 3 }), floats: [], served: [] };
+  const shop = { ...s, fx, owned, sim: new InsideSim(v0.plan, fx, owned, { seed: seedN++ }), floats: [], served: [] };
   const card = document.createElement('div'); card.className = 'card';
-  const h = document.createElement('h2'); h.textContent = s.title;
+  const h = document.createElement('h2'); h.textContent = s.title; const sm = document.createElement('small'); sm.textContent = s.sub ?? ''; h.append(sm);
+  const x = document.createElement('button'); x.className = 'x'; x.textContent = '치우기'; x.onclick = () => { card.remove(); shops = shops.filter(o => o !== shop); }; h.append(x);
+  const pf = profileOf(fx), prof = document.createElement('div'); prof.className = 'prof';
+  const part = (label, n) => { if (!n) return; const b = document.createElement('b'); b.textContent = n; prof.append(label + ' ', b, '   '); };
+  prof.append('다 채우면 — '); part('자리', pf.seat); part('주문 창구', pf.serve); part('조리', pf.cook); part('진열', pf.browse); part('꾸밈', pf.decor); part('화장실', pf.wc);
   shop.stage = document.createElement('div'); shop.stage.className = 'stage';
   shop.statsEl = document.createElement('div'); shop.statsEl.className = 'stats';
-  card.append(h, shop.stage, shop.statsEl); $('out').append(card);
-  draw(shop);
+  card.append(h, prof, shop.stage, shop.statsEl);
+  first ? $('out').prepend(card) : $('out').append(card);
+  draw(shop); shops.push(shop);
   return shop;
-});
+}
+SHOPS.forEach(s => addShop(s));
+
+// ---------- one line → a building (Claude writes the spec as JSON lines) ----------
+const EXAMPLES = ['창가 자리가 많은 브런치 카페', '주방이 큰 24시 국밥집', '좌식 방이 있는 2층 고깃집', '포장만 하는 붕어빵 가게', '오래 앉아 책 읽다 가는 북카페', '편의점', '1층은 빵집 2층은 카페', '할머니 떡볶이 분식집'];
+for (const ex of EXAMPLES) { const b = document.createElement('button'); b.textContent = ex; b.onclick = () => { $('line').value = ex; build(); }; $('chips').append(b); }
+const sample = await (async () => { try { return await window.claude?.use?.('sample'); } catch { return null; } })() ?? null;
+if (!sample) { $('msg').textContent = '이 화면에서는 Claude를 부를 수 없어 예시 두 채만 돌아갑니다.'; $('go').disabled = true; }
+async function build() {
+  const line = $('line').value.trim(); if (!line || !sample) return;
+  $('go').disabled = true; $('msg').className = 'msg'; $('msg').textContent = `“${line}” 짓는 중…`;
+  const b = emptyBuilding(); let broken = 0;
+  const reader = lineReader((st) => applyStep(b, st), () => broken++);
+  try {
+    await sample(buildPrompt(line), { modelTier: 'quick', cache: false, onText: ({ delta }) => reader.push(delta) });
+    reader.end();
+    if (!b.input) throw { code: 'empty' };
+    check(b.input, { broken, line });
+    const n = normalize(b.input);
+    addShop({ title: n.name || TYPE_KO[n.type] || '가게', sub: `“${line}” · ${TYPE_KO[n.type] ?? n.type} ${n.levels}층`, input: b.input }, true);
+    $('msg').textContent = '';
+  } catch (e) {
+    reader.end(); $('msg').className = 'msg err';
+    const c = e && e.code;
+    $('msg').textContent = c === 'not_granted' || c === 'sampling_disabled' ? 'Claude 사용이 허락되지 않아 지을 수 없어요.' : c === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : '짓지 못했어요. 다시 눌러 주세요.';
+  } finally { $('go').disabled = false; }
+}
+$('go').onclick = build; $('line').addEventListener('keydown', (e) => { if (e.key === 'Enter') build(); });
 
 function draw(shop) {
   const v = renderView(shop.input, 'section', { owned: shop.owned });
@@ -100,7 +152,7 @@ function buy(shop, e) {
 // ---------- drawing people ----------
 function person(g, x, y, p, staff) {
   x = Math.round(x); y = Math.round(y);
-  const sit = p.state === 'sit', bob = !sit && p.moving ? (Math.sin(p.t * 12) > 0 ? 1 : 0) : 0;
+  const sit = p.state === 'sit' || p.state === 'food', bob = !sit && p.moving ? (Math.sin(p.t * 12) > 0 ? 1 : 0) : 0;
   g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(x - 3, y, 7, 1);
   const by = sit ? y - 3 : y - 4;
   if (!sit) { g.fillStyle = '#3b3f52'; g.fillRect(x - 2, y - 4, 2, 4); g.fillRect(x + 1, y - 4, 2, 4); }
@@ -128,7 +180,7 @@ function render(shop, dt) {
   });
   const list = [];
   for (const s of sim.staff) { const [x, y] = P(s.x, sim.floorY(s.f), s.z); list.push({ x, y, s }); }
-  for (const p of sim.people) { p.moving = p.moves.length > 0; const sy = p.state === 'sit' ? .02 : 0; const [x, y] = P(p.x, p.y + sy, p.z); list.push({ x, y, p }); }
+  for (const p of sim.people) { p.moving = p.moves.length > 0; const sy = 0; const [x, y] = P(p.x, p.y + sy, p.z); list.push({ x, y, p }); }
   list.sort((a, b) => a.y - b.y);
   for (const o of list) o.s ? person(g, o.x, o.y, { t: 0 }, o.s.kind) : person(g, o.x, o.y, o.p);
   // coins and losses rise and fade
@@ -148,7 +200,7 @@ function stats(shop) {
   const per = shop.served.length > 1 ? (s.served - shop.served[0][1]) / Math.max(10, now - shop.served[0][0]) * 60 : 0;
   const q = shop.sim.counters.reduce((t, c) => t + c.q.length, 0), seats = shop.sim.seats.length, used = shop.sim.seats.filter(x => x.who).length;
   const cell = (label, v, bad) => `<div class="${bad ? 'bad' : ''}"><span>${label}</span><br><b>${v}</b></div>`;
-  shop.statsEl.innerHTML = cell('손님/분', per.toFixed(1)) + cell('줄', q, q >= 5) + cell('자리', `${used}/${seats}`, seats && used === seats)
+  shop.statsEl.innerHTML = cell('손님/분', per.toFixed(1)) + cell('기다림', q + shop.sim.kitchen.length, q + shop.sim.kitchen.length >= 5) + cell('자리', `${used}/${seats}`, seats && used === seats)
     + cell('놓친 손님 (줄·자리)', `${s.lostLine} · ${s.lostSeat}`, s.lostLine + s.lostSeat > 0) + cell('번 돈', s.coins);
 }
 
