@@ -81,8 +81,8 @@ const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag)
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
 const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
-const COST = { S: 10, M: 25, L: 60 }, BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 8 };
-const BASE_COIN = { S: 1, M: 2, L: 3 };   // what a guest pays at a shop of this size, before decoration
+const COST = { S: 10, M: 25, L: 60 }, BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 5 };
+const BASE_COIN = { S: 2, M: 3, L: 5 };   // what a guest pays at a shop of this size, before decoration
 const BAD = ['시발', '씨발', '병신', '좆', '개새', 'fuck', 'shit', 'bitch', 'nigger', 'nazi', '섹스', 'sex'];
 const bad = (t) => BAD.some(w => (t ?? '').toLowerCase().includes(w));
 const now = () => Date.now();
@@ -130,6 +130,7 @@ async function save(force) {
   if (!db || !me || !myDoc) return;
   if (!force && (!dirty || now() - lastSave < 5000)) return;
   dirty = false; lastSave = now();
+  myDoc.rev = (myDoc.rev ?? 0) + 1;   // each save is numbered, so an older copy never replaces a newer one
   try { await db.doc('i/' + me).set(myDoc); } catch { dirty = true; }
 }
 setInterval(() => save(false), 2000);
@@ -189,7 +190,7 @@ function frame(t) {
   g.font = '900 12px "Noto Sans KR", sans-serif';
   for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, tp[0], y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, tp[0], y); g.globalAlpha = 1; }
   // my shops running low on stock show a red mark
-  for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) <= 3 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
+  for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
   drawn = items;
   requestAnimationFrame(frame);
 }
@@ -245,6 +246,17 @@ function hud() {
   $('wants').replaceChildren(...NEED_KEYS.map(k => { const d = dm[k], none = !d.served && d.waiting; return el('span', { class: 'want' + (none ? ' none' : '') }, el('span', { class: 'dot', style: `background:${NEEDS[k].color}` }), NEEDS[k].ko, el('b', {}, String(d.waiting)), none ? el('span', { class: 'tag' }, '· 군도에 없음') : null); }));
 }
 setInterval(hud, 500); hud();
+// supplies refill themselves: a shop at 2 or fewer buys the next batch when the wallet allows
+setInterval(() => {
+  if (!myDoc) return; let any = false;
+  for (const [key, p] of Object.entries(myDoc.plots)) {
+    if (!p.b || !roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves) continue;
+    if ((p.stock ?? START_STOCK) > 2 || myDoc.wallet.coins < RESTOCK.coins) continue;
+    myDoc.wallet.coins -= RESTOCK.coins; p.stock = (p.stock ?? START_STOCK) + RESTOCK.units; any = true;
+    pops.push({ key, text: `재료 +${RESTOCK.units} · -${RESTOCK.coins}`, mine: true, t: 0 });
+  }
+  if (any) { rebuild(); save(true); if (current?.key && myDoc.plots[current.key]) showBuilding(current.key); }
+}, 1000);
 
 const mapXY = (e) => { const r = map.getBoundingClientRect(); return [(e.clientX - r.left) * map.width / r.width, (e.clientY - r.top) * map.height / r.height]; };
 const takenSet = () => { const t = new Set(); for (const p of allPlots()) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) t.add(i + ',' + k); return t; };
@@ -354,7 +366,7 @@ function manage(p) {
   if (role.serves && mineP) {
     const mp = myDoc.plots[p.key], stock = mp.stock ?? START_STOCK, buy = el('button', { class: 'gold', on: { click: async () => { myDoc.wallet.coins -= RESTOCK.coins; mp.stock = stock + RESTOCK.units; rebuild(); await save(true); showBuilding(p.key); } } }, `재료 ${RESTOCK.units}개 사기 · ${RESTOCK.coins}`);
     buy.disabled = myDoc.wallet.coins < RESTOCK.coins;
-    out.push(el('div', { class: 'card' + (stock <= 3 ? ' alert' : '') }, el('span', {}, `재료 ${stock}개`, stock === 0 ? el('div', { class: 'err' }, '재료가 없어 손님이 그냥 돌아가요') : null), buy));
+    out.push(el('div', { class: 'card' + (stock === 0 ? ' alert' : '') }, el('span', {}, `재료 ${stock}개`, el('div', { class: 'note' }, stock === 0 && myDoc.wallet.coins < RESTOCK.coins ? `동전이 ${RESTOCK.coins}개 모이면 자동으로 채워요` : `2개 이하가 되면 자동으로 ${RESTOCK.units}개 채워요 · ${RESTOCK.coins}동전`)), buy));
   }
   return out;
 }
@@ -471,7 +483,10 @@ if (db) {
   db.collection('i').onSnapshot(snap => {
     docs = new Map();
     for (const d of snap.docs) docs.set(d.id, d.data() ?? {});
-    if (me && docs.has(me)) { const remote = docs.get(me); myDoc = { slot: remote.slot, at: remote.at, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { coins: Math.max(myDoc?.wallet.coins ?? 0, remote.wallet?.coins ?? 0), unlocked: remote.wallet?.unlocked ?? ['S'] } }; docs.set(me, myDoc); }
+    // my own doc: take the stored copy only when it is newer than what this page holds (another tab, or an edit from outside)
+    if (me && docs.has(me)) { const remote = docs.get(me);
+      if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { coins: remote.wallet?.coins ?? 0, unlocked: remote.wallet?.unlocked ?? ['S'] } };
+      docs.set(me, myDoc); }
     else if (me && myDoc) docs.set(me, myDoc);
     rebuild(); resolveNames();
   }, () => show(el('p', { class: 'err' }, '군도를 불러오지 못했어요.')));
