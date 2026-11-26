@@ -1,3 +1,4 @@
+import { iconCanvas, EMOJI } from '../ui/icons.js';
 // The flow of one shop as a diagram: guests come in, order (counter and kitchen), sit, pay, leave.
 // Each step shows how many it can take per minute; the step that takes the fewest is the bottleneck (red),
 // and guests who cannot get through drop away in red. Dots move at the speed guests actually move.
@@ -53,7 +54,7 @@ export class FlowView {
       g.fillStyle = slow ? '#fde3dc' : '#fbf6ec'; g.strokeStyle = slow ? '#e2432f' : '#d4c4a6'; g.lineWidth = slow ? 3 : 1.5;
       round(g, x - 44, y - 34, 88, 68, 12); g.fill(); g.stroke();
       g.textAlign = 'center'; g.fillStyle = '#2e241a';
-      g.font = '20px system-ui'; g.fillText(nd.icon, x, y - 10);
+      { const ic = iconCanvas(EMOJI[nd.icon]); if (ic) { g.imageSmoothingEnabled = false; g.drawImage(ic, x - 12, y - 32, 24, 24); } else { g.font = '20px system-ui'; g.fillText(nd.icon, x, y - 10); } }
       g.font = 'bold 13px system-ui, "Noto Sans KR", sans-serif'; g.fillText(nd.label, x, y + 10);
       g.font = '11px system-ui, "Noto Sans KR", sans-serif'; g.fillStyle = '#7a6a55'; g.fillText(nd.sub ?? '', x, y + 25);
       if (nd.cap !== undefined) { g.font = 'bold 12px system-ui, "Noto Sans KR", sans-serif'; g.fillStyle = slow ? '#c0392b' : '#3f7a74'; g.fillText(nd.cap === Infinity ? '제한 없음' : `최대 ${nd.cap.toFixed(1)}명/분`, x, y + 50); }

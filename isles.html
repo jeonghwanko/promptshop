@@ -11,7 +11,7 @@
   body { margin:0; background:var(--sea); color:var(--ink); font:14px/1.55 var(--f-ui); }
   .mapbox { position:fixed; inset:0; overflow:auto; scrollbar-width:none; cursor:grab; touch-action:none; background:var(--sea); }
   .mapbox::-webkit-scrollbar { display:none; } .mapbox.drag { cursor:grabbing; }
-  #map { display:block; image-rendering:pixelated; }
+  #map { display:block; image-rendering:pixelated; margin:40vh 30vw; }   /* sea around the world so any island can come to any part of the screen */
   .hud { position:fixed; z-index:5; display:flex; flex-direction:column; gap:6px; pointer-events:none; }
   .hud > * { pointer-events:auto; }
   .pill { background:rgba(251,246,236,.95); border-radius:14px; padding:6px 12px; box-shadow:0 3px 0 rgba(20,40,60,.35); display:flex; align-items:center; gap:8px; }
@@ -107,6 +107,13 @@
   .quote { font:400 16px var(--f-disp); }
   .card { background:#fbf6ec; border-radius:10px; padding:8px 10px; display:flex; gap:8px; align-items:center; justify-content:space-between; flex-wrap:wrap; font-size:13px; }
   .card.alert { box-shadow:inset 0 0 0 2px var(--gold); }
+  .shopwrap { position:fixed; inset:0; z-index:15; background:radial-gradient(ellipse at var(--sx, 50%) var(--sy, 60%), transparent 18%, rgba(10,25,40,.45) 60%); animation:fadein .3s; }
+  .shopwrap[hidden] { display:none; } @keyframes fadein { from { opacity:0; } }
+  .shopstage { position:absolute; transform:translate(-50%, -88%); animation:rise .4s cubic-bezier(.2,1.3,.4,1); filter:drop-shadow(0 10px 0 rgba(0,0,0,.25)); }
+  @keyframes rise { from { opacity:0; transform:translate(-50%, -70%) scale(.85); } }
+  .shopstage.thud { animation:thud .25s; } @keyframes thud { 30% { transform:translate(-50%, calc(-88% + 4px)); } 60% { transform:translate(-50%, calc(-88% - 1px)); } }
+  .shopmore { position:absolute; right:14px; top:120px; font-size:20px; padding:4px 12px; }
+  #map { transition:transform .35s cubic-bezier(.3,.9,.4,1); }
   .inside { position:fixed; inset:0; z-index:20; background:rgba(30,24,18,.55); display:flex; align-items:flex-start; justify-content:center; overflow:auto; padding:24px 12px; }
   .inside[hidden] { display:none; }
   .ibox { background:var(--card); border-radius:14px; padding:14px; display:flex; flex-direction:column; gap:8px; max-width:100%; }
@@ -121,14 +128,15 @@
 <div class="hud tl"><div class="pill isle" id="who">한 줄 군도</div><div class="wants" id="wants"></div></div>
 <div class="hud tr"><div class="pill"><span class="coins" id="wallet"></span><span class="rate" id="rate"></span></div><div class="pill boatline" id="boat"></div></div>
 <aside class="panel" id="panel" hidden></aside>
+<div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
 <div class="world" id="world" hidden><canvas class="wmap" id="wmap"></canvas><div id="spots"></div>
   <div class="wtop"><div class="pill">세계</div><div class="pill" id="wcount"></div><span class="grow"></span><button class="gold" id="wnew">새 군도 만들기</button><button class="ghost" id="wclose" style="background:#fbf6ec">돌아가기</button></div>
   <div class="wzoom"><button id="wplus">＋</button><button id="wminus">－</button></div><div class="wcard" id="wcard" hidden></div></div>
 <div class="toast" id="toast" hidden></div>
 <div class="cards" id="cards" hidden></div>
-<div class="guide" id="guide" hidden><div class="gbird">🐦</div><div class="gbub"><div class="gname">끼룩이</div><div id="gtext"></div><div class="grow2" id="gbtns"></div></div></div>
+<div class="guide" id="guide" hidden><div class="gbird" data-icon-size="64">🐦</div><div class="gbub"><div class="gname">끼룩이</div><div id="gtext"></div><div class="grow2" id="gbtns"></div></div></div>
 <div class="garrow" id="garrow" hidden>▼</div>
-<nav class="dock" id="dock">
+<nav class="dock" id="dock" data-icon-size="32">
   <div class="sizes" id="sizes" hidden></div>
   <button id="d-build"><span class="ic">🏗️</span>짓기</button>
   <button id="d-home"><span class="ic">🏝️</span>내 섬</button>
@@ -152,8 +160,12 @@ import { drawLand, countryAt, placeLabel } from './src/v2/geo.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
 import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCaps, LV_MAX, upgradeCost, starsOf, starBonus } from './src/v2/inside.js';
 import { FlowView } from './src/v2/flowview.js';
+import { applyTheme } from './src/ui/theme.js';
+import { pixelIcons, iconCanvas, EMOJI } from './src/ui/icons.js';
 
 const $ = (id) => document.getElementById(id);
+// the game skin: ?theme=wood|sea to compare, remembered per browser
+{ const q = new URLSearchParams(location.search).get('theme'); if (q) { applyTheme(q); pixelIcons(document.body); } }   // the skin is on hold: only with ?theme= while the concept is redone
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
@@ -304,7 +316,7 @@ const pr = islesProjection(), map = $('map'); map.width = pr.width; map.height =
 // native pixels by default (crisp), scrolled to my island; "전체 보기" fits the whole archipelago
 let fit = false;
 const applyZoom = () => { map.style.width = fit ? '100vw' : pr.width + 'px'; $('zoom-t').textContent = fit ? '가까이' : '전체'; $('zoom').classList.toggle('on', fit); };
-function scrollToSlot(s) { if (fit) return; const box = $('mapbox'), [cx, cz] = centerOf(s), [px, py] = pr.P(cx, cz); box.scrollTo({ left: px - box.clientWidth / 2, top: py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
+function scrollToSlot(s) { if (fit) return; const box = $('mapbox'), [cx, cz] = centerOf(s), [px, py] = pr.P(cx, cz); box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
 const sprites = new Map(), pops = [];
@@ -342,7 +354,10 @@ function frame(t) {
   const items = [], tops = {};
   if (moving && hover) { const p = all.find(q => q.key === moving.key), sp = p && sprite(p); if (sp) { const n = PLOT[p.size], [px, py] = pr.P(hover.x + n / 2, hover.z + n / 2), lift = 10 + Math.sin(performance.now() / 160) * 2;
     items.push({ d: 1e9, draw: () => { g.globalAlpha = .85; g.drawImage(sp.canvas, Math.round(px - sp.anchor.x), Math.round(py - sp.anchor.y - lift)); g.globalAlpha = 1; } }); } }
-  for (const p of all) { if (!p.b || (moving && p.key === moving.key)) continue; const s = sprite(p); if (!s) continue; const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2); tops[p.key] = [px, py - s.anchor.y + 6];
+  if (zoomShop) { zoomShop.t = Math.max(0, Math.min(1, zoomShop.t + zoomShop.dir * dt / .4)); if (zoomShop.dir < 0 && zoomShop.t === 0) zoomShop = null; }
+  for (const p of all) { if (!p.b || (moving && p.key === moving.key)) continue; const s = sprite(p); if (!s) continue;
+    if (zoomShop?.key === p.key) { const u = zoomShop.t; if (u >= 1) continue; const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2), e = u * u;
+      items.push({ d: p.x + p.z + n, draw: () => { g.globalAlpha = 1 - e; g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y - e * 60)); g.globalAlpha = 1; } }); continue; } const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2); tops[p.key] = [px, py - s.anchor.y + 6];
     items.push({ d: p.x + p.z + n, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), key: p.key, s, px, py }); }
   if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
@@ -359,11 +374,14 @@ function frame(t) {
     if (!uid) { g.font = '400 11px "Noto Sans KR", sans-serif'; g.fillStyle = 'rgba(255,255,255,.9)'; const [mx, my] = pr.P(cx + .5, cz + .5); g.fillText('+ 친구 초대', mx, my); }
   }
   g.font = '900 12px "Noto Sans KR", sans-serif';
-  for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, tp[0], y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, tp[0], y); g.globalAlpha = 1; }
+  for (const p of pops) { const tp = tops[p.key]; if (!tp) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;
+    if (em) { g.imageSmoothingEnabled = false; g.drawImage(iconCanvas(EMOJI[em]), Math.round(tp[0] - g.measureText(txt).width / 2 - w - 2), Math.round(y - 12), 14, 14); }
+    g.strokeText(txt, tp[0] + w / 2, y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(txt, tp[0] + w / 2, y); g.globalAlpha = 1; }
   // the stars of every shop, small and gold, over its roof
   g.font = '900 11px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
-  for (const p of all) { if (!p.b || !tops[p.key] || !roleOf(normalize(p.b.input).type).serves) continue; const n = starsInfo(p).stars, [x, y] = tops[p.key], t = '★'.repeat(n);
-    g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(t, x, y - 14); g.fillStyle = n >= 3 ? '#ffd23a' : '#f3e6c4'; g.fillText(t, x, y - 14); }
+  { const si = iconCanvas('star'), so = iconCanvas('star0');
+    for (const p of all) { if (!p.b || !tops[p.key] || !roleOf(normalize(p.b.input).type).serves) continue; const n = starsInfo(p).stars, [x, y] = tops[p.key];
+      for (let k = 0; k < n; k++) g.drawImage(si, Math.round(x - n * 6 + k * 12), Math.round(y - 26), 12, 12); } }
   g.font = '900 12px "Noto Sans KR", sans-serif';
   // my shops running low on stock show a red mark
   for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && roleOf(normalize(p.b.input).type).serves && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
@@ -513,7 +531,7 @@ map.addEventListener('click', (e) => {
   const [sx, sy] = mapXY(e);
   if (moving) { const [fx, fz] = pr.inv(sx, sy); return dropMove(moveTarget(fx, fz)); }
   for (const it of [...drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
-    if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return showBuilding(it.key); }
+    if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return openShop(it.key); }
   const [fx, fz] = pr.inv(sx, sy), s = slotAt(Math.floor(fx), Math.floor(fz));
   if (buildMode) {   // the spot comes from the tap itself (touch screens have no hover)
     const n = PLOT[size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2), door = s === mySlot ? placePlot(world, mySlot, x, z, n, takenSet()) : null;
@@ -835,13 +853,35 @@ function manage(p) {
 }
 
 // ---------- inside a building: its own simulation, guests come from the map's queue ----------
-function openInside(key) {
+// ---------- a shop opens where it stands: the camera comes close, the roof lifts, the inside is there ----------
+let zoomShop = null;   // { key, t, dir } while the roof lifts or settles
+function openShop(key) {
+  const p = allPlots().find(x => x.key === key); if (!p?.b) return;
+  if (watching) closeInside(true); setBuildMode(false); closePanel();
+  if (fit) { fit = false; applyZoom(); }
+  const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2), box = $('mapbox');
+  const lv = normalize(p.b.input).levels;   // taller cut-aways need more room above the building
+  box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - box.clientHeight * Math.min(.86, .62 + .12 * (Math.min(lv, 4) - 1)) });
+  requestAnimationFrame(() => {
+    map.style.transformOrigin = `${px}px ${py}px`; map.style.transform = 'scale(1.7)';
+    const r = map.getBoundingClientRect(), sx = r.left + px * r.width / map.width / 1.7 * 1, sy = r.top + py * r.height / map.height / 1.7;
+    // the origin does not move when scaling, so the building's base stays where it was on screen
+    const st = $('shopstage'); st.style.left = (box.getBoundingClientRect().left + map.offsetLeft + px - box.scrollLeft) + 'px'; st.style.top = (box.getBoundingClientRect().top + map.offsetTop + py - box.scrollTop) + 'px';
+    $('shopwrap').style.setProperty('--sx', st.style.left); $('shopwrap').style.setProperty('--sy', st.style.top);
+    zoomShop = { key, t: 0, dir: 1 };
+    openInside(key, { inPlace: true });
+  });
+}
+$('shopwrap').addEventListener('click', (e) => { if (e.target === $('shopwrap')) closeInside(); });
+$('shopmore').onclick = () => { const k = watching?.key; closeInside(); if (k) showBuilding(k); };
+function openInside(key, { inPlace = false } = {}) {
   setTimeout(() => tutEvent('inside'), 0);
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   const mineP = p.owner === me && !!myDoc?.plots[key], owned = ownedOf(p), n = normalize(p.b.input);
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
-    maxWidth: Math.min(innerWidth - 60, 1100),
+    maxWidth: inPlace ? Math.min(innerWidth * .62, 720) : Math.min(innerWidth - 60, 1100), tags: inPlace, maxHeight: inPlace ? Math.max(140, parseFloat($('shopstage').style.top) - 70) : Infinity,
+    onThud: () => { const st = $('shopstage'); st.classList.remove('thud'); void st.offsetWidth; st.classList.add('thud'); },
     levels: levelsOf(p),
     upgrade: (i, kind, cost, L) => { if (!mineP || myDoc.wallet.coins < cost) return false;
       const base = BASE_COIN[p.size] ?? 1, a = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), levelsOf(p)), b = flowCaps(fixturesOf(p), ownedOf(p), base, helpersOf(p), { ...levelsOf(p), [i]: L }), role = FIX_ROLE(kind);
@@ -867,8 +907,9 @@ function openInside(key) {
       setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); myDoc.wallet.coins -= cost; const mp = myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
   });
   view.sim.setHelpers(helpersOf(p), levelsOf(p));
-  const flow = new FlowView(); $('iflow').replaceChildren(flow.el);
-  watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0 };
+  const flow = new FlowView(); if (!inPlace) $('iflow').replaceChildren(flow.el);
+  watching = { key, view, mine: mineP, earned: 0, flow, ins: [], outs: [], losts: [], lost0: 0, inPlace };
+  if (inPlace) { $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; $('shopmore').hidden = !mineP; rebuild(); return; }
   $('iname').textContent = n.name || TYPE_KO[n.type] || '건물';
   if (roleOf(n.type, n.levels).serves) $('iname').append(' ', el('span', { class: 'stars' }, starText(starsInfo(p).stars)));
   $('ihint').textContent = mineP ? '반투명 가구의 노란 + 를 누르면 들여요. 배 손님이 문에 줄을 서고, 앉아서 먹고, 테이블에서 돈을 내요.' : `${nameOf(p.owner)}의 가게예요. 구경만 할 수 있어요.`;
@@ -877,8 +918,13 @@ function openInside(key) {
   setTimeout(guide, 50);
   rebuild();
 }
-function closeInside() {
+function closeInside(quiet) {
   if (!watching) return;
+  if (watching.inPlace) {   // the roof settles back, the camera steps away
+    const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
+    if (w.mine && left) { myDoc.wallet.coins += left * w.view.sim.price; dirty = true; }
+    watching = null; $('shopwrap').hidden = true; $('shopstage').replaceChildren(); map.style.transform = ''; if (zoomShop) zoomShop.dir = -1; rebuild(); guide(); return;
+  }
   // guests still inside pay as they would have
   const w = watching, left = w.view.sim.people.filter(q => q.state !== 'out').length;
   if (w.mine && left) { myDoc.wallet.coins += left * w.view.sim.price; dirty = true; }
@@ -886,7 +932,7 @@ function closeInside() {
   if (current?.key) showBuilding(current.key);
 }
 $('iclose').onclick = closeInside; $('inside').addEventListener('click', (e) => { if (e.target === $('inside')) closeInside(); });
-addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });
+addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });   // closes the in-place shop too
 // the one thing that unblocks the red step, as a button under the diagram
 function fixAction(w, p, fc) {
   const slow = w.flow.data.slow;
@@ -934,6 +980,8 @@ function stepInside(dt) {
         { icon: '💰', label: '계산', sub: `한 명 ${fc.price}동전`, state: '' }],
         slow: w.supply < Math.min(fc.order, fc.seat) ? 0 : fc.slow === 'seat' ? 2 : 1, inRate: per(w.ins), outRate: per(w.outs), lostRate: per(w.losts), coinRate: per(w.outs) * fc.price });
       fixAction(w, p0, fc);
+      { const slow = w.flow.data.slow, fx = fixturesOf(p0), roles = slow === 2 ? ['seat'] : slow === 1 ? ['serve', 'cook'] : [];
+        w.view.blocked = new Set([...ownedOf(p0)].filter(j => roles.includes(FIX_ROLE(fx[j].kind)) && (q >= 2 || w.losts.length))); }
       w.flow.frame(dt); } }
   for (const e of paid) { watching.earned += e.n; if (watching.mine) { earned.push([performance.now(), e.n]); myDoc.wallet.coins += e.n; dirty = true; } }
   if ((istatT += dt) < .3) return; istatT = 0;
@@ -1201,7 +1249,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, moveWithIsland(u, d)])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), centerOf };
+window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)

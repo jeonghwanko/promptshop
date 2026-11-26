@@ -36,8 +36,9 @@ export class InsideView {
    * @param opts.every  seconds between walk-ins (Infinity: the caller calls sim.spawn())
    * @param opts.maxWidth  CSS pixels available
    */
-  constructor(input, owned, { coins, buy, upgrade, levels = {}, every = 2.1, seed = 3, maxWidth = 900, price, onHover } = {}) {
-    this.onHover = onHover; this.upgradeFn = upgrade; this.levels = levels; this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
+  constructor(input, owned, { coins, buy, upgrade, levels = {}, every = 2.1, seed = 3, maxWidth = 900, price, onHover, tags = false, onThud, maxHeight = Infinity } = {}) {
+    this.maxHeight = maxHeight;
+    this.tags = tags; this.onThud = onThud; this.sel = -1; this.blocked = new Set(); this.onHover = onHover; this.upgradeFn = upgrade; this.levels = levels; this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
     this.el = document.createElement('div'); Object.assign(this.el.style, { position: 'relative', maxWidth: '100%' });
     this.floats = []; this.hot = -1;
     this.top = document.createElement('canvas'); Object.assign(this.top.style, { position: 'absolute', left: 0, top: 0, imageRendering: 'pixelated', cursor: coins ? 'pointer' : 'default' });
@@ -53,7 +54,7 @@ export class InsideView {
   redraw() {
     const v = renderView(this.input, 'section', { owned: this.owned });
     this.view = v; this.fx = v.fixtures;
-    const W = v.canvas.width, H = v.canvas.height, z = Math.max(1, Math.min(3, Math.floor(this.maxWidth / W)));
+    const W = v.canvas.width, H = v.canvas.height, z = Math.max(1, Math.min(3, Math.floor(this.maxWidth / W), Math.floor(this.maxHeight / H)));
     this.zoom = z; this.top.width = W; this.top.height = H;
     for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = 'pixelated'; c.style.display = 'block'; }
     this.el.replaceChildren(v.canvas, this.top);
@@ -68,7 +69,7 @@ export class InsideView {
     const r = this.top.getBoundingClientRect(), mx = (e.clientX - r.left) / this.zoom, my = (e.clientY - r.top) / this.zoom;
     let best = -1, bd = 16;
     const can = this.buyable();
-    this.fx.forEach((f, i) => { if (!can.has(i)) return; const [x, y] = this.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
+    this.fx.forEach((f, i) => { if (!can.has(i)) return; for (const h of this.tags ? [.3, 1.05] : [.3]) { const [x, y] = this.view.project(f.x, f.y + h, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } } });
     return best;
   }
   ownedAt(e) {
@@ -77,6 +78,8 @@ export class InsideView {
     this.fx.forEach((f, i) => { if (!this.owned.has(i)) return; const [x, y] = this.view.project(f.x, f.y + .3, f.z), d = Math.hypot(x - mx, y - my); if (d < bd) { bd = d; best = i; } });
     return best;
   }
+  /** A thump where a fixture lands: dust, and the caller shakes the view. */
+  thud(i) { const f = this.fx[i]; this.floats.push({ text: '쿵', x: f.x, y: f.y + .9, z: f.z, t: 0 }); this.dust = { i, t: 0 }; this.onThud?.(i); }
   /** Raise an owned fixture one level. */
   upgradeIndex(i) {
     const f = this.fx[i], L = this.levels[i] ?? 1; if (L >= LV_MAX) return false;
@@ -95,6 +98,7 @@ export class InsideView {
   /** Fixtures that can be bought now: the next of each track. */
   buyable() { return new Set(Object.values(nextUp(this.fx, this.owned, undefined, this.input.order))); }
   hover(e) {
+    if (this.tags) { tip().style.display = 'none'; const i = this.ghostAt(e); if (i !== this.hot) { this.hot = i; this.onHover?.(i); } this.top.style.cursor = i >= 0 || this.ownedAt(e) >= 0 ? 'pointer' : 'default'; return; }
     const i = this.ghostAt(e), t = tip(); if (i !== this.hot) this.onHover?.(i); this.hot = i;
     if (i < 0) {
       const o = this.upgradeFn ? this.ownedAt(e) : -1;
@@ -108,7 +112,9 @@ export class InsideView {
     t.textContent = `${name} · ${what} · ${c}동전${this.coins() < c ? ' (모자람)' : ''}`;
     t.style.display = 'block'; t.style.left = e.clientX + 12 + 'px'; t.style.top = e.clientY + 12 + 'px';
   }
-  tryBuy(e) { const i = this.ghostAt(e); if (i >= 0) { this.buyIndex(i); this.hover(e); return; } const o = this.upgradeFn ? this.ownedAt(e) : -1; if (o >= 0) { this.upgradeIndex(o); this.hotUp = -2; this.hover(e); } }
+  tryBuy(e) { const i = this.ghostAt(e); if (i >= 0) { if (this.buyIndex(i)) this.thud(i); this.sel = -1; this.hover(e); return; } const o = this.upgradeFn ? this.ownedAt(e) : -1;
+    if (this.tags) { if (o < 0) { this.sel = -1; return; } if (this.sel !== o) { this.sel = o; return; } if (this.upgradeIndex(o)) this.thud(o); return; }
+    if (o >= 0) { this.upgradeIndex(o); this.hotUp = -2; this.hover(e); } }
   /** Buy fixture i (also used by the flow diagram's fix button). */
   buyIndex(i) {
     const f = this.fx[i], c = costOf(f.kind);
@@ -123,7 +129,21 @@ export class InsideView {
     const { g, view, sim } = this, P = view.project, paid = [];
     g.clearRect(0, 0, this.top.width, this.top.height);
     const can = this.coins ? this.buyable() : new Set();
-    if (this.coins) this.fx.forEach((f, i) => {
+    if (this.coins && this.tags) {
+      const tag = (x, y, text, ok, big) => { g.font = 'bold 7px system-ui'; const w = Math.ceil(g.measureText(text).width) + 9, bx = Math.round(x - w / 2), by = Math.round(y - 10 - (big ? Math.abs(Math.sin(performance.now() / 200)) * 2 : 0));
+        g.fillStyle = '#2b1e15'; g.fillRect(bx - 1, by - 1, w + 2, 10); g.fillStyle = ok ? '#f2c12e' : '#b8ad98'; g.fillRect(bx, by, w, 8);
+        g.fillStyle = ok ? '#c48a1a' : '#8f8573'; g.fillRect(bx, by + 7, w, 1); g.fillStyle = '#2b1e15'; g.fillRect(Math.round(x), by + 8, 1, 2);
+        g.fillStyle = '#c48a1a'; g.fillRect(bx + 2, by + 2, 3, 4); g.fillStyle = '#2b1e15'; g.textAlign = 'left'; g.fillText(text, bx + 7, by + 7); };
+      this.fx.forEach((f, i) => { if (!can.has(i)) return; const [x, y] = P(f.x, f.y + .9, f.z); tag(x, y, String(costOf(f.kind)), this.coins() >= costOf(f.kind), this.suggest?.has(f.kind)); });
+      if (this.sel >= 0 && this.owned.has(this.sel)) { const f = this.fx[this.sel], L = this.levels[this.sel] ?? 1; const [x, y] = P(f.x, f.y + 1.1, f.z);
+        if (L < 5) tag(x, y, `Lv${L + 1} · ${upgradeCost(f.kind, L)}`, this.coins() >= upgradeCost(f.kind, L), true); }
+      g.textAlign = 'center';
+    }
+    // the step that holds guests up steams red
+    for (const i of this.blocked) { const f = this.fx[i]; if (!f) continue; for (let k = 0; k < 3; k++) { const ph = (performance.now() / 900 + k / 3) % 1, [x, y] = P(f.x + (k - 1) * .12, f.y + .7 + ph * .9, f.z);
+      g.globalAlpha = (1 - ph) * .75; g.fillStyle = k === 1 ? '#e2685a' : '#f0a090'; g.beginPath(); g.arc(Math.round(x), Math.round(y), 2 + ph * 3, 0, 7); g.fill(); } g.globalAlpha = 1; }
+    if (this.dust) { this.dust.t += dt; const f = this.fx[this.dust.i]; if (f && this.dust.t < .5) { const [x, y] = P(f.x, f.y, f.z); g.fillStyle = `rgba(200,180,140,${.8 - this.dust.t * 1.6})`; for (let k = 0; k < 8; k++) { const a = k / 8 * 6.28, r = 4 + this.dust.t * 26; g.fillRect(Math.round(x + Math.cos(a) * r), Math.round(y + Math.sin(a) * r * .5), 2, 2); } } else this.dust = null; }
+    if (this.coins && !this.tags) this.fx.forEach((f, i) => {
       if (!can.has(i)) return; const [x, y] = P(f.x, f.y + .55, f.z), cx = Math.round(x), cy = Math.round(y), ok = this.coins() >= costOf(f.kind);
       // suggested fixtures blink larger
       const big = this.suggest?.has(f.kind) && Math.sin(performance.now() / 160) > -.3, r = big ? 4 : 2;
@@ -133,7 +153,7 @@ export class InsideView {
     // levels above 1: a small gold badge over the fixture
     g.font = 'bold 9px system-ui'; g.textAlign = 'center';
     for (const [i, L] of Object.entries(this.levels)) { if (L <= 1 || !this.owned.has(+i)) continue; const f = this.fx[i]; if (!f) continue; const [x, y] = P(f.x, f.y + .5, f.z);
-      const bx = Math.round(x), by = Math.round(y) - 4; g.fillStyle = '#2e241a'; g.fillRect(bx - 9, by - 7, 18, 10); g.fillStyle = '#ffd25a'; g.fillText('Lv' + L, bx, by + 1); }
+      const bx = Math.round(x) - (L - 1) * 2, by = Math.round(y) - 6; g.fillStyle = '#2e241a'; g.fillRect(bx - 1, by - 1, (L - 1) * 4 + 1, 4); g.fillStyle = '#ffd25a'; for (let k = 0; k < L - 1; k++) g.fillRect(bx + k * 4, by, 3, 2); }   // one gold pip per level above 1
     const list = [];
     for (const s of sim.staff) { const [x, y] = P(s.x, sim.floorY(s.f), s.z); list.push({ x, y, s }); }
     for (const p of sim.people) { p.moving = p.moves.length > 0; const [x, y] = P(p.x, p.y, p.z); list.push({ x, y, p }); }

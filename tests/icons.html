@@ -1,0 +1,8 @@
+<!doctype html>
+<html lang="ko"><meta charset="utf-8"><title>icons</title>
+<style> body { margin:0; padding:14px; background:#efe3c8; font:12px system-ui; } .g { display:grid; grid-template-columns:repeat(9, 96px); gap:10px; } figure { margin:0; text-align:center; } img { image-rendering:pixelated; display:block; margin:0 auto; } .dark { background:#2e241a; color:#fff; padding:10px; margin-top:12px; } </style>
+<div class="g" id="g"></div><div class="g dark" id="d"></div>
+<script type="module">
+import { ICON_NAMES, iconEl } from '../src/ui/icons.js';
+for (const n of ICON_NAMES) { for (const [id, px] of [['g', 48], ['d', 32]]) { const f = document.createElement('figure'); f.append(iconEl(n, px)); const c = document.createElement('figcaption'); c.textContent = n; f.append(c); document.getElementById(id).append(f); } }
+</script></html>
