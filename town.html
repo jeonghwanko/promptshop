@@ -137,6 +137,9 @@ function frame(now) {
   }
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
   g.clearRect(0, 0, map.width, map.height); g.drawImage(ground, 0, 0);
+  // the selected lot is outlined on the ground, under buildings and people
+  if (current?.lot) { const l = LOTS.find(x => x.id === current.lot); const pts = [pr.P(l.x, l.z), pr.P(l.x + l.w, l.z), pr.P(l.x + l.w, l.z + l.d), pr.P(l.x, l.z + l.d)];
+    g.strokeStyle = '#ffd166'; g.lineWidth = 2; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke(); }
   const items = [], tops = {};
   for (const [id, b] of buildings) {
     const l = LOTS.find(x => x.id === id), s = sprite(id, b); if (!s) continue;
@@ -149,8 +152,6 @@ function frame(now) {
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
   g.font = '900 12px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
   for (const p of pops) { const t = tops[p.lot]; if (!t) continue; const y = t[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; g.strokeText(p.text, t[0], y); g.fillStyle = p.mine ? '#ffd166' : '#ffffff'; g.fillText(p.text, t[0], y); g.globalAlpha = 1; }
-  if (current?.lot) { const l = LOTS.find(x => x.id === current.lot); const pts = [pr.P(l.x, l.z), pr.P(l.x + l.w, l.z), pr.P(l.x + l.w, l.z + l.d), pr.P(l.x, l.z + l.d)];
-    g.strokeStyle = '#ffd166'; g.lineWidth = 2; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.stroke(); }
   drawn = items;
   requestAnimationFrame(frame);
 }
