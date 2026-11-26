@@ -1,0 +1,15 @@
+<!doctype html>
+<meta charset="utf-8">
+<!-- Headless export: render.html?id=ramen&view=ext writes {"png": dataURL} into #out. Used by scripts/render.sh. -->
+<body style="margin:0;background:transparent">
+<pre id="out"></pre>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<script type="module">
+import { renderShop } from './src/render.js';
+import { SPECS } from './examples/specs.js';
+const q = new URLSearchParams(location.search);
+const id = q.get('id') ?? 'ramen', view = q.get('view') ?? 'ext';
+await document.fonts.load('900 18px "Noto Sans CJK KR"').catch(() => {});
+const c = renderShop(SPECS[id], view);
+document.getElementById('out').textContent = JSON.stringify({ id, view, png: c.toDataURL('image/png') });
+</script>

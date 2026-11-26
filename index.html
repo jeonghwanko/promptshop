@@ -1,0 +1,48 @@
+<!doctype html>
+<html lang="en">
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>promptshop</title>
+<style>
+  :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; --line:#d4c4a6; --accent:#3f7a74; }
+  body { margin:0; background:var(--ground); color:var(--ink); font:15px/1.6 system-ui, sans-serif; padding:24px 16px; }
+  .wrap { max-width:1100px; margin:0 auto; display:flex; flex-direction:column; gap:24px; }
+  h1 { margin:0; font-size:28px; } p { margin:0; max-width:65ch; color:var(--dim); }
+  .shop { border-top:1px solid var(--line); padding-top:18px; display:flex; flex-direction:column; gap:10px; }
+  .line { font-weight:700; font-size:18px; color:var(--ink); }
+  .views { display:flex; gap:24px; flex-wrap:wrap; align-items:flex-end; }
+  canvas { image-rendering:pixelated; width:calc(var(--w) * 2px); max-width:100%; }
+  textarea { width:100%; min-height:260px; box-sizing:border-box; font:12.5px/1.5 ui-monospace, monospace; padding:12px; border-radius:10px; border:1px solid var(--line); background:var(--card); }
+  button { font:700 14px system-ui; padding:8px 14px; border:0; border-radius:8px; background:var(--accent); color:#fff; cursor:pointer; }
+  .err { color:#b23b2b; font-size:13px; }
+</style>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<div class="wrap">
+  <header><h1>promptshop</h1><p>One line of text → a shop spec (JSON) → a pixel-art isometric shop, outside and inside. Every shop shares one camera, grid and light, so shops made by different people fit in the same town.</p></header>
+  <div id="gallery"></div>
+  <section class="shop">
+    <div class="line">Try your own spec</div>
+    <textarea id="src" spellcheck="false"></textarea>
+    <div><button id="go">Render</button> <span class="err" id="err"></span></div>
+    <div class="views" id="mine"></div>
+  </section>
+</div>
+<script type="module">
+import { renderShop } from './src/render.js';
+import { SPECS } from './examples/specs.js';
+await document.fonts.load('900 18px "Noto Sans CJK KR"').catch(() => {});
+const show = (el, shop) => { el.replaceChildren(); for (const v of ['ext', 'int']) { const c = renderShop(shop, v); c.style.setProperty('--w', c.width); el.append(c); } };
+const gallery = document.getElementById('gallery');
+for (const [id, shop] of Object.entries(SPECS)) {
+  const s = document.createElement('section'); s.className = 'shop';
+  const l = document.createElement('div'); l.className = 'line'; l.textContent = `“${shop.line}”`;
+  const v = document.createElement('div'); v.className = 'views';
+  s.append(l, v); gallery.append(s); show(v, shop);
+}
+const src = document.getElementById('src'); src.value = JSON.stringify(SPECS.ramen, null, 2);
+document.getElementById('go').onclick = () => {
+  const err = document.getElementById('err'); err.textContent = '';
+  try { show(document.getElementById('mine'), JSON.parse(src.value)); } catch (e) { err.textContent = String(e.message || e); }
+};
+</script>
+</html>
