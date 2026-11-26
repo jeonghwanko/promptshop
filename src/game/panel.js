@@ -8,7 +8,7 @@ import { renderView } from '../v2/render.js';
 import { iconEl } from '../ui/icons.js';
 import { START_COINS, BRIDGE, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, LEVELS, levelOf } from './rules.js';
 import { $, el, xbtn } from './ui.js';
-import { S, db, me, isOwner, now, canWrite, FROM, PICK } from './state.js';
+import { S, db, me, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild } from './model.js';
 import { save, createMine, removeOthers, track } from './persist.js';
 import { scrollToSlot, startZoom, applyZoom } from './camera.js';
@@ -17,7 +17,7 @@ import { guide } from './guide.js';
 import { openShop } from './shop.js';
 import { startMove } from './move.js';
 import { riseLand } from './mapview.js';
-import { inviteCard } from './invite.js';
+import { inviteCard, newBoard } from './invite.js';
 
 const panel = () => $('panel');
 /** Fill the panel: the first child, when it is an h2, is the title on the dark strip with the close button. */
@@ -86,7 +86,8 @@ async function join(s) {
   const byInviter = !!FROM && S.owners.has(FROM) && neighbours(s).includes(FROM);
   track('pick', { slot: s, from: FROM, nextToInviter: byInviter, pick: PICK });
   // invited next to a friend: my half of the bridge to them is free, so we are joined in the first session
-  await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0, ...(byInviter ? { freeHalf: FROM } : {}) } });
+  const ok = await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0, ...(byInviter ? { freeHalf: FROM } : {}) } });
+  if (!ok) { closePanel(); return toast('초대 링크를 받은 친구만 이 군도에 살 수 있어요', 2600); }
   closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide();
 }
 /** What my half of the bridge to island n costs: free to the friend who invited me, once. */
@@ -103,7 +104,7 @@ export function showIsland(s) {
   if (!uid) {   // an empty island: live here (no island yet), or call a friend to it
     const by = FROM && neighbours(s).includes(FROM) && S.owners.get(FROM);
     return show(el('h2', {}, `${s}번 섬`, by ? el('small', {}, ` · ${nameOf(by)} 옆`) : null),
-      S.mySlot ? inviteCard() : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
+      S.mySlot ? inviteCard() : SHOWCASE || !MAY_JOIN ? el('button', { class: 'gold', on: { click: () => newBoard() } }, '내 군도 세우기') : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
   }
   if (s === S.mySlot) return showHome();
   const ps = allPlots().filter(p => p.slot === s && p.b);

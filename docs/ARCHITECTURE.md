@@ -20,6 +20,7 @@ Each layer may use the layers below it, never the ones above.
 | Saving | `src/game/persist.js`, `src/game/lease.js` | Saving my doc, loading the board, the board summary; which tab may write my island | DOM |
 | Running | `src/game/economy.js` | Payments from the walkers' events, boats, the festival, VIP guests, restocking, furniture coming in by itself | DOM other than through the HUD |
 | Screens | `src/game/camera.js`, `mapview.js`, `hud.js`, `guide.js`, `panel.js`, `invite.js`, `shop.js`, `build.js`, `move.js`, `input.js`, `world.js`, `ui.js` | The camera and zoom; drawing the map each frame; the HUD and messages; the guide (choosing an island, the first loop, the invite); the side panel; the invite link and card; the open shop and its buttons; build mode, Claude building, extending; moving a building; pointer and keys; the world map; DOM helpers | — |
+| Hosting | `server/` (`main.mjs`, `store.mjs`, `rules.mjs`, `claude.mjs`), `src/site/runtime.js` | The hosted game: anonymous players, SQLite docs with long polls, who may write what, invite tokens, Claude within daily limits, link previews; the page's runtime for it. See [DEPLOY.md](DEPLOY.md) | Game rules (the server only checks ownership and limits) |
 | Start | `src/game/main.js` | Puts the pieces together: calls each `init…()`, sets the model's hooks, runs the frame loop, the debug hook | — |
 
 ## Rules of thumb

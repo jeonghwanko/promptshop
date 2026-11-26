@@ -4,7 +4,7 @@ import { GAP } from '../v2/isles.js';
 import { ISLES_SEED } from '../../examples/isles-seed.js';
 import { moveWithIsland, migrateLayout } from './migrate.js';
 import { step, SETTLE_MS, STALE_MS, HEARTBEAT_MS } from './lease.js';
-import { S, db, user, me, BOARD, COL, now } from './state.js';
+import { S, db, user, me, BOARD, COL, now, SHOWCASE } from './state.js';
 import { hooks, allPlots, rebuild } from './model.js';
 
 /** This page's own mark: which tab holds the island. */
@@ -27,10 +27,15 @@ export async function save(force) {
 }
 /** My new island: written whole, held by this tab. */
 export async function createMine(doc) {
-  if (S.docs.has(me)) return;   // I have an island already (another tab made it)
+  if (S.docs.has(me)) return true;   // I have an island already (another tab made it)
   doc.rev = 1; S.myDoc = doc; S.role = 'live'; lease = { role: 'live', term: 1 }; lastSave = now();
   S.docs.set(me, doc); rebuild();
-  try { await myRef().set({ ...doc, term: 1, by: WRITER, wb: WRITER, hb: Date.now() }); } catch { S.dirty = true; }
+  try { await myRef().set({ ...doc, term: 1, by: WRITER, wb: WRITER, hb: Date.now() }); }
+  catch (e) {   // refused (no invite, the island just taken): undo, and say why
+    if (e?.code !== 'denied') { S.dirty = true; return true; }
+    S.myDoc = null; S.role = 'new'; lease = { role: 'new', term: 0 }; S.docs.delete(me); rebuild(); return false;
+  }
+  return true;
 }
 /** Remove someone else's building (the board owner tidying up): a mark their own tab applies, so it never comes back.
  *  Marked by the building's own time (b.at), which stays when the building is moved. */
@@ -50,7 +55,7 @@ async function resolveNames() { if (!user) return; const ids = [...S.owners.valu
 // keep this board's summary on the world map up to date (friends, buildings, who)
 let lastSummary = '';
 function saveSummary() {
-  if (!db || !me) return;
+  if (!db || !me || SHOWCASE) return;
   const users = [...S.owners.values()], s = { n: S.owners.size, bld: allPlots().filter(p => p.b).length, users };
   const k = JSON.stringify(s); if (k === lastSummary) return; lastSummary = k;
   db.doc('boards/' + BOARD).update(s).catch(() => {});
@@ -97,6 +102,7 @@ export function initPersist({ onError, onRefund }) {
   // leaving: save what is left and let go, so the next page (a reload) plays at once
   addEventListener('pagehide', () => { if (lease.role === 'live' && S.myDoc && db && me) myRef().update({ ...dataOf(S.myDoc), by: null }).catch(() => {}); });
   if (db && BOARD !== 'main') db.doc('boards/' + BOARD).get().then(d => { S.boardName = d.data()?.name ?? ''; }).catch(() => {});
+  if (SHOWCASE) { S.docs = new Map(Object.entries(ISLES_SEED).map(([u, d]) => [u, migrateLayout(moveWithIsland(d))])); rebuild(); return; }   // look, nobody moves in
   if (!db) { S.role = 'live'; S.docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(d))])); rebuild(); return; }
   db.collection(COL).onSnapshot(snap => {
     S.docs = new Map(); let marks = null;

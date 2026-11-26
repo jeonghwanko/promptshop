@@ -1,0 +1,82 @@
+// The hosted server's rules, without a browser: anonymous players, the showcase, private boards and invite tokens,
+// who may write what, daily Claude calls, link previews, and changes arriving by long poll. Starts its own server on a
+// throwaway data folder with Claude answers faked (SAMPLE=echo). Usage: node scripts/check-site.mjs
+import { spawn } from 'node:child_process';
+import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'site-check-')), PORT = 5391;
+const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, 'server/main.mjs')], { env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, SAMPLE: 'echo', CLAUDE_PER_USER: '5', INVITE_USES: '3' }, stdio: ['ignore', 'pipe', 'inherit'] });
+process.on('exit', () => { try { srv.kill(); } catch {} fs.rmSync(dir, { recursive: true, force: true }); });
+await new Promise(r => srv.stdout.once('data', r));
+const base = `http://127.0.0.1:${PORT}`;
+const check = (name, ok, info = '') => { console.log(ok ? 'PASS' : 'FAIL', name, info); if (!ok) process.exitCode = 1; };
+
+/** A player: keeps the cookie the server gives it. */
+function player() {
+  let cookie = '';
+  const go = async (p, { method = 'GET', body, headers = {} } = {}) => {
+    const r = await fetch(base + p, { method, body, headers: { cookie, 'x-isles': '1', ...(body && typeof body === 'string' ? { 'content-type': 'application/json' } : {}), ...headers } });
+    const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
+    const t = await r.text(); let v = t; try { v = JSON.parse(t); } catch {}
+    return { status: r.status, v, text: t };
+  };
+  return { go, put: (p, d, h) => go('/api/doc/' + p, { method: 'PUT', body: JSON.stringify(d), headers: h }), patch: (p, d, h) => go('/api/doc/' + p, { method: 'PATCH', body: JSON.stringify(d), headers: h }) };
+}
+const island = (slot) => ({ slot, at: Date.now(), gap: 24, plots: {}, half: {}, wallet: { coins: 30, permits: 1 } });
+
+// players start anonymous, with a name
+const A = player(), B = player(), C = player(), D = player();
+const meA = (await A.go('/api/me')).v; check('anonymous player', !!meA.uid && !!meA.name, meA.name);
+const page = await A.go('/'); check('page loads the runtime', page.text.includes('/src/site/runtime.js') && page.text.includes('og:title'));
+check('no repo files outside the game', (await A.go('/server/main.mjs')).status === 404 && (await A.go('/dev-data/db.json')).status === 404 && (await A.go('/.git/config')).status === 404);
+// the showcase is read-only
+check('showcase: nobody moves in', (await A.put('i/' + meA.uid, island(3))).status === 403);
+// A makes an archipelago and moves in
+const board = 'b' + Date.now().toString(36);
+check('make a board', (await A.put('boards/' + board, { name: 'A의 군도', lat: 37, lng: 127, owner: meA.uid, at: Date.now(), n: 0, bld: 0, users: [] })).status === 200);
+check('cannot make a board for someone else', (await B.put('boards/x' + board, { name: 'x', lat: 0, lng: 0, owner: meA.uid, at: 1 })).status === 403);
+check('owner moves in', (await A.put(`i-${board}/${meA.uid}`, island(3))).status === 200);
+// B has no invite: cannot move in; with A's token: can, next door, and only into a free island
+const meB = (await B.go('/api/me')).v;
+check('no invite: cannot move in', (await B.put(`i-${board}/${meB.uid}`, island(2))).status === 403);
+check('a stranger gets no token', (await B.go('/api/invite', { method: 'POST', body: JSON.stringify({ board }) })).status === 403);
+const tok = (await A.go('/api/invite', { method: 'POST', body: JSON.stringify({ board }) })).v.token; check('member gets a token', !!tok);
+check('invite: island taken is refused', (await B.put(`i-${board}/${meB.uid}`, island(3), { 'x-invite': tok })).status === 403);
+check('invite: moves in', (await B.put(`i-${board}/${meB.uid}`, island(2), { 'x-invite': tok })).status === 200);
+check('a token for another board does nothing', (await C.put(`i-${board}x/${(await C.go('/api/me')).v.uid}`, island(4), { 'x-invite': tok })).status === 403);
+// nobody writes someone else's island, or moves their own to another island
+check("cannot write another player's island", (await B.patch(`i-${board}/${meA.uid}`, { wallet: { coins: 1e9 } })).status === 403);
+check('cannot jump to another island', (await B.patch(`i-${board}/${meB.uid}`, { slot: 7 })).status === 403);
+check('own island saves', (await B.patch(`i-${board}/${meB.uid}`, { wallet: { coins: 99 } })).status === 200);
+// removal marks: only the board's owner
+check('removal marks: not a member', (await B.put(`i-${board}/_mod`, { 1: 'x' })).status === 403);
+check('removal marks: the owner', (await A.patch(`i-${board}/_mod`, { 1: 'x' })).status === 200);
+// summaries: members may update n/bld/users, nothing else
+check('summary by a member', (await B.patch('boards/' + board, { n: 2, bld: 0, users: [meA.uid, meB.uid] })).status === 200);
+check('board name only by its owner', (await B.patch('boards/' + board, { name: 'mine now' })).status === 403);
+// the funnel log: only my own
+check('own log', (await B.patch(`log/${board}~${meB.uid}`, { '1_arrive': { s: 0 } })).status === 200);
+check("not another's log", (await B.patch(`log/${board}~${meA.uid}`, { '1_arrive': { s: 0 } })).status === 403);
+check('a write without the page header is refused', (await fetch(base + `/api/doc/i-${board}/x`, { method: 'PUT', body: '{}' })).status === 400);
+// the token lets in nine friends at most
+let used = 1; for (let s = 4; s <= 10; s++) { const P = player(), u = (await P.go('/api/me')).v.uid; if ((await P.put(`i-${board}/${u}`, island(s), { 'x-invite': tok })).status === 200) used++; }
+const P10 = player(), u10 = (await P10.go('/api/me')).v.uid;
+check('a token lets in only so many (3 here)', used === 3, `${used} moved in`);
+// changes arrive by long poll: a waiting request returns when someone saves
+const v0 = (await C.go(`/api/col/i-${board}?after=0`)).v.ver;
+const t0 = Date.now(), wait = C.go(`/api/col/i-${board}?after=${v0}&wait=1`);
+await new Promise(r => setTimeout(r, 400)); await B.patch(`i-${board}/${meB.uid}`, { wallet: { coins: 100 } });
+const got = (await wait).v; check('long poll wakes on a change', got.docs.length === 1 && got.docs[0].id === meB.uid && Date.now() - t0 < 3000, `${Date.now() - t0} ms`);
+// Claude: five a day; the fix right after a build is free
+const ask = (P, kind) => P.go('/api/sample', { method: 'POST', body: JSON.stringify({ prompt: 'x', kind }) });
+let ok = 0; for (let i = 0; i < 5; i++) if ((await ask(D, 'build')).status === 200) ok++;
+check('five builds a day', ok === 5); check('the sixth waits for tomorrow', (await ask(D, 'build')).status === 429);
+check('the fix after a build is free', (await ask(D, 'revise')).status === 200);
+check('a fix without a build is not', (await ask(player(), 'revise')).status === 429);
+check('calls left', (await D.go('/api/me')).v.left === 0);
+// link previews: the board's name and free islands
+const pv = await C.go(`/?board=${board}`); check('link preview names the board', pv.text.includes('A의 군도 · 빈 섬'), (pv.text.match(/og:title" content="([^"]+)/) ?? [])[1]);
+const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');
+check('thumb: members only', (await C.go('/api/thumb/' + board, { method: 'POST', body: png, headers: { 'content-type': 'image/png' } })).status === 403);
+check('thumb: a member sends it', (await B.go('/api/thumb/' + board, { method: 'POST', body: png, headers: { 'content-type': 'image/png' } })).status === 200);
+check('preview picture served', (await fetch(`${base}/og/${board}.png`)).status === 200 && (await C.go(`/?board=${board}`)).text.includes(`/og/${board}.png`));
+srv.kill(); process.exit();

@@ -2,11 +2,11 @@
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
 import { SLOTS, centerOf, placePlot, PLOT, neighbours } from '../v2/isles.js';
 import { $, el } from './ui.js';
-import { S, db, me, pr, nextBoat, canWrite, FROM, PICK } from './state.js';
+import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { allPlots, takenSet, nameOf } from './model.js';
 import { save, track } from './persist.js';
 import { toScreen, scrollToSlot, applyZoom } from './camera.js';
-import { emptyNeighbours } from './invite.js';
+import { emptyNeighbours, newBoard } from './invite.js';
 
 const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람들이 첫 가게를 기다리고 있어!', btn: '좋아!' },
@@ -36,7 +36,7 @@ const say = (v) => typeof v === 'function' ? v() : v;
 // before I have an island: choose one on the map. Invited: next to the friend who sent the link.
 const inviter = () => FROM && S.owners.get(FROM);
 const pickWords = () => { const by = inviter(); return by ? `${nameOf(by)} 옆 섬을 눌러!\n이웃이 되면 다리를 놓을 수 있어.` : '끼룩! 살 섬을 하나 골라 눌러 봐.'; };
-export const picking = () => !S.mySlot && PICK === 'map' && !!db && !!me && S.scrolled;
+export const picking = () => !S.mySlot && PICK === 'map' && !!db && !!me && S.scrolled && !SHOWCASE && MAY_JOIN;
 /** The island the guide points at while choosing: one next to the inviter, else one with three neighbours, else any. */
 export function pickSpot() {
   const free = (s) => !S.owners.has(s);
@@ -58,6 +58,11 @@ export function guide() {
     const st = TUT_IN[inStep()]; g.hidden = false; $('gtext').textContent = typeof st.say === 'function' ? st.say() : st.say;
     $('gbtns').replaceChildren(...[st.btn ? el('button', { class: 'gold', on: { click: () => setStep('tutIn', inStep() + 1) } }, st.btn) : null,
       el('button', { class: 'skip', on: { click: () => setStep('tutIn', 99) } }, '건너뛰기')].filter(Boolean));
+    return;
+  }
+  if (SHOWCASE || (!S.mySlot && !MAY_JOIN && S.scrolled)) {   // the showcase, or a private board I was not invited to: look around, then make my own
+    g.hidden = false; $('gtext').textContent = SHOWCASE ? '끼룩! 여기는 구경하는 군도야.\n내 군도를 세우고 친구들을 불러 봐!' : '끼룩! 여긴 초대받은 친구들의 군도야.\n내 군도를 세우고 친구들을 불러 봐!';
+    $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: (e) => { e.currentTarget.disabled = true; newBoard(); } } }, '내 군도 세우기'));
     return;
   }
   if (picking()) {

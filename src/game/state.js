@@ -6,12 +6,16 @@ import { $ } from './ui.js';
 import { FEST } from './rules.js';
 
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
-export const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
+export const [db, user, sample, site] = await Promise.all([use('db'), use('user'), use('sample'), use('site')]);   // site: only on the hosted game (src/site/runtime.js)
 export const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
 
 // which board (ten islands of one group of friends) this page shows; the first board keeps the old collection name
 export const BOARD = new URLSearchParams(location.search).get('board') || 'main';
 export const COL = BOARD === 'main' ? 'i' : 'i-' + BOARD;
+/** On the hosted game the first board is a showcase of sample islands: nobody lives there, everyone makes their own. */
+export const SHOWCASE = !!site?.showcase && BOARD === 'main';
+/** May I move into this board? Hosted boards are private: their owner, or someone who came by an invite link. */
+export const MAY_JOIN = !site || isOwner || !!site.invited;
 /** The island of the friend whose invite link opened this page (0: none). */
 export const FROM = +(new URLSearchParams(location.search).get('from') ?? 0) || 0;
 /** ?pick=grid shows the old number buttons for choosing an island (to compare with choosing on the map). */

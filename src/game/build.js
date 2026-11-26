@@ -35,7 +35,7 @@ const REQ = {
 const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어빵 노점'], M: ['동네 빵집', '할머니 분식집', '네온사인 PC방'], L: ['12층 아파트', '레트로 볼링장', '작은 기차역'] };
 const EXT_IDEAS = { food: ['2층에 창가 자리', '루프탑 테라스', '주방 넓히기'], cafe: ['2층 다락 좌석', '루프탑 테라스', '빵 굽는 주방 늘리기'], shop: ['2층 매장 넓히기', '계산대 늘리기', '창고 한 층'], fun: ['2층 관람석', '놀이방 한 층', '휴게실'], rest: ['객실 한 층 더', '루프탑 라운지', '스파 층'] };
 const STEP_KO = { building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구', order: '순서' };
-const failText = (e, msg) => e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : msg;
+const failText = (e, msg) => e?.code === 'daily_limit' ? '오늘 Claude와 지을 수 있는 횟수를 다 썼어요. 내일 또 와요!' : e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : msg;
 
 export const buildHint = () => `${S.card?.need ? REQ[S.card.need].icon + ' ' + REQ[S.card.need].sub : '✏️ 마음대로'} · ${S.size}`;
 export function setBuildMode(on) {
@@ -113,11 +113,11 @@ export function startBuild(x, z, door) {
       if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note(STEP_KO[s.step] ?? s.step, s.note || s.type || ''); };
     try {
       const rd = lineReader(apply, () => broken++);
-      await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
+      await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
       const c = check(b.input, { broken, line }); for (const f of c.fixed) note('수선', f);
       const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
       if (problems.length) { note('다시', `남은 문제 ${problems.length}개`); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
-        await sample(revisePrompt(line, raw, problems), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); check(b.input, { line }); }
+        await sample(revisePrompt(line, raw, problems), { purpose: 'revise', modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); check(b.input, { line }); }
       if (!b.input) throw { code: 'nothing' };
       fitToLot(b.input, n); const s = normalize(b.input);
       if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; S.building = null; go.disabled = false; return; }
@@ -170,7 +170,7 @@ export function startExtend(key, { inShop = false } = {}) {
     const steps = [];
     try {
       const rd = lineReader((st) => { steps.push(st); wv?.construct(Math.min(.9, .15 + steps.length * .1)); note(STEP_KO[st.step] ?? st.step, st.note || st.name || ''); });
-      await sample(extendPrompt(line, p.b.input), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd.push(delta) }); rd.end();
+      await sample(extendPrompt(line, p.b.input), { purpose: 'extend', modelTier: 'quick', cache: false, onText: ({ delta }) => rd.push(delta) }); rd.end();
       const next = applyExtension(p.b.input, steps); if (!next) throw { code: 'nothing' };
       // the shop as it is now (it may have moved, or the permit gone elsewhere, while Claude wrote)
       const p1 = allPlots().find(x => x.key === key), mp = S.myDoc.plots[key];

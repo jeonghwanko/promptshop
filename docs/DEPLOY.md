@@ -1,0 +1,50 @@
+# Hosting (we.oddbout.com)
+
+The hosted game runs one Node server (`server/main.mjs`) behind nginx on the Oracle VM. The server serves `isles.html` and its modules and gives the page what claude.ai's artifact runtime gave it before, through `src/site/runtime.js`:
+
+| Part | How |
+| --- | --- |
+| Players | Anonymous at first: the first visit makes an account with a generated name (for example "느긋한 수달") and an HttpOnly cookie. Linking a Google account comes later. |
+| Storage | SQLite in `DATA_DIR` (`isles.db`): one row per doc, every change numbered. Pages get changes by long poll (`/api/col/<col>?after=n&wait=1`, up to 25 s). |
+| Rules | `server/rules.mjs` checks every write. A player writes only their own island. Moving in needs the board's owner, an invite token for that board, or an open board. The first board (`main`) is a read-only showcase. Removal marks (`_mod`) belong to the board's owner. |
+| Invites | `POST /api/invite` gives a member a token: 14 days, 9 friends. The link is `?board=<id>&from=<island>&k=<token>`. |
+| Claude | `server/claude.mjs`, the Anthropic API with `claude-haiku-5-5`. Each player has 5 builds or extensions a day; the one fix right after a build is free. The whole server allows 300 calls a day. |
+| Link previews | `isles.html` gets `og:` tags: "<board> · 빈 섬 N개" and the archipelago's picture, which a member's page uploads when they share the link. |
+
+## Run it locally
+
+```bash
+cd server && npm ci && cd ..
+SAMPLE=cli node server/main.mjs          # Claude from the local `claude` CLI; SAMPLE=api needs ANTHROPIC_API_KEY
+# open http://127.0.0.1:5310/
+```
+
+Checks:
+
+- `node scripts/check-site.mjs`: the server's rules, without a browser (its own server, faked Claude).
+- `node scripts/check-site-play.mjs [base url] [shots dir]`: two people in a browser, from the showcase to a friend next door. Without a base URL it starts its own server with the local CLI (`SAMPLE=echo` fakes Claude).
+
+The dev server (`scripts/dev.mjs`, `?me=` picks the player) stays for working on the game. Its own checks are listed in [ARCHITECTURE.md](ARCHITECTURE.md).
+
+## First deploy
+
+Do this only when the owner asks for it.
+
+1. **DNS.** Point `we.oddbout.com` at the VM.
+2. **Files.** On the VM:
+   1. Put a clean checkout at `/opt/we-oddbout/releases/<sha>`.
+   2. Run `npm ci` in `server/`.
+   3. Link `/opt/we-oddbout/current` to that release.
+3. **Secrets.** Create `/opt/we-oddbout/env` with `ANTHROPIC_API_KEY=...` and `chmod 600`. `SESSION_SECRET` is optional: the server makes one in `DATA_DIR` the first time.
+4. **Service.** Copy `deploy/we-oddbout.service` to `/etc/systemd/system/`, then run `systemctl enable --now we-oddbout`.
+5. **nginx.** Copy `deploy/we.oddbout.com.nginx` to `/etc/nginx/sites-available/`, link it, then run `certbot --nginx -d we.oddbout.com` and `nginx -s reload`.
+6. **Check.** Run `node scripts/check-site-play.mjs https://we.oddbout.com`. It uses real Claude calls: two players, one build.
+
+An update is a new release folder, a new `current` link and `systemctl restart we-oddbout`. `DATA_DIR` stays where it is.
+
+## Not done yet
+
+- Linking a Google account, to keep an island on another device.
+- Renaming a player. The server has `POST /api/name`; the game has no button for it yet.
+- A better default preview picture than the README's.
+- Backups of `isles.db`.
