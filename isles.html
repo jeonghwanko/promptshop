@@ -252,6 +252,12 @@
   .signcard .row { flex-wrap:nowrap; } .signcard .st { font:400 18px var(--f-disp); flex:1; } .signcard small { font:400 13px var(--f-disp); color:#6b4f2a; } .signcard .xb { width:32px; height:32px; } .signcard .xb img { width:18px; height:18px; }
   .signcard input { background:#fff8ea; } .signcard .chips button { background:#fff3dc; } .signcard .log { max-height:44px; color:#5b3a22; } .signcard.busy .chips, .signcard.busy .row:nth-child(2) { opacity:.5; pointer-events:none; }
   @keyframes signRise { from { opacity:0; transform:translateY(16px) scale(.9); } }
+  /* the shop's buttons as wooden signs, the guide as a cream speech card */
+  .act { background:#e9c89a; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #c9a06a, 0 4px 0 rgba(0,0,0,.3); } .act small { color:#6b4f2a; }
+  .act.buy { background:#ffd98a; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #d9a52a, 0 4px 0 rgba(0,0,0,.3); }
+  .act:hover:not(:disabled) { filter:brightness(1.05); } .act.close { background:#2e241a; color:#fbf1dc; box-shadow:0 3px 0 rgba(0,0,0,.3); }
+  .gbub { background:#fbf1dc; } .gbub::before { border-right-color:#2e241a; } .gname { display:inline-block; padding:0 8px; border-radius:8px; background:#2e241a; color:#ffe08a; font:400 13px var(--f-disp); margin-bottom:4px; }
+  .gbird img { filter:drop-shadow(0 4px 0 rgba(20,30,40,.35)); } .grow2 .skip { color:#7a6a55; font:400 14px var(--f-disp); }
   .zoomb { display:flex; flex-direction:column; margin-top:26px; border-radius:22px; background:rgba(46,36,26,.82); box-shadow:0 4px 0 rgba(20,30,40,.35); overflow:hidden; }
   .zb { width:44px; height:44px; padding:0; border-radius:0; background:none; box-shadow:none; color:#fbf1dc; font:700 28px/1 var(--f-ui); display:grid; place-items:center; }
   .zb + .zb { border-top:1px solid rgba(251,241,220,.2); } .zb:hover { background:rgba(255,255,255,.1); } .zb:active:not(:disabled) { transform:none; box-shadow:none; background:rgba(255,255,255,.18); } .zb:disabled { filter:none; color:rgba(251,241,220,.3); } body.inshop .zoomb { opacity:0; pointer-events:none; }
@@ -1592,8 +1598,8 @@ function placeAt(x, y) {
     const q = new URLSearchParams(location.search); q.set('board', id); q.delete('world'); location.search = q.toString();
   };
   $('wcard').hidden = false;
-  $('wcard').replaceChildren(el('h2', {}, '새 군도'), el('div', { class: 'note' }, `${placeLabel(lat, lng).text} · 친구 열 명이 섬 하나씩 맡는 새 판을 이 자리에 세워요.`), el('div', { class: 'row' }, input, el('button', { class: 'gold', on: { click: make } }, '세우기')), err,
-    el('button', { class: 'ghost', on: { click: () => { placing = null; $('wcard').hidden = true; drawSpots(); } } }, '그만두기'));
+  $('wcard').replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, '새 군도'), xbtn(() => { placing = null; $('wcard').hidden = true; drawSpots(); })),
+    el('div', { class: 'note' }, placeLabel(lat, lng).text), el('div', { class: 'nb' }, el('span', {}, '섬 10개'), el('span', {}, '친구 10명까지')), el('div', { class: 'row' }, input, el('button', { class: 'gold', on: { click: make } }, '세우기')), err);
   input.focus(); input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') make(); });
 }
 // keep this board's summary on the world map up to date (friends, buildings, who)
