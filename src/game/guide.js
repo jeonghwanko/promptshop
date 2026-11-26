@@ -7,7 +7,7 @@ import { allPlots, takenSet } from './model.js';
 import { save } from './persist.js';
 import { toScreen } from './camera.js';
 
-export const TUT = [
+const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람들이 첫 가게를 기다리고 있어!', btn: '좋아!' },
   { say: '허가증 🎫이 한 장 있어.\n아래 [짓기]를 눌러 봐!', el: '#d-build', on: 'cards' },
   { say: '섬 사람들 부탁이야.\n마음에 드는 카드를 하나 골라!', on: 'card' },
@@ -29,7 +29,7 @@ const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
 const setStep = (field, n) => { S.myDoc.wallet[field] = n; S.dirty = true; save(true); guide(); };
 export function tutInEvent(name) { if (inTutOn() && TUT_IN[inStep()].on === name) setStep('tutIn', inStep() + 1); }
-export const tutStep = () => S.myDoc?.wallet?.tut ?? 99;
+const tutStep = () => S.myDoc?.wallet?.tut ?? 99;
 export const tutOn = () => !!S.mySlot && tutStep() < TUT.length;
 export function tutEvent(name) { if (tutOn() && TUT[tutStep()].on === name) setStep('tut', tutStep() + 1); }
 

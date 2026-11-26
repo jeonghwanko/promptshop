@@ -8,6 +8,7 @@ import { moveWithIsland } from './migrate.js';
 import { ISLES_SEED } from '../../examples/isles-seed.js';
 import { db, me, BOARD, pr } from './state.js';
 import { setBuildMode } from './build.js';
+import { bad } from './rules.js';
 
 
 // ---------- the world: every board (ten islands of one group of friends) is a spot on a map ----------
@@ -127,24 +128,26 @@ export async function openWorld() {
   const here = wboards.find(b => b.id === BOARD) ?? wboards[0];
   setView(here.lng + 180, 90 - here.lat, Math.max(innerWidth / 360, innerHeight / 140) * 1.6);
 }
+export function initWorld() {
+  $('wclose').append(iconEl('close', 22, '')); $('wclose').onclick = closeWorld; $('d-world').onclick = openWorld; $('who').onclick = openWorld;
+  addEventListener('resize', () => { if (!$('world').hidden && wv) setView(wv.cx, wv.cy, wv.k); });
+  $('wnew').onclick = () => { if (!db || !me) return; placing = {}; $('wcard').hidden = true; drawSpots(); };
+  $('wplus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k * 2); $('wminus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k / 2);
+  // pan by dragging, zoom with the wheel or two fingers, around the pointer
+  { const box = $('world'), ptrs = new Map(); let moved = false, pinch = null;
+    box.addEventListener('pointerdown', (e) => { if (e.target.closest('.wcard, .wtop, .wzoom, .spot, .bubble')) return; ptrs.set(e.pointerId, [e.clientX, e.clientY]); moved = false; wdrag = { x: e.clientX, y: e.clientY, cx: wv.cx, cy: wv.cy };
+      if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: wv.k }; } });
+    box.addEventListener('pointermove', (e) => { if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, [e.clientX, e.clientY]);
+      if (pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; moved = true; return setView(wv.cx, wv.cy, pinch.k * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d); }
+      const dx = e.clientX - wdrag.x, dy = e.clientY - wdrag.y; if (Math.hypot(dx, dy) > 5) moved = true; if (moved) setView(wdrag.cx - dx / wv.k, wdrag.cy - dy / wv.k, wv.k); });
+    const up = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
+    box.addEventListener('pointerup', (e) => { up(e); if (!moved && placing && !e.target.closest('.wcard, .wtop, .wzoom')) placeAt(e.clientX, e.clientY); });
+    box.addEventListener('pointercancel', up);
+    box.addEventListener('wheel', (e) => { e.preventDefault(); const [lat, lng] = wv.toLL(e.clientX, e.clientY), k = wv.k * Math.exp(-e.deltaY * .0015);
+      // keep the point under the pointer still
+      setView(lng + 180 - (e.clientX - innerWidth / 2) / Math.max(wv.kMin, Math.min(wv.kMin * 48, k)), 90 - lat - (e.clientY - innerHeight / 2) / Math.max(wv.kMin, Math.min(wv.kMin * 48, k)), k); }, { passive: false }); }
+}
 function closeWorld() { $('world').hidden = true; placing = null; }
-$('wclose').append(iconEl('close', 22, '')); $('wclose').onclick = closeWorld; $('d-world').onclick = openWorld; $('who').onclick = openWorld;
-addEventListener('resize', () => { if (!$('world').hidden && wv) setView(wv.cx, wv.cy, wv.k); });
-$('wnew').onclick = () => { if (!db || !me) return; placing = {}; $('wcard').hidden = true; drawSpots(); };
-$('wplus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k * 2); $('wminus').onclick = () => zoomTo(90 - wv.cy, wv.cx - 180, wv.k / 2);
-// pan by dragging, zoom with the wheel or two fingers, around the pointer
-{ const box = $('world'), ptrs = new Map(); let moved = false, pinch = null;
-  box.addEventListener('pointerdown', (e) => { if (e.target.closest('.wcard, .wtop, .wzoom, .spot, .bubble')) return; ptrs.set(e.pointerId, [e.clientX, e.clientY]); moved = false; wdrag = { x: e.clientX, y: e.clientY, cx: wv.cx, cy: wv.cy };
-    if (ptrs.size === 2) { const [a, b] = [...ptrs.values()]; pinch = { d: Math.hypot(a[0] - b[0], a[1] - b[1]), k: wv.k }; } });
-  box.addEventListener('pointermove', (e) => { if (!ptrs.has(e.pointerId)) return; ptrs.set(e.pointerId, [e.clientX, e.clientY]);
-    if (pinch && ptrs.size === 2) { const [a, b] = [...ptrs.values()]; moved = true; return setView(wv.cx, wv.cy, pinch.k * Math.hypot(a[0] - b[0], a[1] - b[1]) / pinch.d); }
-    const dx = e.clientX - wdrag.x, dy = e.clientY - wdrag.y; if (Math.hypot(dx, dy) > 5) moved = true; if (moved) setView(wdrag.cx - dx / wv.k, wdrag.cy - dy / wv.k, wv.k); });
-  const up = (e) => { ptrs.delete(e.pointerId); if (ptrs.size < 2) pinch = null; };
-  box.addEventListener('pointerup', (e) => { up(e); if (!moved && placing && !e.target.closest('.wcard, .wtop, .wzoom')) placeAt(e.clientX, e.clientY); });
-  box.addEventListener('pointercancel', up);
-  box.addEventListener('wheel', (e) => { e.preventDefault(); const [lat, lng] = wv.toLL(e.clientX, e.clientY), k = wv.k * Math.exp(-e.deltaY * .0015);
-    // keep the point under the pointer still
-    setView(lng + 180 - (e.clientX - innerWidth / 2) / Math.max(wv.kMin, Math.min(wv.kMin * 48, k)), 90 - lat - (e.clientY - innerHeight / 2) / Math.max(wv.kMin, Math.min(wv.kMin * 48, k)), k); }, { passive: false }); }
 function placeAt(x, y) {
   let [lat, lng] = wv.toLL(x, y);
   // never exactly on top of another board: nudge until there is a little room

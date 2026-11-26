@@ -12,13 +12,14 @@ import { initCamera, startZoom, applyZoom, scrollToSlot, toScreen } from './came
 import { drawMap } from './mapview.js';
 import { initHud, toast, celebrate } from './hud.js';
 import { initEconomy, takeEvents, stepBoats, stepFest, festSoon } from './economy.js';
-import { initGuide, guide } from './guide.js';
-import { show, showHome, closePanel, panelOpen } from './panel.js';
+import { initGuide, guide, tutOn, inTutOn, tutEvent } from './guide.js';
+import { show, showHome, showBuilding, closePanel, panelOpen } from './panel.js';
 import { initShop, openShop, closeInside, stepInside } from './shop.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { initInput } from './input.js';
-import { site } from './mapfx.js';
-import { openWorld } from './world.js';
+import { startExtend } from './build.js';
+import { dustSite } from './mapfx.js';
+import { initWorld, openWorld } from './world.js';
 
 const q = new URLSearchParams(location.search);
 setVoxelPalette(q.get('vx') || 'a');   // ?vx=a|b|c to compare palettes
@@ -27,6 +28,9 @@ pixelIcons(document.body);   // emoji in the game's words become pixel icons eve
 
 // what the model asks of the screens
 hooks.celebrate = celebrate;
+hooks.guiding = (inside) => tutOn() || (inside && inTutOn());
+hooks.happened = tutEvent;
+hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };
 hooks.rebuilt = () => {
   if (!S.scrolled) { S.scrolled = true; S.zoom = startZoom(S.mySlot || 1); applyZoom(); setTimeout(() => scrollToSlot(S.mySlot || 1), 50); }
   if (!S.current && !S.mySlot && !panelOpen()) showHome();
@@ -37,7 +41,7 @@ hooks.rebuilt = () => {
     guide(); }
 };
 
-initCamera(); initHud(); initGuide(); initShop(); initInput(); initEconomy();
+initCamera(); initHud(); initGuide(); initShop(); initInput(); initEconomy(); initWorld();
 
 let last = performance.now();
 function frame(t) {
@@ -61,10 +65,10 @@ window.__isles = {
   fest: festSoon,
   get festState() { const f = S.fest; return f && { state: f.state, served: f.served, total: f.total, needs: f.needs }; },
   celebrate,
-  site: (x, z, sz, on) => { if (on) S.building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; S.building = null; } },
+  site: (x, z, sz, on) => { if (on) S.building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { dustSite({ x, z, size: sz }); S.building = null; } },
   get watching() { return S.watching; }, get myDoc() { return S.myDoc; }, get zoom() { return S.zoom; },
   startMove, tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: cancelMove,
-  openShop, close: closeInside, centerOf, S,
+  openShop, close: closeInside, extend: startExtend, centerOf, S,
 };
 // ?world=1 opens the world map at once; ?open=<plot key> opens a building's inside at once (for checks)
 if (q.get('world')) setTimeout(openWorld, 600);

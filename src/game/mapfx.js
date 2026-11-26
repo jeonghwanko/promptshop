@@ -4,6 +4,10 @@ import { PLOT } from '../v2/isles.js';
 
 /** The building site's own state: its sparks and dust, a finished build's dust burst (done), the staked spot before building (pending). */
 export const site = { parts: [], t: 0, done: null, pending: null, dt: 0, step(dt) { this.dt = dt; this.t += dt; } };
+/** Stake a spot (a sign waits for the line) or take the stake away (null). */
+export const stakeSite = (spot) => { site.pending = spot && { x: spot.x, z: spot.z, size: spot.size }; };
+/** A dust burst at a spot: something landed or was finished there. */
+export const dustSite = (spot) => { site.done = { x: spot.x, z: spot.z, size: spot.size, t: 0 }; };
 
 /** Draw the building site's back half (behind the building) or front half; building: the plot being built, or null. */
 export function drawSite(g, pr, half, building) {

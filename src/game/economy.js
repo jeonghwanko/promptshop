@@ -1,16 +1,14 @@
 // The running economy: what the walkers' events pay, boats bringing guests, the festival boat, VIP guests,
 // supplies refilling themselves and furniture coming in by itself.
 import { dockOf } from '../v2/isles.js';
-import { NEED_KEYS, roleOf } from '../v2/townsim.js';
+import { NEED_KEYS } from '../v2/townsim.js';
 import { normalize } from '../v2/spec.js';
 import { shopRates, bestNext, FIX_INFO, nextUp, costOf, LV_MAX, upgradeCost } from '../v2/inside.js';
 import { START_STOCK, RESTOCK, BASE_COIN, vipBonus, FEST, festNeeds, festCapacity, festTip, festStars, festBonus } from './rules.js';
 import { S, me, sim, pops, earned, boats, nextBoat } from './state.js';
-import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, ratesOf, servesOf, islandShops, boatPlan, countGuest, rebuild } from './model.js';
+import { hooks, allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, ratesOf, servesOf, islandShops, boatPlan, countGuest, rebuild } from './model.js';
 import { save } from './persist.js';
 import { toast, celebrate, flyCoin, flyCoinNow, festHud } from './hud.js';
-import { tutOn, inTutOn, tutEvent } from './guide.js';
-import { showBuilding } from './panel.js';
 
 const earn = (n) => { S.myDoc.wallet.coins += n; earned.push([performance.now(), n]); };
 const useStock = (key, n) => { const p = S.myDoc.plots[key]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (n ?? 1)); };
@@ -30,7 +28,7 @@ export function takeEvents() {
     if (mine && e.vip) vip(e, -.4);
     if (mine && e.fest) festServed(e);
     if (mine) flyCoin(e.lot);
-    if (mine) { tutEvent('coin'); countGuest(); earn(e.coins); useStock(e.lot, e.used); S.dirty = true; }
+    if (mine) { hooks.happened('coin'); countGuest(); earn(e.coins); useStock(e.lot, e.used); S.dirty = true; }
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
 }
@@ -53,7 +51,7 @@ export function stepBoats(dt) {
     if (dist <= v) {
       b.x = b.to[0]; b.z = b.to[1];
       if (b.state === 'in') {   // unload: most want what this island sells
-        const d = dockOf(b.slot), wants = [...new Set(b.shops.map(p => roleOf(normalize(p.b.input).type).serves))];
+        const d = dockOf(b.slot), wants = [...new Set(b.shops.map(servesOf))];
         for (let k = 0; k < b.people; k++) sim.spawn(d.road, k * .45, Math.random() < .75 ? wants[k % wants.length] : NEED_KEYS[Math.floor(Math.random() * NEED_KEYS.length)], d.road);
         b.state = 'wait'; b.wait = 4;
       } else b.done = true;
@@ -65,7 +63,7 @@ export function stepBoats(dt) {
 // ---------- the festival boat: now and then a big boat shows on the horizon; a minute later its crowd lands all at once ----------
 // what it brings is shown in advance, so the owner can get the shops ready; how many get served is the score
 /** Who comes: for each kind my shops serve, a little more than those shops can take in the window, plus a few nobody serves. */
-export function festNeedsNow() {
+function festNeedsNow() {
   const can = {};
   for (const p of islandShops(S.mySlot)) { const need = servesOf(p); if (need) can[need] = (can[need] ?? 0) + festCapacity(ratesOf(p)); }
   return festNeeds(can, NEED_KEYS);
@@ -75,7 +73,7 @@ export function stepFest(dt) {
   const t = performance.now() / 1000, { mySlot } = S;
   let fest = S.fest;
   if (!fest) {
-    if (!S.myDoc || !mySlot || tutOn() || t < S.nextFest) return;
+    if (!S.myDoc || !mySlot || hooks.guiding(false) || t < S.nextFest) return;
     const shops = islandShops(mySlot).length; if (!shops) { S.nextFest = t + 30; return; }
     const needs = festNeedsNow(), total = Object.values(needs).reduce((a, b) => a + b, 0), d = dockOf(mySlot), from = [d.out[0] + .5, d.out[1] + .5 + 10 * Math.sign(d.out[1] - d.stop[1] || 1)];
     S.fest = { id: Math.floor(t), state: 'coming', t0: t, arrive: t + FEST.warn, total, needs, tip: festTip(perMinute()), people: [], served: 0, tips: 0, x: from[0], z: from[1], from, to: [d.stop[0] + .5, d.stop[1] + .5], bt: 0 };
@@ -111,7 +109,7 @@ export function festSoon(sec = 3) { S.nextFest = performance.now() / 1000; setTi
 // every 3 s, the next piece (of any shop) that raises income most per coin, keeping enough for the next batch of supplies
 function autoInvest() {
   const myDoc = S.myDoc;
-  if (!myDoc || !myDoc.wallet.autoInvest || tutOn() || inTutOn()) return;
+  if (!myDoc || !myDoc.wallet.autoInvest || hooks.guiding(true)) return;
   const mineServing = allPlots().filter(p => p.owner === me && p.b && servesOf(p));
   let best = null;
   for (const p of mineServing) {
@@ -140,7 +138,7 @@ function autoInvest() {
   myDoc.wallet.coins -= best.cost; mp.own = [...new Set([...ownedOf(best.p), best.i])]; mp.fx = mp.own.length;
   pops.push({ key: best.p.key, text: `${FIX_INFO[best.kind]?.[0] ?? best.kind} -${best.cost}`, mine: true, t: 0 });
   if (w?.key === best.p.key) { w.view.owned.add(best.i); w.view.sim.setOwned(w.view.owned); w.view.redraw(); w.view.sim.price = ratesOf(best.p).price; }
-  rebuild(); save(true); if (S.current?.key === best.p.key && !S.watching) showBuilding(best.p.key);
+  rebuild(); save(true); hooks.plotChanged(best.p.key);
 }
 // VIP guests: a shop with ★3 or more brings one now and then, wearing a crown; they tip 6 coins a star
 const nextVip = new Map();
@@ -165,6 +163,6 @@ function restock() {
     myDoc.wallet.coins -= RESTOCK.coins; p.stock = (p.stock ?? START_STOCK) + RESTOCK.units; any = true;
     pops.push({ key, text: `재료 +${RESTOCK.units} · -${RESTOCK.coins}`, mine: true, t: 0 });
   }
-  if (any) { rebuild(); save(true); if (S.current?.key && myDoc.plots[S.current.key]) showBuilding(S.current.key); }
+  if (any) { rebuild(); save(true); if (S.current?.key && myDoc.plots[S.current.key]) hooks.plotChanged(S.current.key); }
 }
 export function initEconomy() { setInterval(autoInvest, 3000); setInterval(vipGuests, 1000); setInterval(restock, 1000); }

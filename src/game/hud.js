@@ -50,7 +50,7 @@ export function festHud() {
   else { const lost = fest.people.filter(p => p.mood === 2 && !p.festServed).length;
     b.replaceChildren(ic, el('span', { class: 'cd' }, `${fest.served}/${fest.total}`), el('span', { class: 'bar' }, Object.assign(el('i'), { style: `width:${fest.served / fest.total * 100}%` }), Object.assign(el('i', { class: 'lost' }), { style: `width:${lost / fest.total * 100}%` }))); }
 }
-export function dockState() { const auto = !!S.myDoc && !!S.myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !S.myDoc; }
+function dockState() { const auto = !!S.myDoc && !!S.myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !S.myDoc; }
 
 let shownCoins = null, shownPermits = null;
 export function hud() {

@@ -61,6 +61,10 @@ await ev(`document.getElementById('d-home').click()`); await sleep(500); check('
 await ev(`document.querySelector('#panel .xb').click()`); await sleep(300);
 await ev(`document.getElementById('d-build').click()`); await sleep(800); check('request cards', (await ev(`document.querySelectorAll('#cards .rcard').length`)) >= 2); await ev(`document.querySelector('#cards .ghost').click()`); await sleep(300);
 await ev(`document.getElementById('d-world').click()`); await sleep(2000); check('world spots', (await ev(`document.querySelectorAll('#spots .spot, #spots .bubble').length`)) > 0); await shot('world');
+// a new archipelago: a bad name is refused before anything is saved
+await ev(`document.getElementById('wnew').click()`); await sleep(300); await click(700, 450); await sleep(500);
+await ev(`(()=>{ const i = document.querySelector('#wcard input'); i.value = '시발'; i.dispatchEvent(new KeyboardEvent('keydown', { key: 'Enter' })); })()`); await sleep(300);
+check('new board name checked', (await ev(`document.querySelector('#wcard .err')?.textContent ?? ''`)).includes('쓸 수 없어요'));
 await ev(`document.getElementById('wclose').click()`); await sleep(500);
 // moving a building: it lands on the first free spot that fits
 const moved = await ev(`(()=>{ const k = Object.keys(__isles.myDoc.plots)[0], p = __isles.myDoc.plots[k]; __isles.startMove(k);

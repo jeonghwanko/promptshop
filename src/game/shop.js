@@ -21,7 +21,7 @@ import { startMove } from './move.js';
 
 export function openShop(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
-  if (S.watching) closeInside(true); setBuildMode(false); closePanel();
+  if (S.watching) closeInside(); setBuildMode(false); closePanel();
   const box = $('mapbox'); S.camBefore = { zoom: S.zoom, left: box.scrollLeft, top: box.scrollTop };   // put the camera back where it was when the shop closes
   if (S.zoom !== 1) { S.zoom = 1; applyZoom(); }
   const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2);

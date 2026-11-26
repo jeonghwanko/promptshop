@@ -16,7 +16,7 @@ import { refundOf } from './migrate.js';
 import { $, el, xbtn } from './ui.js';
 import { S, me, sample, pr, sim, now } from './state.js';
 import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild } from './model.js';
-import { site } from './mapfx.js';
+import { stakeSite, dustSite } from './mapfx.js';
 import { save } from './persist.js';
 import { scrollToSlot, toScreen } from './camera.js';
 import { toast, celebrate } from './hud.js';
@@ -91,9 +91,9 @@ export function startBuild(x, z, door) {
   const ideas = req ? req.ex : SUGGEST[sz], input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + ideas[0] });
   const go = el('button', {}, '여기에 짓기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
   // the spot is staked: dust where it lands, a stake with a sign, and the line is written on a signboard right above it
-  closePanel(); S.current = { kind: 'build' }; site.done = { x, z, size: sz, t: 0 }; site.pending = { x, z, size: sz };
+  closePanel(); S.current = { kind: 'build' }; dustSite({ x, z, size: sz }); stakeSite({ x, z, size: sz });
   document.querySelector('.signcard')?.remove();
-  const cancel = () => { if (S.building) return; card0.remove(); site.pending = null; S.current = null; };
+  const cancel = () => { if (S.building) return; card0.remove(); stakeSite(null); S.current = null; };
   const card0 = el('div', { class: 'signcard', id: 'signcard', on: { pointerdown: (e) => e.stopPropagation(), click: (e) => e.stopPropagation() } },
     el('div', { class: 'row' }, el('b', { class: 'st' }, req ? `${req.icon} ${req.sub}` : '✏️ 마음대로'), el('small', {}, `${sz} ${n}×${n}`), xbtn(cancel)),
     el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t))), err, log);
@@ -112,7 +112,7 @@ export function startBuild(x, z, door) {
       if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note(STEP_KO[s.step] ?? s.step, s.note || s.type || ''); };
     try {
       const rd = lineReader(apply, () => broken++);
-      await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
+      await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
       const c = check(b.input, { broken, line }); for (const f of c.fixed) note('수선', f);
       const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
       if (problems.length) { note('다시', `남은 문제 ${problems.length}개`); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
@@ -120,19 +120,22 @@ export function startBuild(x, z, door) {
       if (!b.input) throw { code: 'nothing' };
       fitToLot(b.input, n); const s = normalize(b.input);
       if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; S.building = null; go.disabled = false; return; }
-      const key = `${mySlot}_${x}_${z}`;
+      // the world may have moved on while Claude wrote: the permit spent elsewhere, the island full
+      if (G().permits <= 0) { err.textContent = '허가증이 없어요.'; S.building = null; card0.classList.remove('busy'); go.disabled = false; return; }
+      if (Object.keys(S.myDoc.plots).length >= maxPlots()) { err.textContent = `섬에는 ${maxPlots()}채까지 지을 수 있어요.`; S.building = null; card0.classList.remove('busy'); go.disabled = false; return; }
+      const key = `${S.mySlot}_${x}_${z}`;
       G().permits--;
       const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
       S.myDoc.plots = { ...S.myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, lay: LAYOUT, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
-      site.done = { x, z, size: sz, t: 0 }; S.building = null;
+      dustSite({ x, z, size: sz }); S.building = null;
       // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
       const role = roleOf(s.type, s.levels), answered = need && role.serves === need;
-      if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
+      if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
       else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), 400);
       S.card = null; tutEvent('built');
       rebuild(); await save(true);
       note('완성', `${s.name || TYPE_KO[s.type]} · ${s.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);
-      site.pending = null; setTimeout(() => { card0.remove(); if (S.current?.kind === 'build') S.current = null; }, 1800);
+      stakeSite(null); setTimeout(() => { card0.remove(); if (S.current?.kind === 'build') S.current = null; }, 1800);
     } catch (e) { S.building = null; card0.classList.remove('busy'); err.textContent = failText(e, '짓지 못했어요. 다시 눌러 주세요.'); }
     go.disabled = false;
   }
@@ -167,16 +170,20 @@ export function startExtend(key, { inShop = false } = {}) {
       const rd = lineReader((st) => { steps.push(st); wv?.construct(Math.min(.9, .15 + steps.length * .1)); note(STEP_KO[st.step] ?? st.step, st.note || st.name || ''); });
       await sample(extendPrompt(line, p.b.input), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd.push(delta) }); rd.end();
       const next = applyExtension(p.b.input, steps); if (!next) throw { code: 'nothing' };
+      // the shop as it is now (it may have moved, or the permit gone elsewhere, while Claude wrote)
+      const p1 = allPlots().find(x => x.key === key), mp = S.myDoc.plots[key];
+      if (!p1?.b || !mp) throw { code: 'gone' };
+      if (G().permits <= 0) throw { code: 'no_permit' };
       // keep what was bought: each fixture (and its level) goes to the nearest of its kind on its floor; ones with no place are refunded
-      const newFx = buildSection(normalize(next)).fixtures, r = remapFixtures(fixturesOf(p), newFx, [...ownedOf(p)], levelsOf(p)), own = new Set(r.own), refund = refundOf(r.lost);
+      const newFx = buildSection(normalize(next)).fixtures, r = remapFixtures(fixturesOf(p1), newFx, [...ownedOf(p1)], levelsOf(p1)), own = new Set(r.own), refund = refundOf(r.lost);
+      mp.b = { ...mp.b, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size; mp.lv = r.lv; mp.lay = LAYOUT;
       if (refund) { S.myDoc.wallet.coins += refund; note('정리', `자리가 바뀐 가구 값 ${refund}동전을 돌려받았어요`); }
-      const mp = S.myDoc.plots[key]; mp.b = { ...mp.b, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size; mp.lv = r.lv; mp.lay = LAYOUT;
       wv?.construct(1); G().permits--; rebuild(); await save(true);
       const nn = normalize(next);
       note('완공', `${nn.levels}층 · 새 가구 ${newFx.length - own.size}개`);
       celebrate('🏗️ 증축 완공!', `${nn.name || TYPE_KO[nn.type]} ${nn.levels}층 · 새 자리를 채워 보세요`);
       setTimeout(() => { closePanel(); if (S.watching) closeInside(); openShop(key); setTimeout(() => S.watching?.view?.setFloor(nn.levels - 1), 400); }, 900);   // back in the shop, on the new floor
-    } catch (e) { wv?.construct(null); err.textContent = failText(e, '증축하지 못했어요. 다시 눌러 주세요.'); go.disabled = false; }
+    } catch (e) { wv?.construct(null); err.textContent = e?.code === 'gone' ? '건물이 옮겨졌어요. 가게를 다시 열어 주세요.' : e?.code === 'no_permit' ? '허가증이 없어요.' : failText(e, '증축하지 못했어요. 다시 눌러 주세요.'); go.disabled = false; }
   }
   go.onclick = run; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 }

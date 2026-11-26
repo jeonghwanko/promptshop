@@ -10,7 +10,16 @@ import { START_STOCK, BASE_COIN, maxPlots as maxPlotsOf, LEVELS, levelOf, payPer
 import { S, me, pr, sim } from './state.js';
 
 /** What the screens do when the model says something: set once by main.js, so this file needs no screen. */
-export const hooks = { celebrate: (title, sub) => {}, rebuilt: () => {} };
+export const hooks = {
+  celebrate: (title, sub) => {},
+  rebuilt: () => {},
+  /** The first-visit guide is running (with `inside`: or the inside-a-shop guide). Nothing pops up on its own then. */
+  guiding: (inside) => false,
+  /** Something the guide waits for happened ('coin', …). */
+  happened: (name) => {},
+  /** A plot of mine changed outside its screen (supplies, furniture coming in by itself). */
+  plotChanged: (key) => {},
+};
 
 export const nameOf = (uid) => uid?.startsWith('seed') ? (S.docs.get(uid)?.name ?? '예시 친구') : uid === me ? '나' : (S.names[uid] || '친구');
 /** How many buildings my island may have now. */
@@ -40,7 +49,7 @@ export function takenSet(...skip) { const t = new Set(); for (const p of allPlot
 /** The tiles of an island right now. */
 export function tilesOf(slot) { const [cx, cz] = centerOf(slot), out = []; for (let z = cz - 14; z <= cz + 14; z++) for (let x = cx - 14; x <= cx + 14; x++) if (slotAt(x, z) === slot) out.push([x, z]); return out; }
 /** The open shops of an island that still have stock. */
-export function islandShops(slot) { return allPlots().filter(p => p.slot === slot && p.b && roleOf(normalize(p.b.input).type).serves && (p.owner === me ? (S.myDoc.plots[p.key]?.stock ?? START_STOCK) : (p.stock ?? START_STOCK)) > 0); }
+export function islandShops(slot) { return allPlots().filter(p => p.slot === slot && p.b && servesOf(p) && (p.owner === me ? (S.myDoc.plots[p.key]?.stock ?? START_STOCK) : (p.stock ?? START_STOCK)) > 0); }
 /** How often a boat comes to an island and how many it brings. */
 export function boatPlan(slot) { const shops = islandShops(slot); return boatPlanOf(shops.length, shops.reduce((t, p) => t + ownedOf(p).size, 0)); }
 

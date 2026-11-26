@@ -26,13 +26,14 @@ Each layer may use the layers below it, never the ones above.
 
 - A number that changes how the game plays goes in `rules.js`.
 - A function that draws gets the canvas and what to draw as arguments; it does not read the game state.
-- State that changes lives on `S` in `state.js`, never in a module's own `let`. A module may keep its own private bookkeeping (a timer, a cache) when no other module reads it.
+- State that changes lives on `S` in `state.js`, never in a module's own `let`. A module may keep its own private bookkeeping (a timer, a cache, an effect's particles) when other modules reach it only through its functions (for example `stakeSite` and `dustSite` in `mapfx.js`).
 - Screen modules import each other's functions directly. They do nothing when they load: listeners and timers start in their `init…()`, which only `main.js` calls. So the order in which the modules load does not matter.
-- `model.js`, `persist.js` and the layers under them never import a screen. When the model needs a screen (a celebration, the first view after loading), it calls `hooks`, which `main.js` fills.
-- A function that runs after an `await` reads `S.myDoc` again: a newer copy can arrive from another tab in the meantime.
+- `model.js`, `persist.js`, `economy.js` and the layers under them never import a screen other than the HUD. When they need one (a celebration, the first view after loading, the guide, a panel to refresh), they call `hooks` in `model.js`, which `main.js` fills.
+- A function that runs after an `await` reads `S` again and checks again what it checked before (a permit, the plot limit, that the building is still there): a newer copy can arrive from another tab, and the player can do other things while Claude writes.
+- Each save carries `rev` (one more each time) and `by` (the tab that saved). A page takes the stored copy when its `rev` is higher, or equal but saved by another tab, so two tabs on one island end up with the same copy. Edits made in both tabs within the same few seconds are not merged: the last save wins.
 - Saved data never changes shape silently: a change of meaning gets a version on the plot (`lay`) and a step in `migrate.js`.
 
 ## Checks
 
-- `node scripts/check-isles.mjs` (with `node scripts/dev.mjs 5300` running): copies the dev island to a throwaway board and drives the main paths in headless Chrome: guide, shop, buying, floors, zoom, long press, moving a building, festival, panel, cards, world map, widening land, furniture coming in by itself. Every line must say PASS.
+- `node scripts/check-isles.mjs` (with `node scripts/dev.mjs 5300` running): copies the dev island to a throwaway board and drives the main paths in headless Chrome: guide, shop, buying, floors, zoom, long press, moving a building, festival, panel, cards, world map, a refused board name, widening land, furniture coming in by itself. Every line must say PASS.
 - `tests/render-hash.html`: a hash of every building, cut-away and voxel button. Use it before and after a change to the renderer that should change no pixel.
