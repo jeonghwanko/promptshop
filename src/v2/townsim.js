@@ -22,6 +22,8 @@ const SERVES = {
   hotel: 'rest', motel: 'rest', guesthouse: 'rest', temple: 'rest', church: 'rest', mosque: 'rest',
 };
 const SOURCE = { house: 2, hanok_house: 2, cabin: 1, villa: 2, sangga: 2, apartment: 0, hotel: 0, motel: 3, guesthouse: 2, train_station: 8, bus_terminal: 6, school: 4, university: 5, kindergarten: 2, town_hall: 3, factory: 4, warehouse: 2, workshop: 1, hospital: 3, police: 1, fire_station: 1 };
+/** Building types that serve a want. */
+export const typesFor = (need) => Object.keys(SERVES).filter(t => SERVES[t] === need);
 export function roleOf(type, levels = 1) {
   const serves = SERVES[type] ?? null;
   let source = SOURCE[type] ?? 0;

@@ -56,6 +56,21 @@
   .wzoom { position:absolute; z-index:2; right:12px; top:70px; display:flex; flex-direction:column; gap:6px; } .wzoom button { width:40px; height:40px; padding:0; font:700 20px var(--f-ui); background:#fbf6ec; color:var(--ink); box-shadow:0 3px 0 rgba(0,0,0,.3); }
   .wlist { display:flex; flex-direction:column; gap:4px; max-height:40vh; overflow:auto; } .wrow { display:flex; justify-content:space-between; gap:8px; background:#fbf6ec; color:var(--ink); box-shadow:none; font-weight:400; padding:7px 10px; } .wrow small { color:var(--dim); } .wrow.mine { background:#f6e2b0; }
   .world { touch-action:none; }
+  .cards { position:fixed; inset:0; z-index:25; background:rgba(20,30,40,.55); display:flex; flex-direction:column; align-items:center; justify-content:center; gap:14px; padding:16px; }
+  .cards[hidden] { display:none; } .cards h2 { margin:0; color:#fff; font:400 26px var(--f-disp); text-shadow:0 2px 0 rgba(0,0,0,.4); }
+  .cards .row3 { display:flex; gap:12px; flex-wrap:wrap; justify-content:center; }
+  .rcard { width:200px; min-height:230px; background:#fbf6ec; color:var(--ink); border-radius:18px; padding:16px 14px; display:flex; flex-direction:column; align-items:center; gap:6px; text-align:center; box-shadow:0 6px 0 rgba(0,0,0,.3); font-weight:400; animation:deal .35s cubic-bezier(.2,1.4,.4,1) backwards; }
+  .rcard:hover { transform:translateY(-6px) rotate(-1deg); } .rcard .big { font-size:46px; line-height:1.1; } .rcard b { font:400 19px var(--f-disp); } .rcard small { color:var(--dim); font-size:12px; }
+  .rcard .need { font-size:12px; color:var(--hot); font-weight:700; } .rcard .prize { margin-top:auto; background:var(--gold); color:#3a2a00; border-radius:999px; padding:3px 10px; font:700 12px var(--f-ui); }
+  .rcard.free { background:#eef3f2; } .rcard.free .prize { background:#d4e4e1; color:var(--accent); }
+  @keyframes deal { from { opacity:0; transform:translateY(40px) rotate(6deg) scale(.8); } }
+  .celebrate { position:fixed; z-index:40; left:50%; top:38%; transform:translate(-50%, -50%); background:var(--gold); color:#3a2a00; border-radius:20px; padding:14px 26px; text-align:center; box-shadow:0 8px 0 #9a6f14, 0 0 0 9999px rgba(0,0,0,.12); pointer-events:none; animation:pop .45s cubic-bezier(.2,1.6,.4,1); }
+  .celebrate b { display:block; font:400 30px var(--f-disp); } .celebrate span { font-size:14px; font-weight:700; }
+  @keyframes pop { from { transform:translate(-50%, -50%) scale(.4); opacity:0; } }
+  .dock button .badge { position:absolute; margin:-6px 0 0 30px; background:var(--hot); color:#fff; border-radius:999px; font:900 11px var(--f-ui); padding:1px 6px; }
+  .dock button.ready { animation:nudge 1.6s infinite; } @keyframes nudge { 0%, 70%, 100% { transform:none; } 80% { transform:translateY(-4px); } 90% { transform:translateY(0); } }
+  .gauge { display:inline-block; width:70px; height:8px; background:#e2d6bd; border-radius:999px; overflow:hidden; vertical-align:middle; margin-left:4px; } .gauge i { display:block; height:100%; background:var(--accent); border-radius:999px; }
+  .lv { font:700 12px var(--f-ui); color:#fff; background:var(--accent); border-radius:999px; padding:1px 8px; margin-right:6px; }
   @media (max-width:760px) { .panel { left:8px; right:8px; top:auto; width:auto; max-height:52vh; } .wants { display:none; } }
   .panel h2 { margin:0; font:400 21px var(--f-disp); } .panel h3 { margin:4px 0 0; font:400 16px var(--f-disp); }
   .row { display:flex; gap:8px; flex-wrap:wrap; align-items:center; }
@@ -96,6 +111,7 @@
   <div class="wtop"><div class="pill">세계</div><div class="pill" id="wcount"></div><span class="grow"></span><button class="gold" id="wnew">새 군도 만들기</button><button class="ghost" id="wclose" style="background:#fbf6ec">돌아가기</button></div>
   <div class="wzoom"><button id="wplus">＋</button><button id="wminus">－</button></div><div class="wcard" id="wcard" hidden></div></div>
 <div class="toast" id="toast" hidden></div>
+<div class="cards" id="cards" hidden></div>
 <nav class="dock" id="dock">
   <div class="sizes" id="sizes" hidden></div>
   <button id="d-build"><span class="ic">🏗️</span>짓기</button>
@@ -114,7 +130,7 @@ import { normalize } from './src/v2/spec.js';
 import { TYPE_KO } from './src/v2/catalog.js';
 import { SLOTS, WORLD, centerOf, neighbours, bridgeId, makeIsles, placePlot, PLOT, islesProjection, drawIsles, slotAt, dockOf } from './src/v2/isles.js';
 import { buildSection } from './src/v2/interior.js';
-import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
+import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson, typesFor } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
 import { drawLand, countryAt, placeLabel } from './src/v2/geo.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
@@ -126,7 +142,25 @@ const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ??
 const [db, user, sample] = await Promise.all([use('db'), use('user'), use('sample')]);
 const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
 const COST = { S: 10, M: 25, L: 60 }, BRIDGE = 30, MAX_PLOTS = 8, START_COINS = 30, START_STOCK = 15, RESTOCK = { units: 10, coins: 5 };
-const BASE_COIN = { S: 2, M: 3, L: 5 };   // what a guest pays at a shop of this size, before decoration
+const BASE_COIN = { S: 2, M: 3, L: 5 };
+// ---------- growth: guests served fill the permit gauge; a permit builds one building; served guests also raise the island's level ----------
+const LEVELS = [{ at: 0, name: '마을', size: 'S' }, { at: 40, name: '동네', size: 'M' }, { at: 150, name: '거리', size: 'L' }, { at: 400, name: '번화가', size: 'L' }];
+const REQ = {
+  food: { ko: '배고파요', sub: '식당 · 포장마차', icon: '🍜', en: 'a place to eat', ex: ['할머니 국밥집', '골목 포장마차', '바다 보이는 횟집'] },
+  cafe: { ko: '커피 한잔 하고 싶어요', sub: '카페 · 빵집 · 노점', icon: '☕', en: 'coffee and snacks', ex: ['창가 자리 많은 카페', '아침마다 줄 서는 빵집', '붕어빵 노점'] },
+  shop: { ko: '살 게 있어요', sub: '가게 · 볼일', icon: '🛍️', en: 'a shop or an errand', ex: ['24시간 편의점', '작은 약국', '바닷가 우체국'] },
+  fun: { ko: '놀 데가 없어요', sub: '놀거리 · 구경거리', icon: '🎳', en: 'something fun to do', ex: ['레트로 볼링장', '작은 영화관', '등대 전망대'] },
+  rest: { ko: '쉴 곳이 필요해요', sub: '숙소 · 쉼터', icon: '🛏️', en: 'a place to stay and rest', ex: ['바닷가 게스트하우스', '작은 모텔', '조용한 산사'] },
+};
+const REQ_BONUS = 15;
+function G() { const w = myDoc.wallet; w.permits ??= 1; w.served ??= 0; w.nextAt ??= 15; w.prevAt ??= 0; w.earnedP ??= 0; return w; }
+const levelOf = (served) => LEVELS.reduce((i, l, k) => served >= l.at ? k : i, 0);
+const sizesOpen = (lv) => ['S', 'M', 'L'].slice(0, Math.min(3, lv + 1));
+function countGuest() {
+  const w = G(), lv0 = levelOf(w.served); w.served++; dirty = true;
+  if (w.served >= w.nextAt) { w.permits++; w.earnedP++; w.prevAt = w.served; w.nextAt = w.served + 15 + 5 * w.earnedP; celebrate('🎫 허가증 한 장!', '짓기를 눌러 새 건물을 올려요'); }
+  const lv = levelOf(w.served); if (lv > lv0) setTimeout(() => celebrate(`${LEVELS[lv].name}(으)로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : '섬이 번화가가 됐어요'), 1600);
+}   // what a guest pays at a shop of this size, before decoration
 const BAD = ['시발', '씨발', '병신', '좆', '개새', 'fuck', 'shit', 'bitch', 'nigger', 'nazi', '섹스', 'sex'];
 const bad = (t) => BAD.some(w => (t ?? '').toLowerCase().includes(w));
 const now = () => Date.now();
@@ -208,10 +242,10 @@ function frame(t) {
     const mine = !!me && e.owner === me;
     if (e.kind === 'empty') { pops.push({ key: e.lot, text: '재료 없음', mine, bad: true, t: 0 }); continue; }
     if (e.kind === 'enter') {   // the guest walks into the shop we are looking inside, and pays at the table there
-      if (mine) { const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
+      if (mine) { countGuest(); const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
       if (watching?.key === e.lot) watching.view.sim.spawn(); continue;
     }
-    if (mine) { earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
+    if (mine) { countGuest(); earned.push([performance.now(), e.coins]); myDoc.wallet.coins += e.coins; const p = myDoc.plots[e.lot]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (e.used ?? 1)); dirty = true; }
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
@@ -295,7 +329,11 @@ function hud() {
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
   $('rate').textContent = myDoc ? `+${earned.reduce((a, e) => a + e[1], 0)}/분` : '';
   const mine = mySlot ? allPlots().filter(p => p.slot === mySlot && p.b) : [];
-  $('who').replaceChildren(boardName ? boardName + ' · ' : '', mySlot ? `${mySlot}번 섬` : '섬 고르기', mySlot ? el('small', {}, `건물 ${mine.length} · 가구 ${mine.reduce((a, p) => a + ownedOf(p).size, 0)}`) : '');
+  if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), pct = Math.min(100, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt) * 100);
+    $('who').replaceChildren(el('span', { class: 'lv' }, `Lv.${lv + 1} ${LEVELS[lv].name}`), (boardName ? boardName + ' · ' : '') + `${mySlot}번 섬`,
+      el('small', {}, `🎫 ${w.permits}`, el('span', { class: 'gauge', title: `다음 허가증까지 손님 ${w.nextAt - w.served}명` }, Object.assign(el('i'), { style: `width:${pct}%` })), ` ${w.nextAt - w.served}명`));
+    const bt = $('d-build'); bt.querySelector('.badge')?.remove(); if (w.permits > 0) bt.prepend(el('span', { class: 'badge' }, String(w.permits))); bt.classList.toggle('ready', w.permits > 0 && !buildMode);
+  } else $('who').replaceChildren(boardName || '한 줄 군도', ' · 섬 고르기');
   if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot);
     $('boat').textContent = !bp.shops ? '⛵ 가게를 지으면 배가 와요' : docked ? `⛵ 배가 들어와요 · ${docked.people}명` : `⛵ 다음 배 ${Math.max(0, Math.ceil(nb))}초 · ${bp.people}명`; $('boat').hidden = false; }
   else $('boat').hidden = true;
@@ -365,13 +403,42 @@ let dragged = false;
   addEventListener('pointerup', () => { down = null; box.classList.remove('drag'); setTimeout(() => { dragged = false; }, 0); }); }
 let toastT = 0;
 function toast(text, ms) { const t = $('toast'); t.textContent = text; t.hidden = !text; clearTimeout(toastT); if (ms) toastT = setTimeout(() => { t.hidden = !buildMode; if (buildMode) t.textContent = buildHint(); }, ms); }
-const buildHint = () => `${size} ${PLOT[size]}×${PLOT[size]} · ${COST[size]}동전 — 내 섬 땅을 누르세요 (초록이면 지을 수 있어요)`;
+const buildHint = () => `${card?.need ? REQ[card.need].icon + ' ' + REQ[card.need].sub : '✏️ 마음대로'} · ${size} 크기 — 내 섬 땅을 누르세요 (초록이면 지을 수 있어요)`;
 function setBuildMode(on) {
   buildMode = on && !!mySlot; $('d-build').classList.toggle('on', buildMode); $('sizes').hidden = !buildMode; hover = null;
-  if (buildMode) { $('sizes').replaceChildren(...Object.keys(PLOT).map(k => el('button', { class: k === size ? 'on' : '', on: { click: () => { size = k; setBuildMode(true); } } }, `${k} · ${COST[k]}`))); toast(buildHint()); scrollToSlot(mySlot); }
+  if (buildMode) { const lv = levelOf(G().served), open = sizesOpen(lv); if (!open.includes(size)) size = 'S';
+    $('sizes').replaceChildren(...Object.keys(PLOT).map(k => { const ok = open.includes(k), b = el('button', { class: k === size ? 'on' : '', on: { click: () => { if (!ok) return toast(`${k} 크기는 ${LEVELS.find(l => l.size === k).name}부터 지을 수 있어요`, 1800); size = k; setBuildMode(true); } } }, ok ? k : `🔒 ${k}`); return b; })); toast(buildHint()); scrollToSlot(mySlot); }
   else toast('');
 }
-$('d-build').onclick = () => { if (!mySlot) return showHome(); setBuildMode(!buildMode); };
+$('d-build').onclick = () => { if (!mySlot) return showHome(); if (buildMode) return setBuildMode(false); openCards(); };
+// ---------- request cards: what the island wants, dealt when there is a permit to spend ----------
+let card = null;
+function openCards() {
+  const w = G();
+  if (w.permits <= 0) return toast(`손님 ${w.nextAt - w.served}명을 더 받으면 허가증이 나와요 🎫`, 2400);
+  if (Object.keys(myDoc.plots).length >= MAX_PLOTS) return toast(`섬에는 ${MAX_PLOTS}채까지 지을 수 있어요`, 2000);
+  // the two wants that most need a place: people waiting for it, and more so when my island has none
+  const dm = sim.demand(), have = new Set(allPlots().filter(p => p.owner === me && p.b).map(p => roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves));
+  const score = (k) => dm[k].waiting + (have.has(k) ? 0 : 4) + Math.random() * 2;
+  const picks = [...NEED_KEYS].sort((a, b) => score(b) - score(a)).slice(0, 2);
+  const box = $('cards');
+  const deal = (need, i) => {
+    const r = need ? REQ[need] : null, wait = need ? dm[need].waiting : 0;
+    const c = el('button', { class: 'rcard' + (need ? '' : ' free'), on: { click: () => { card = { need }; box.hidden = true; setBuildMode(true); } } },
+      el('span', { class: 'big' }, r ? r.icon : '✏️'), el('b', {}, r ? `“${r.ko}”` : '마음대로'), el('small', {}, r ? r.sub : '무엇이든 한 줄로'),
+      r ? el('span', { class: 'need' }, wait ? `손님 ${wait}명이 기다려요` : have.has(need) ? '더 있으면 좋겠대요' : '섬에 아직 없어요') : null,
+      el('span', { class: 'prize' }, r ? `들어주면 +${REQ_BONUS}동전 · 손님 무리` : '보너스 없음'));
+    c.style.animationDelay = i * 90 + 'ms'; return c;
+  };
+  box.replaceChildren(el('h2', {}, `🎫 ${w.permits}장 — 무엇을 지을까요?`), el('div', { class: 'row3' }, ...picks.map(deal), deal(null, 2)),
+    el('button', { class: 'ghost', style: 'background:#fbf6ec', on: { click: () => { box.hidden = true; } } }, '나중에'));
+  box.hidden = false;
+}
+let celebT = 0;
+function celebrate(title, sub) {
+  document.querySelector('.celebrate')?.remove(); clearTimeout(celebT);
+  const c = el('div', { class: 'celebrate' }, el('b', {}, title), el('span', {}, sub)); document.body.append(c); celebT = setTimeout(() => c.remove(), 2600);
+}
 $('d-home').onclick = () => { setBuildMode(false); panel.hidden || current ? (current ? showHome() : closePanel()) : showHome(); };
 $('d-auto').onclick = () => { if (!myDoc) return; myDoc.wallet.manual = !myDoc.wallet.manual; save(true); dockState(); toast(myDoc.wallet.manual ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
 function dockState() { const auto = !!myDoc && !myDoc.wallet.manual; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = auto ? '자동 켬' : '자동 끔'; }
@@ -411,9 +478,8 @@ function showHome(msg) {
   }
   const mine = Object.keys(myDoc.plots).length;
   show(el('h2', {}, `${mySlot}번 섬 · 내 섬`),
-    el('p', { class: 'note' }, '크기를 고르고 내 섬 땅 위에서 틀을 움직이세요. 초록이면 그 자리에 한 줄로 지을 수 있어요(길에 닿아야 해요).'),
-    el('p', { class: 'note' }, '가게를 지으면 배가 손님을 싣고 와요. 손님이 내는 돈으로 재료를 사고, 가구를 들이고, 더 지으세요.'),
-    el('div', { class: 'chips' }, Object.keys(PLOT).map(s => el('button', { class: s === size ? 'on' : '', on: { click: () => { size = s; showHome(); } } }, `${s} ${PLOT[s]}×${PLOT[s]} · ${COST[s]}동전`))),
+    (() => { const w = G(), lv = levelOf(w.served), nx = LEVELS[lv + 1]; return el('div', { class: 'card' }, el('span', {}, `Lv.${lv + 1} ${LEVELS[lv].name} · 받은 손님 ${w.served}명`, el('div', { class: 'note' }, nx ? `손님 ${nx.at - w.served}명 더 받으면 ${nx.name} — ${nx.size !== LEVELS[lv].size ? nx.size + ' 크기가 열려요' : '번화가!'}` : '최고 단계예요')),
+      el('span', {}, `🎫 ${w.permits}`, el('div', { class: 'note' }, `다음까지 ${w.nextAt - w.served}명`))); })(),
     el('div', { class: 'note' }, `내 건물 ${mine}/${MAX_PLOTS}`), boatCard(), el('div', { class: 'card' }, el('span', {}, myDoc.wallet.manual ? '가구는 직접 들여요' : '가구가 자동으로 들어와요', el('div', { class: 'note' }, '재료 값은 남겨 두고, 수입을 가장 많이 올리는 가구부터')),
       el('button', { class: 'ghost', on: { click: () => { myDoc.wallet.manual = !myDoc.wallet.manual; save(true); showHome(); } } }, myDoc.wallet.manual ? '자동으로' : '직접 하기')),
     msg ? el('div', { class: 'err' }, msg) : null,
@@ -538,13 +604,13 @@ function fitToLot(input, n) {
 const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어빵 노점'], M: ['동네 빵집', '할머니 분식집', '네온사인 PC방'], L: ['12층 아파트', '레트로 볼링장', '작은 기차역'] };
 function startBuild(x, z, door) {
   if (Object.keys(myDoc.plots).length >= MAX_PLOTS) return showHome(`내 섬에는 ${MAX_PLOTS}채까지 지을 수 있어요.`);
-  if (myDoc.wallet.coins < COST[size]) return showHome(`${size} 건물은 ${COST[size]} 동전이 필요해요. 지금 ${myDoc.wallet.coins}개.`);
-  const n = PLOT[size], sz = size; current = { kind: 'build' };
+  if (G().permits <= 0) return toast('허가증이 없어요', 1800);
+  const n = PLOT[size], sz = size, req = card?.need ? REQ[card.need] : null, need = card?.need ?? null; current = { kind: 'build' };
   const dm = sim.demand(), lack = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => NEEDS[k].ko);
-  const input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + SUGGEST[sz][0] });
+  const ideas = req ? req.ex : SUGGEST[sz], input = el('input', { type: 'text', id: 'line', maxlength: '80', placeholder: '예: ' + ideas[0] });
   const go = el('button', {}, '여기에 짓기'), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
-  show(el('h2', {}, `내 섬에 짓기 · ${sz} ${n}×${n}`), lack.length ? el('p', { class: 'note' }, `군도에 없는 것: ${lack.join(', ')}`) : null,
-    el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, SUGGEST[sz].map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t))), err, log,
+  show(el('h2', {}, req ? `${req.icon} ${req.sub}` : '✏️ 마음대로 짓기'), el('p', { class: 'note' }, req ? `섬 사람들: “${req.ko}” — 이 요청에 맞는 곳을 한 줄로 써 주세요. ${sz} ${n}×${n}` : `무엇이든 한 줄로. ${sz} ${n}×${n}`),
+    el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t))), err, log,
     el('button', { class: 'ghost', on: { click: () => { building = null; showHome(); } } }, '취소'));
   const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
   async function build() {
@@ -560,7 +626,7 @@ function startBuild(x, z, door) {
       if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note({ building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구', order: '순서' }[s.step] ?? s.step, s.note || s.type || ''); };
     try {
       const rd = lineReader(apply, () => broken++);
-      await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${mySlot})` }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
+      await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
       const c = check(b.input, { broken, line }); for (const f of c.fixed) note('수선', f);
       const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
       if (problems.length) { note('다시', `남은 문제 ${problems.length}개`); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
@@ -569,10 +635,16 @@ function startBuild(x, z, door) {
       fitToLot(b.input, n); const s = normalize(b.input);
       if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; building = null; go.disabled = false; return; }
       const key = `${mySlot}_${x}_${z}`;
-      myDoc.wallet.coins -= COST[sz];
+      G().permits--;
       const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
       myDoc.plots = { ...myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
-      building = null; rebuild(); await save(true);
+      building = null;
+      // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
+      const answered = need && roleOf(s.type, s.levels).serves === need;
+      if (answered) { myDoc.wallet.coins += REQ_BONUS; const d = dockOf(mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
+      else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), 400);
+      card = null;
+      rebuild(); await save(true);
       const role = roleOf(s.type, s.levels);
       note('완성', `${s.name || TYPE_KO[s.type]} · ${s.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);
       setTimeout(() => { if (current?.kind === 'build') showBuilding(key); }, 2500);
