@@ -59,9 +59,10 @@ const list = (a) => a.join('|');
 const TYPE_LIST = Object.keys(TYPES).map(t => `${t}(${TYPE_KO[t] ?? t})`).join(' ');
 const STYLE_LIST = Object.keys(STYLES).map(t => `${t}(${STYLE_KO[t] ?? t})`).join(' ');
 
-export function buildPrompt(line) {
+export function buildPrompt(line, { lot } = {}) {
+  const lotRule = lot ? `\nThe building stands on a lot of size ${lot.size} (${lot.w} x ${lot.d} tiles). Use "scale":"${lot.size}" and keep the footprint, wings included, within ${(lot.w - .6).toFixed(1)} x ${(lot.d - .8).toFixed(1)} tiles; leave the front edge for props.` : '';
   return `You design one building for an isometric pixel-art town, outside and inside, from this one-line description:
-"${line}"
+"${line}"${lotRule}
 
 How it works: you pick the closest building TYPE and a STYLE, and the engine already knows good defaults for both (size, floors, roof, front, sign, hero prop). Then you override only what this description needs, so the building is recognisably THIS building. If no type fits exactly, pick the closest one and override its parts.
 

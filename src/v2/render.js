@@ -48,6 +48,7 @@ export function renderView(input, view = 'ext', opt = {}) {
   out.getContext('2d').drawImage(renderer.domElement, 0, 0);
   renderer.dispose(); renderer.forceContextLoss?.();
   out.dataset.levels = spec.levels;
+  const o = new THREE.Vector3(0, 0, 0).project(cam), anchor = { x: (o.x + 1) / 2 * W, y: (1 - o.y) / 2 * H };   // where the ground origin lands in the canvas
   const px = labels.map(l => { const v = l.pos.clone().project(cam); return { x: (v.x + 1) / 2 * W, y: (1 - v.y) / 2 * H, text: l.text, count: l.count }; });
-  return { canvas: out, labels: px };
+  return { canvas: out, labels: px, anchor };
 }

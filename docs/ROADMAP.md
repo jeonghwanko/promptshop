@@ -113,6 +113,8 @@ The building spec is short text. With a Haiku-class model one building costs abo
 - 1.4 stacked cross-section: done.
 - 1.5 quality loop: done. First run: 60/60 built without errors, no repairs or follow-ups needed, 44/60 judged "what I asked for" (73%). Every failure had the right type but the wrong look. After adding landmark silhouettes, loud cues for small shops and activity zones, the 16 failures were re-run: 10 now pass, so the combined result is 54/60 (90%, target 80%). The remaining misses (stone library, modern gallery, villa with a pool, market hall, post office) got a materials rule, a sculpture, an outdoor pool and a fish icon.
 
+- Stage 2, first version: shared town with 13 lots in four sizes, lot-aware prompt, per-person building limit (3), info panel with outside and cross-section, walkers that stop at buildings, word filter, report and demolish. Lot prices, night lights and user-registered catalogue entries are next.
+
 ## Decisions (2026-11-26)
 
 1. **Tall buildings in the town view** are compressed above 8 floors. A band on the facade marks the hidden floors, and the label shows the real count.

@@ -61,6 +61,12 @@ Inside a claude.ai artifact the page calls Claude through the artifact runtime. 
 
 `scripts/bundle.py out.html` inlines the page and its modules into one file.
 
+## One town
+
+`town.html` is a shared town. Click an empty lot (S 2×2, M 3×3, L 4×4 or XL 5×5 tiles), write one line, and the model builds something that fits the lot; it then stands on the map for everyone who opens the page. Click a building to see its outside, its cross-section, who built it and the line they wrote. People walk the roads and stop in front of buildings. Each building is rendered once as a sprite with the same camera and tile size, then composited on a 2D map (`src/v2/town.js`). Opened outside claude.ai it shows the example town from `examples/town-seed.js`.
+
+![the shared town with a stadium, a hanok tea house, a brick station, a food-cart stall, a pharmacy, a glass hotel and a lighthouse](docs/img/town.png)
+
 ## Quality loop
 
 `src/v2/check.js` repairs a model answer before it is drawn: unknown names snap to the nearest known type, style, roof, zone, fixture, icon or prop; missing floors are joined to their neighbours; a missing name comes from the description. Only what it cannot fix (broken lines, a floor with no known zone, a missing building line) goes back to the model in one short follow-up.
