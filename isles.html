@@ -74,7 +74,7 @@ import { buildSection } from './src/v2/interior.js';
 import { TownSim, NEEDS, NEED_KEYS, roleOf, drawPerson } from './src/v2/townsim.js';
 import { ISLES_SEED } from './examples/isles-seed.js';
 import { InsideView, startingFixtures } from './src/v2/insideview.js';
-import { shopRates, bestNext, FIX_INFO, nextUp, TRACKS } from './src/v2/inside.js';
+import { shopRates, bestNext, FIX_INFO, nextUp, TRACKS, costOf } from './src/v2/inside.js';
 
 const $ = (id) => document.getElementById(id);
 const el = (tag, attrs = {}, ...kids) => { const e = document.createElement(tag); for (const [k, v] of Object.entries(attrs)) { if (k === 'on') for (const [ev, fn] of Object.entries(v)) e.addEventListener(ev, fn); else if (k === 'class') e.className = v; else e.setAttribute(k, v); } for (const c of kids.flat()) if (c != null && c !== false) e.append(c instanceof Node ? c : document.createTextNode(String(c))); return e; };
@@ -246,6 +246,28 @@ function hud() {
   $('wants').replaceChildren(...NEED_KEYS.map(k => { const d = dm[k], none = !d.served && d.waiting; return el('span', { class: 'want' + (none ? ' none' : '') }, el('span', { class: 'dot', style: `background:${NEEDS[k].color}` }), NEEDS[k].ko, el('b', {}, String(d.waiting)), none ? el('span', { class: 'tag' }, '· 군도에 없음') : null); }));
 }
 setInterval(hud, 500); hud();
+// furniture comes in by itself: every 3 s, the next piece (of any shop) that raises income most per coin,
+// keeping enough for the next batch of supplies. Off when the owner turns it off on the home panel.
+setInterval(() => {
+  if (!myDoc || myDoc.wallet.manual) return;
+  let best = null;
+  for (const p of allPlots()) {
+    if (p.owner !== me || !p.b || !roleOf(normalize(p.b.input).type, normalize(p.b.input).levels).serves) continue;
+    const fx = fixturesOf(p), owned = ownedOf(p), order = p.b.input.order, base = BASE_COIN[p.size] ?? 1;
+    const kinds = bestNext(fx, owned, base, order), up = Object.values(nextUp(fx, owned, undefined, order)); if (!up.length) continue;
+    // the piece that raises income most; when none does, the cheapest next piece (every piece still brings boats sooner)
+    const i = up.find(j => kinds.includes(fx[j].kind)) ?? up.sort((a, b) => costOf(fx[a].kind) - costOf(fx[b].kind))[0];
+    const r0 = shopRates(fx, owned, base), r1 = shopRates(fx, new Set([...owned, i]), base), cost = costOf(fx[i].kind);
+    const value = (Math.max(0, r1.price / r1.interval - r0.price / r0.interval) + 1e-4) / cost;
+    if (!best || value > best.value) best = { p, i, cost, value, kind: fx[i].kind };
+  }
+  if (!best || myDoc.wallet.coins - best.cost < RESTOCK.coins) return;
+  const mp = myDoc.plots[best.p.key]; if (!mp) return;
+  myDoc.wallet.coins -= best.cost; mp.own = [...new Set([...ownedOf(best.p), best.i])]; mp.fx = mp.own.length;
+  pops.push({ key: best.p.key, text: `${FIX_INFO[best.kind]?.[0] ?? best.kind} -${best.cost}`, mine: true, t: 0 });
+  if (watching?.key === best.p.key) { watching.view.owned.add(best.i); watching.view.sim.setOwned(watching.view.owned); watching.view.redraw(); watching.view.sim.price = ratesOf(best.p).price; }
+  rebuild(); save(true); if (current?.key === best.p.key && !watching) showBuilding(best.p.key);
+}, 3000);
 // supplies refill themselves: a shop at 2 or fewer buys the next batch when the wallet allows
 setInterval(() => {
   if (!myDoc) return; let any = false;
@@ -311,7 +333,9 @@ function showHome(msg) {
     el('p', { class: 'note' }, '크기를 고르고 내 섬 땅 위에서 틀을 움직이세요. 초록이면 그 자리에 한 줄로 지을 수 있어요(길에 닿아야 해요).'),
     el('p', { class: 'note' }, '가게를 지으면 배가 손님을 싣고 와요. 손님이 내는 돈으로 재료를 사고, 가구를 들이고, 더 지으세요.'),
     el('div', { class: 'chips' }, Object.keys(PLOT).map(s => el('button', { class: s === size ? 'on' : '', on: { click: () => { size = s; showHome(); } } }, `${s} ${PLOT[s]}×${PLOT[s]} · ${COST[s]}동전`))),
-    el('div', { class: 'note' }, `내 건물 ${mine}/${MAX_PLOTS}`), boatCard(), msg ? el('div', { class: 'err' }, msg) : null,
+    el('div', { class: 'note' }, `내 건물 ${mine}/${MAX_PLOTS}`), boatCard(), el('div', { class: 'card' }, el('span', {}, myDoc.wallet.manual ? '가구는 직접 들여요' : '가구가 자동으로 들어와요', el('div', { class: 'note' }, '재료 값은 남겨 두고, 수입을 가장 많이 올리는 가구부터')),
+      el('button', { class: 'ghost', on: { click: () => { myDoc.wallet.manual = !myDoc.wallet.manual; save(true); showHome(); } } }, myDoc.wallet.manual ? '자동으로' : '직접 하기')),
+    msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃 섬과 다리'), bridgeCards(), inviteCard());
 }
 function boatCard() {
@@ -485,7 +509,7 @@ if (db) {
     for (const d of snap.docs) docs.set(d.id, d.data() ?? {});
     // my own doc: take the stored copy only when it is newer than what this page holds (another tab, or an edit from outside)
     if (me && docs.has(me)) { const remote = docs.get(me);
-      if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { coins: remote.wallet?.coins ?? 0, unlocked: remote.wallet?.unlocked ?? ['S'] } };
+      if (!myDoc || (remote.rev ?? 0) > (myDoc.rev ?? 0)) myDoc = { slot: remote.slot, at: remote.at, rev: remote.rev ?? 0, plots: remote.plots ?? {}, half: remote.half ?? {}, wallet: { coins: remote.wallet?.coins ?? 0, unlocked: remote.wallet?.unlocked ?? ['S'], manual: !!remote.wallet?.manual } };
       docs.set(me, myDoc); }
     else if (me && myDoc) docs.set(me, myDoc);
     rebuild(); resolveNames();
