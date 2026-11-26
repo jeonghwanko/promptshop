@@ -1,9 +1,6 @@
-// Game buttons as little voxel dioramas: each one is a floating chunk of island with its thing on top,
-// rendered with the same camera, light and outline as the buildings, so the buttons belong to the world.
+// Game buttons as voxel tokens: a plain slab with one simple symbol standing on it, rendered with the same camera,
+// light and outline as the buildings. Their colours come from a palette the world does not use, so they read as UI, not as more map.
 import { renderVoxels } from '../v2/render.js';
-
-const shade = (hex, k) => { const n = parseInt(hex.slice(1), 16), c = [n >> 16, (n >> 8) & 255, n & 255].map(v => Math.max(0, Math.min(255, Math.round(v * k)))); return '#' + c.map(v => v.toString(16).padStart(2, '0')).join(''); };
-const rnd = (x, y, z) => { const s = Math.sin(x * 12.9898 + y * 78.233 + z * 37.719) * 43758.5453; return s - Math.floor(s); };
 
 function builder() {
   const map = new Map();
@@ -13,56 +10,51 @@ function builder() {
     if ((x + .5 - cx) ** 2 + (y + .5 - cy) ** 2 + (z + .5 - cz) ** 2 <= r * r) put(x, y, z, typeof c === 'function' ? c(x, y, z) : c); };
   return { put, box, ball, list: () => [...map.values()] };
 }
-/** A floating chunk: top layer, two earth layers, a narrower rock underneath; n wide, corners cut. */
-function chunk(v, n, top, { earth = '#9a6b43', rock = '#7d756c' } = {}) {
-  const cut = (x, z, k) => (x < k || x > n - 1 - k) && (z < k || z > n - 1 - k);
+/** A rounded slab n wide and 2 high: top colour and a darker rim, nothing else. */
+function slab(v, n, top, side) {
   for (let x = 0; x < n; x++) for (let z = 0; z < n; z++) {
-    if (cut(x, z, 1)) continue;
-    v.put(x, 3, z, typeof top === 'function' ? top(x, z) : shade(top, .94 + rnd(x, 3, z) * .12));
-    v.put(x, 2, z, shade(earth, .92 + rnd(x, 2, z) * .14)); v.put(x, 1, z, shade(earth, .82 + rnd(x, 1, z) * .12));
-    if (!cut(x, z, 2) && x > 0 && z > 0 && x < n - 1 && z < n - 1) v.put(x, 0, z, shade(rock, .9 + rnd(x, 0, z) * .15));
+    if ((x === 0 || x === n - 1) && (z === 0 || z === n - 1)) continue;
+    v.put(x, 0, z, side); v.put(x, 1, z, x === 0 || z === 0 || x === n - 1 || z === n - 1 ? side : top);
   }
 }
-const GRASS = '#7fbf5a', SAND = '#e8d39a', WATER = '#4f9fd0', WOOD = '#a0683a', DARK = '#5b3a22';
 
+/** Palettes: slab [top, rim], build slab, symbol colours c1..c5, ink. */
+export const PALETTES = {
+  a: { name: '밤 사탕', ink: '#1f2540', slab: ['#2c3560', '#1f2540'], build: ['#ffcf3f', '#d99a12'], c1: '#ff6b6b', c2: '#ffe08a', c3: '#4ee0c1', c4: '#b79cff', c5: '#fff3dc' },
+  b: { name: '파스텔 장난감', ink: '#3b2f4a', tops: { globe: ['#9fd8ff', '#6fb0de'], island: ['#a8ecc4', '#6fc394'], chair: ['#d9c3ff', '#a88be0'], boat: ['#ffb3b3', '#e07b7b'], plus: ['#ffd59e', '#e0aa66'], minus: ['#ffd59e', '#e0aa66'] },
+       slab: ['#ffd59e', '#e0aa66'], build: ['#ffe066', '#e0b52e'], c1: '#ffffff', c2: '#ff8fa3', c3: '#ffffff', c4: '#ffffff', c5: '#ffffff' },
+  c: { name: '뼈와 산호', ink: '#4a3a33', slab: ['#f4ede2', '#cdbfae'], build: ['#ff6f59', '#c94a38'], c1: '#ff6f59', c2: '#f4ede2', c3: '#ff6f59', c4: '#e6dccd', c5: '#ff6f59', hammerHead: '#f4ede2' },
+};
+let PAL = PALETTES.a;
+export function setVoxelPalette(k) { if (PALETTES[k] && PAL !== PALETTES[k]) { PAL = PALETTES[k]; cache.clear(); } }
+
+const tok = (v, name, n = 9) => { const t = name === 'hammer' ? PAL.build : PAL.tops?.[name] ?? PAL.slab; slab(v, n, t[0], t[1]); };
 const MODELS = {
-  globe() { const v = builder(); chunk(v, 12, GRASS);
-    v.box(5, 4, 5, 6, 5, 6, '#6b4f2a');
-    v.ball(6, 10, 6, 4.8, (x, y, z) => { const land = Math.sin(x * .9 + y * .4) + Math.cos(z * .8 - y * .6) > .7; return land ? (rnd(x, y, z) > .5 ? '#5fae4c' : '#6cbd57') : (rnd(x, y, z) > .5 ? '#3d8fcf' : '#4a9ad8'); });
-    return v.list(); },
-  map() { const v = builder(); chunk(v, 12, GRASS);
-    v.box(2, 4, 3, 9, 4, 8, (x, y, z) => (x + z) % 5 === 0 ? '#c9a46a' : '#f1e2bc');
-    v.box(3, 5, 4, 5, 5, 5, '#6cbd57'); v.box(6, 5, 6, 7, 5, 7, '#6cbd57'); v.put(8, 5, 4, '#d9483b'); v.put(7, 5, 5, '#d9483b'); v.put(4, 5, 7, '#4a9ad8');
-    v.box(1, 4, 2, 1, 5, 9, '#c79a58'); v.box(10, 4, 2, 10, 5, 9, '#c79a58');
-    return v.list(); },
-  island() { const v = builder(); chunk(v, 12, (x, z) => (x - 5.5) ** 2 + (z - 5.5) ** 2 < 14 ? shade(SAND, .95 + rnd(x, 3, z) * .08) : shade(WATER, .95 + rnd(x, 3, z) * .1), { earth: '#c9a46a' });
-    for (let y = 4; y <= 9; y++) v.put(y > 7 ? 6 : 5, y, 5, y % 2 ? '#8a5a34' : '#9c6a40');
-    v.put(6, 10, 5, '#3f8f3a'); for (const [dx, dz] of [[1, 0], [-1, 0], [0, 1], [0, -1], [2, 0], [-2, 0], [0, 2], [0, -2]]) v.put(6 + dx, 10 - (Math.abs(dx) + Math.abs(dz) > 1 ? 1 : 0), 5 + dz, Math.abs(dx) + Math.abs(dz) > 1 ? '#4f9f45' : '#3f8f3a');
-    v.put(6, 9, 6, '#7a4a20'); v.put(7, 9, 5, '#7a4a20');
-    return v.list(); },
-  chair() { const v = builder(); chunk(v, 12, GRASS);
-    for (const [x, z] of [[4, 4], [7, 4], [4, 7], [7, 7]]) v.box(x, 4, z, x, 6, z, DARK);
-    v.box(4, 7, 4, 7, 7, 7, WOOD); v.box(4, 8, 4, 4, 11, 7, (x, y, z) => y === 11 || z === 4 || z === 7 ? WOOD : shade(WOOD, 1.15));
-    return v.list(); },
-  boat() { const v = builder(); chunk(v, 12, (x, z) => x < 2 || z < 2 || x > 9 || z > 9 ? shade(SAND, .95 + rnd(x, 3, z) * .08) : shade('#7cc4e8', .92 + rnd(x, 3, z) * .12), { earth: '#c9a46a' });
-    v.box(3, 4, 4, 8, 4, 7, DARK); v.box(2, 5, 4, 9, 5, 7, WOOD); v.box(2, 5, 5, 2, 5, 6, null); v.box(9, 6, 5, 10, 6, 6, WOOD); v.box(1, 6, 5, 1, 6, 6, WOOD);
-    v.box(3, 6, 4, 8, 6, 4, '#c0392b'); v.box(3, 6, 7, 8, 6, 7, '#c0392b');
-    v.box(5, 6, 5, 5, 13, 5, '#3a2418');
-    for (let y = 7; y <= 12; y++) for (let x = 6; x <= 6 + Math.floor((y - 6) * .9); x++) v.put(x, y, 5, '#f4f1ea');
-    v.box(5, 14, 5, 6, 14, 5, '#d9483b');
-    return v.list(); },
-  hammer() { const v = builder(); chunk(v, 14, (x, z) => (x + z) % 4 < 2 && (x === 1 || z === 1 || x === 12 || z === 12) ? '#e3b021' : shade('#b8875a', .92 + rnd(x, 3, z) * .12), { earth: '#8a5f3a' });
-    v.box(3, 4, 3, 4, 4, 4, '#c7b49a'); v.box(9, 4, 9, 10, 5, 10, '#d6a35b'); v.box(9, 6, 9, 9, 6, 9, '#d6a35b');
-    v.box(6, 4, 6, 7, 12, 7, (x, y, z) => y % 3 === 0 ? '#7a4a20' : '#a0683a');
-    v.box(3, 13, 5, 10, 15, 8, (x, y, z) => y === 15 ? '#aab3bd' : x === 3 || x === 10 ? '#5c646e' : '#7d8792');
-    return v.list(); },
+  globe() { const v = builder(); tok(v, 'globe');
+    v.ball(4.5, 6.5, 4.5, 3.8, (x, y, z) => (x <= 3 && y >= 6 && z >= 5) || (x >= 5 && y <= 6 && z >= 6) || (z <= 3 && y >= 7 && x >= 4) ? PAL.c2 : PAL.c3); return v.list(); },   // a ball with a few patches of land
+  island() { const v = builder(); tok(v, 'island');
+    v.box(4, 2, 4, 4, 7, 4, PAL.c4);
+    v.box(1, 8, 3, 7, 8, 5, PAL.c3); v.box(3, 8, 1, 5, 8, 7, PAL.c3); v.box(3, 9, 3, 5, 9, 5, PAL.c3); return v.list(); },   // a palm: trunk and a plus of leaves
+  chair() { const v = builder(); tok(v, 'chair');
+    for (const [x, z] of [[3, 3], [6, 3], [3, 6], [6, 6]]) v.box(x, 2, z, x, 3, z, PAL.c4);
+    v.box(3, 4, 3, 6, 4, 6, PAL.c4); v.box(3, 5, 3, 3, 8, 6, PAL.c1); return v.list(); },
+  boat() { const v = builder(); tok(v, 'boat');
+    v.box(3, 2, 4, 7, 2, 5, PAL.c1); v.box(2, 3, 4, 8, 3, 5, PAL.c1);
+    v.box(4, 4, 4, 4, 9, 4, PAL.ink);
+    for (let y = 5; y <= 9; y++) for (let x = 5; x <= 5 + Math.floor((9 - y) * .8); x++) v.put(x, y, 4, PAL.c5); return v.list(); },
+  hammer() { const v = builder(); tok(v, 'hammer', 12);
+    v.box(5, 2, 5, 6, 8, 6, PAL.ink); v.box(2, 9, 4, 9, 11, 7, PAL.hammerHead ?? PAL.c5); return v.list(); },
+  plus() { const v = builder(); tok(v, 'plus', 9);   // a fat plus standing up, facing the left of the camera
+    v.box(3, 2, 4, 5, 10, 4, PAL.c5); v.box(0, 5, 4, 8, 7, 4, PAL.c5); return v.list(); },
+  minus() { const v = builder(); tok(v, 'minus', 9);
+    v.box(0, 4, 4, 8, 6, 4, PAL.c5); return v.list(); },
 };
 
 const cache = new Map();
-/** The data URL of a voxel button picture (rendered once). */
-export function voxelURL(name, k = 3) {
+/** The data URL of a voxel button picture (rendered once per palette). */
+export function voxelURL(name, k = 4) {
   const key = name + k; if (!cache.has(key)) { const f = MODELS[name]; cache.set(key, f ? renderVoxels(f(), { k }).toDataURL() : ''); }
   return cache.get(key);
 }
-export function voxelEl(name, k = 3) { const im = document.createElement('img'); im.src = voxelURL(name, k); im.alt = ''; im.draggable = false; im.className = 'vx'; return im; }
+export function voxelEl(name, k = 4) { const im = document.createElement('img'); im.src = voxelURL(name, k); im.alt = ''; im.draggable = false; im.className = 'vx'; return im; }
 export const VOXEL_NAMES = Object.keys(MODELS);

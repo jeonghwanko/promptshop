@@ -28,7 +28,7 @@
         box-shadow:inset 0 0 0 3px #2e241a, inset 0 -6px 0 #d9c49a, 0 4px 0 rgba(20,30,40,.45); }
   .rb .ic { width:32px; height:32px; display:block; } .rb .ic img { width:32px; height:32px; image-rendering:pixelated; display:block; }
   .rb .lb { position:absolute; top:100%; margin-top:3px; font:400 13px var(--f-disp); color:#fff; white-space:nowrap; -webkit-text-stroke:3px #2e241a; paint-order:stroke fill; }
-  .dock .rb { margin-bottom:18px; }
+  :is(.dock, .zoomb) .rb { margin-bottom:18px; }
   .rb:hover { background:#fff8e6; } .rb:active:not(:disabled) { transform:translateY(3px); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -3px 0 #d9c49a, 0 1px 0 rgba(20,30,40,.45); }
   .rb.on { background:#ffe08a; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -6px 0 #d9a52a, 0 4px 0 rgba(20,30,40,.45); }
   .rb.sm { width:46px; height:46px; border-radius:14px; } .rb.sm .ic, .rb.sm .ic img { width:24px; height:24px; }
@@ -216,26 +216,27 @@
   .act.buy { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #e0b452, 0 4px 0 rgba(0,0,0,.3); }
   .act:active:not(:disabled) { box-shadow:inset 0 0 0 3px #2e241a, inset 0 -2px 0 #d9c49a, 0 1px 0 rgba(0,0,0,.3); }
   .act .price { font:400 18px var(--f-disp); }
+  .zoomb { display:flex; flex-direction:column; gap:0; margin-top:24px; } body.inshop .zoomb { opacity:0; pointer-events:none; }
   /* voxel dock: the buttons are little floating islands, no plates */
-  .dock .rb, .dock .rb.big, .dock .rb.sm, .dock .boatb { width:auto; height:auto; padding:0; background:none; box-shadow:none; border-radius:0; overflow:visible; }
-  .dock .rb .ic, .dock .rb.big .ic, .dock .rb.sm .ic, .dock .boatb .ic { width:auto; height:auto; transition:transform .12s, filter .12s; }
-  .dock .rb .ic img.vx { display:block; width:auto; height:auto; image-rendering:pixelated; filter:drop-shadow(0 5px 0 rgba(10,30,50,.35)); }
-  .dock .rb.sm .ic { zoom:.8; }
-  .dock .rb:hover .ic { transform:translateY(-4px); } .dock .rb:active:not(:disabled) { transform:none; box-shadow:none; } .dock .rb:active:not(:disabled) .ic { transform:translateY(3px); filter:brightness(.9); }
-  .dock .rb .lb { position:static; margin-top:-6px; font-size:15px; } .dock .rb.big .lb { font-size:18px; } .dock .rb { margin-bottom:0; }
-  .dock .rb.on .ic img.vx { filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 6px #ffe08a) drop-shadow(0 5px 0 rgba(10,30,50,.35)); }
-  .dock .rb.sm::after { top:6px; right:2px; } .dock .boatb .ring { display:none; }
+  :is(.dock, .zoomb) .rb, :is(.dock, .zoomb) .rb.big, :is(.dock, .zoomb) .rb.sm, .dock .boatb { width:auto; height:auto; padding:0; background:none; box-shadow:none; border-radius:0; overflow:visible; }
+  :is(.dock, .zoomb) .rb .ic, :is(.dock, .zoomb) .rb.big .ic, :is(.dock, .zoomb) .rb.sm .ic, .dock .boatb .ic { width:auto; height:auto; transition:transform .12s, filter .12s; }
+  :is(.dock, .zoomb) .rb .ic img.vx { display:block; width:auto; height:auto; image-rendering:pixelated; filter:drop-shadow(0 5px 0 rgba(10,30,50,.35)); }
+  :is(.dock, .zoomb) .rb.sm .ic { zoom:.8; }
+  :is(.dock, .zoomb) .rb:hover .ic { transform:translateY(-4px); } :is(.dock, .zoomb) .rb:active:not(:disabled) { transform:none; box-shadow:none; } :is(.dock, .zoomb) .rb:active:not(:disabled) .ic { transform:translateY(3px); filter:brightness(.9); }
+  :is(.dock, .zoomb) .rb .lb { position:static; margin-top:-6px; font-size:15px; } :is(.dock, .zoomb) .rb.big .lb { font-size:18px; } :is(.dock, .zoomb) .rb { margin-bottom:0; }
+  :is(.dock, .zoomb) .rb.on .ic img.vx { filter:drop-shadow(0 0 0 #fff) drop-shadow(0 0 6px #ffe08a) drop-shadow(0 5px 0 rgba(10,30,50,.35)); }
+  :is(.dock, .zoomb) .rb.sm::after { top:6px; right:2px; } .dock .boatb .ring { display:none; }
   .dock .boatb.callable { background:none; } .dock .boatb.callable .lb { color:#ffe08a; } .dock .boatb.idle { opacity:.6; }
-  .dock .rb .badge { top:0; right:-4px; } .dock .boatb .cnt { top:2px; left:-2px; }
-  .dock .rb.big { animation:none; } .dock .rb.big.ready .ic { animation:nudge 1.6s infinite; } .dock .rb.ready { animation:none; } .dock .rb.big.on .lb { color:#ffe08a; }
-  @media (max-width:440px) { .dock .rb .ic { zoom:.72; } .dock .rb.big .ic { zoom:.8; } .dock .rb.sm .ic { zoom:.6; } .dock > div { gap:2px; } }
+  :is(.dock, .zoomb) .rb .badge { top:0; right:-4px; } .dock .boatb .cnt { top:2px; left:-2px; }
+  :is(.dock, .zoomb) .rb.big { animation:none; } :is(.dock, .zoomb) .rb.big.ready .ic { animation:nudge 1.6s infinite; } :is(.dock, .zoomb) .rb.ready { animation:none; } :is(.dock, .zoomb) .rb.big.on .lb { color:#ffe08a; }
+  @media (max-width:440px) { :is(.dock, .zoomb) .rb .ic { zoom:.72; } :is(.dock, .zoomb) .rb.big .ic { zoom:.8; } :is(.dock, .zoomb) .rb.sm .ic { zoom:.6; } .dock > div { gap:2px; } }
   @media (max-width:760px) { .panel { top:auto; bottom:124px; max-height:52vh; } .rcard { width:min(212px, 44vw); min-height:200px; } }
 </style>
 <div class="inside" id="inside" hidden><div class="ibox"><div class="row"><h2 id="iname"></h2><button class="ghost" id="iclose">닫기</button></div><div class="note" id="ihint"></div><div class="iscroll" id="istage"></div><div id="iflow"></div><div class="istats" id="istats" hidden></div></div></div>
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
 <div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
 <div class="hud tl"><button class="isleb" id="who"></button></div>
-<div class="hud tr"><div class="coinb" id="coinb"><span class="cic"></span><b id="wallet"></b><small id="rate"></small></div></div>
+<div class="hud tr"><div class="coinb" id="coinb"><span class="cic"></span><b id="wallet"></b><small id="rate"></small></div><div class="zoomb"><button class="rb" id="zin" title="가까이"><span class="ic" data-v="plus"></span></button><button class="rb" id="zout" title="멀리"><span class="ic" data-v="minus"></span></button></div></div>
 <aside class="panel" id="panel" hidden></aside>
 <div class="shopwrap" id="shopwrap" hidden><div class="shopstage" id="shopstage"></div><div class="shopacts" id="shopacts"></div><button class="ghost shopmore" id="shopmore">⋯</button></div>
 <div class="world" id="world" hidden><canvas class="wmap" id="wmap"></canvas><div id="spots"></div>
@@ -247,7 +248,6 @@
 <div class="garrow" id="garrow" hidden>▼</div>
 <nav class="dock" id="dock">
   <div class="dl"><button class="rb" id="d-world"><span class="ic" data-v="globe"></span><span class="lb">세계</span></button>
-    <button class="rb" id="zoom"><span class="ic" data-v="map"></span><span class="lb" id="zoom-t">전체</span></button>
     <button class="rb" id="d-home"><span class="ic" data-v="island"></span><span class="lb">내 섬</span></button>
     <button class="rb sm" id="d-auto"><span class="ic" data-v="chair"></span><span class="lb" id="d-auto-t">자동</span></button></div>
   <div class="dr"><div class="sizes" id="sizes" hidden></div>
@@ -272,7 +272,8 @@ import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, TRACKS, costOf, flowCa
 import { FlowView } from './src/v2/flowview.js';
 import { applyTheme } from './src/ui/theme.js';
 import { pixelIcons, iconCanvas, iconEl, EMOJI } from './src/ui/icons.js';
-import { voxelEl } from './src/ui/voxelui.js';
+import { voxelEl, setVoxelPalette } from './src/ui/voxelui.js';
+setVoxelPalette(new URLSearchParams(location.search).get('vx') || 'a');   // ?vx=a|b|c to compare palettes
 
 const $ = (id) => document.getElementById(id);
 // the game skin: ?theme=wood|sea to compare, remembered per browser
@@ -425,9 +426,15 @@ async function resolveNames() { if (!user) return; const ids = [...owners.values
 // ---------- map ----------
 const pr = islesProjection(), map = $('map'); map.width = pr.width; map.height = pr.height;
 // native pixels by default (crisp), scrolled to my island; "전체 보기" fits the whole archipelago
-let fit = false;
-const applyZoom = () => { map.style.width = fit ? '100vw' : pr.width + 'px'; $('zoom-t').textContent = fit ? '가까이' : '전체'; $('zoom').classList.toggle('on', fit); };
-function scrollToSlot(s) { if (fit) return; const box = $('mapbox'), [cx, cz] = centerOf(s), [px, py] = pr.P(cx, cz); box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
+let zoom = 1;   // map pixels per canvas pixel; whole steps above 1 keep the pixels even
+const zoomSteps = () => { const lo = Math.min(1, Math.max(innerWidth / pr.width, innerHeight / pr.height) * .9); return [...new Set([lo, .5, .75, 1, 2, 3].filter(z => z >= lo - 1e-6))].sort((a, b) => a - b); };
+function setZoom(z) {   // keep the point in the middle of the screen where it is
+  const box = $('mapbox'), cx = (box.scrollLeft + box.clientWidth / 2 - map.offsetLeft) / zoom, cy = (box.scrollTop + box.clientHeight / 2 - map.offsetTop) / zoom;
+  zoom = z; applyZoom(); box.scrollTo({ left: map.offsetLeft + cx * zoom - box.clientWidth / 2, top: map.offsetTop + cy * zoom - box.clientHeight / 2 });
+}
+const applyZoom = () => { map.style.width = pr.width * zoom + 'px'; const st = zoomSteps(); $('zin').disabled = zoom >= st[st.length - 1]; $('zout').disabled = zoom <= st[0] + 1e-6; };
+const zoomBy = (d) => { const st = zoomSteps(), i = st.findIndex(z => Math.abs(z - zoom) < 1e-6); setZoom(st[Math.max(0, Math.min(st.length - 1, (i < 0 ? st.indexOf(1) : i) + d))]); };
+function scrollToSlot(s) { const box = $('mapbox'), [cx, cz] = centerOf(s), [px0, py0] = pr.P(cx, cz), px = px0 * zoom, py = py0 * zoom; box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
 const g = map.getContext('2d'); g.imageSmoothingEnabled = false;
 let ground = drawIsles(world, pr), sim = new TownSim(11, { w: WORLD.w, d: WORLD.d, isRoad: () => false, lots: [] }, { base: 0 });   // nobody lives here until someone builds
 const sprites = new Map(), pops = [];
@@ -552,10 +559,10 @@ function drawBoat(b) {
   if (b.state !== 'out') for (let k = 0; k < Math.min(5, b.people); k++) { g.fillStyle = ['#c0392b', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2'][k]; g.fillRect(x - 9 + k * 4, y - 7, 2, 3); }
 }
 requestAnimationFrame(frame);
-applyZoom(); $('zoom').onclick = () => { fit = !fit; applyZoom(); if (!fit) scrollToSlot(mySlot || 1); };
+applyZoom(); $('zin').onclick = () => zoomBy(1); $('zout').onclick = () => zoomBy(-1);
 let scrolled = false;
 for (const e of document.querySelectorAll('[data-i]')) e.replaceChildren(iconEl(e.dataset.i, 32, ''));
-for (const e of document.querySelectorAll('[data-v]')) e.replaceChildren(voxelEl(e.dataset.v, e.closest('.big') ? 5 : 4));   // the dock buttons are voxel dioramas, rendered once
+for (const e of document.querySelectorAll('[data-v]')) e.replaceChildren(voxelEl(e.dataset.v, e.closest('.big') ? 6 : e.closest('.zoomb') ? 4 : 5));   // the dock buttons are voxel dioramas, rendered once
 $('coinb').querySelector('.cic').replaceChildren(iconEl('coin', 36, ''));
 let shownCoins = null, shownPermits = null;
 function hud() {
@@ -985,7 +992,7 @@ let zoomShop = null;   // { key, t, dir } while the roof lifts or settles
 function openShop(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   if (watching) closeInside(true); setBuildMode(false); closePanel();
-  if (fit) { fit = false; applyZoom(); }
+  if (zoom !== 1) { zoom = 1; applyZoom(); }
   const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2), box = $('mapbox');
   const lv = normalize(p.b.input).levels;   // taller cut-aways need more room above the building
   box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - box.clientHeight * Math.min(.86, .62 + .12 * (Math.min(lv, 4) - 1)) });
