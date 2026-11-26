@@ -29,7 +29,7 @@ const T = {
     for (let x = 0; x < sw; x++) { const k = (x + .5) / sw * 2 - 1; const d = Math.round(Math.sqrt(Math.max(0, 1 - k * k)) * 4); g.fillRect(i * sw + x, h - 4, 1, d); } } }),
   checker: (a, b) => tex(16, 16, (g, w, h) => { g.fillStyle = a; g.fillRect(0, 0, w, h); g.fillStyle = b; g.fillRect(0, 0, 8, 8); g.fillRect(8, 8, 8, 8); }),
   text: (text, bg, fg, w = 96, h = 28, font = 18) => tex(w, h, (g) => { g.fillStyle = bg; g.fillRect(0, 0, w, h);
-    g.font = `900 ${font}px "Noto Sans CJK KR", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
+    g.font = `900 ${font}px "Noto Sans CJK KR", "Noto Sans KR", sans-serif`; g.textAlign = 'center'; g.textBaseline = 'middle';
     // pixel text: snap every pixel to fg or bg (no anti-aliasing)
     g.fillStyle = fg; g.fillText(text, w / 2, h / 2 + 1);
     const d = g.getImageData(0, 0, w, h), f = new THREE.Color(fg), bc = new THREE.Color(bg);
@@ -39,8 +39,11 @@ const T = {
     g.putImageData(d, 0, 0); }),
 };
 
-export function makeBuilder(scene) {
-  const add = (o, parent) => { o.castShadow = true; o.receiveShadow = true; (parent ?? scene).add(o); return o; };
+// `section(key)` returns the Group that the following meshes go into, so a caller can animate one part at a time.
+export function makeBuilder(scene, section) {
+  let cur = scene;
+  const enter = (key) => { cur = (section && section(key)) || scene; };
+  const add = (o, parent) => { o.castShadow = true; o.receiveShadow = true; (parent ?? cur).add(o); return o; };
   const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y + h / 2, z); return add(o); };
   const cyl = (r1, r2, h, m, x, y, z, seg = 10) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg), m); o.position.set(x, y + h / 2, z); return add(o); };
   const ball = (r, m, x, y, z) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 8, 6), m); o.position.set(x, y, z); return add(o); };
@@ -61,18 +64,22 @@ export function makeBuilder(scene) {
       for (const dz of [-.04, .04]) { const e = new THREE.Mesh(new THREE.ConeGeometry(.03, .07, 4), m); e.position.set(.17, .3, dz); g.add(e); }
       const tl = new THREE.Mesh(new THREE.BoxGeometry(.04, .2, .04), m); tl.position.set(-.16, .22, 0); tl.rotation.z = -.4; g.add(tl);
       for (const dz of [-.035, .035]) { const ey = new THREE.Mesh(new THREE.BoxGeometry(.02, .025, .025), glowMat('#ffd84a')); ey.position.set(.245, .22, dz); g.add(ey); }
-      g.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); scene.add(g); return g; },
+      g.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); cur.add(g); return g; },
     pendant(x, y, z, color) { cyl(.006, .006, .5, mat(0x222222), x, y - .5, z, 4); cyl(.05, .18, .14, mat(0x2b2b2b), x, y - .64, z, 10); ball(.06, glowMat(color), x, y - .64, z); },
   };
 
   // ---------- exterior ----------
   function exterior(s) {
-    const [W, D] = s.size, hw = W / 2, hd = D / 2, FH = 1.55, H = FH * s.floors, base = .12;
+    if (!s || !Array.isArray(s.size) || !s.wall) return;
+    const floors = s.floors === 2 ? 2 : 1;
+    const [W, D] = s.size, hw = W / 2, hd = D / 2, FH = 1.55, H = FH * floors, base = .12;
+    enter('base');
     const trim = mat(s.trim ?? '#3a2a1e');
     box(W + .14, base, D + .14, mat(shade(s.wall.color, .55)), 0, 0, 0);
     const front = s.front ?? {};
     // body: the front face is built separately so the entrance can open
     box(W, H, D - .1, wallMat(s.wall, W * 1.4, H * .9), 0, base, -.05);
+    enter('front');
     const openW = front.type === 'counter' ? W * .78 : 0, openH = front.type === 'counter' ? 1.0 : 0;
     if (front.type === 'counter') {
       box(W, .5, .1, wallMat(s.wall, W * 1.4, .3), 0, base, hd - .05);                       // lower wall
@@ -95,7 +102,8 @@ export function makeBuilder(scene) {
     }
     if (front.type === 'door') { box(.5, 1.2, .04, mat(front.door ?? '#6b4a2a'), 0, base, hd + .01); }
     // side windows
-    for (let f = 0; f < s.floors; f++) {
+    enter('base');
+    for (let f = 0; f < floors; f++) {
       const y = base + f * FH + .55;
       for (const zz of (D > 1.7 ? [-hd * .45, hd * .35] : [0])) {
         box(.03, .5, .42, mat(0xbfe3ee, { emissive: s.night ? 0x6a4a20 : 0x203a44 }), hw + .01, y, zz);
@@ -104,7 +112,8 @@ export function makeBuilder(scene) {
       if (f > 0) { box(W + .08, .08, D + .08, trim, 0, base + f * FH - .04, 0); for (const xx of [-hw * .5, hw * .5]) { box(.42, .5, .03, mat(0xbfe3ee, { emissive: 0x203a44 }), xx, y, hd + .01); box(.5, .06, .05, trim, xx, y - .03, hd + .02); } }
     }
     // roof
-    const top = base + H, r = s.roof, rc = r.color;
+    enter('roof');
+    const top = base + H, r = s.roof ?? { type: 'none' }, rc = r.color ?? '#666666';
     if (r.type === 'gable') {
       const span = hd + .22, rise = .62, slope = Math.hypot(span, rise), ang = Math.atan2(rise, span), rm = texMat(T.roofTile(rc), W * 1.3, 1.1);
       for (const sg of [1, -1]) { const m = new THREE.Mesh(new THREE.BoxGeometry(W + .44, .09, slope), rm); m.position.set(0, top + rise / 2, sg * span / 2); m.rotation.x = sg * ang; add(m); }
@@ -121,23 +130,25 @@ export function makeBuilder(scene) {
     } else if (r.type === 'shed') {
       const m = new THREE.Mesh(new THREE.BoxGeometry(W + .4, .09, D + .4), texMat(T.roofTile(rc), W, 1)); m.rotation.x = .25; m.position.set(0, top + .2, 0); add(m);
     }
+    enter('decor');
     if (s.chimney) { box(.28, .7, .28, texMat(T.brick('#8a4a3a'), .6, 1), hw * .45, top + .1, -hd * .3); }
     if (s.neon) { const n = glowMat(s.neon); box(W + .02, .04, .04, n, 0, top - .12, hd + .04); box(.04, .04, D, n, hw + .04, top - .12, 0); }
     // awning
     if (s.awning) { const aw = new THREE.Mesh(new THREE.PlaneGeometry(W * .62, .42), mat(0xffffff, { map: T.stripes(s.awning.a, s.awning.b), alphaTest: .5, side: THREE.DoubleSide }));
       aw.position.set(-W * .16, base + 1.45, hd + .2); aw.rotation.x = -.8; add(aw); }
     // noren (entrance curtain)
-    if (s.noren) { const nt = tex(48, 24, (g, w, h) => { g.fillStyle = s.noren.color; for (let i = 0; i < 4; i++) g.fillRect(i * 12, 0, 11, h); g.fillStyle = '#f4ead8'; g.font = '900 13px "Noto Sans CJK KR"'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(s.noren.text, w / 2, h / 2); });
+    if (s.noren) { const nt = tex(48, 24, (g, w, h) => { g.fillStyle = s.noren.color; for (let i = 0; i < 4; i++) g.fillRect(i * 12, 0, 11, h); g.fillStyle = '#f4ead8'; g.font = '900 13px "Noto Sans CJK KR", "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.textBaseline = 'middle'; g.fillText(s.noren.text, w / 2, h / 2); });
       const nm = new THREE.Mesh(new THREE.PlaneGeometry(openW || W * .6, .4), mat(0xffffff, { map: nt, side: THREE.DoubleSide })); nm.position.set(0, base + .5 + openH - .2, hd + .02); add(nm); }
     // sign
     if (s.sign) { const sg = s.sign, len = Math.max(2, [...sg.text].length), sw = Math.min(W * .9, .3 * len + .3);
       const sm = sg.glow ? new THREE.MeshBasicMaterial({ map: T.text(sg.text, sg.bg, sg.fg, 24 * len, 26, 18) }) : mat(0xffffff, { map: T.text(sg.text, sg.bg, sg.fg, 24 * len, 26, 18) });
       if (sg.place === 'front') { const b = new THREE.Mesh(new THREE.BoxGeometry(sw, .34, .06), [trim, trim, trim, trim, sm, trim]); b.position.set(0, base + H - .26, hd + .05); add(b); }
       if (sg.place === 'roof') { const b = new THREE.Mesh(new THREE.BoxGeometry(sw + .2, .46, .08), [trim, trim, trim, trim, sm, trim]); b.position.set(0, top + .55, hd - .3); add(b); for (const sx of [-1, 1]) box(.05, .35, .05, trim, sx * sw * .35, top + .3, hd - .3); }
-      if (sg.place === 'blade') { const bt = T.text(sg.text, sg.bg, sg.fg, 26, 22 * len, 16); const vt = tex(26, 22 * len, (g, w, h) => { g.fillStyle = sg.bg; g.fillRect(0, 0, w, h); g.fillStyle = sg.fg; g.font = '900 16px "Noto Sans CJK KR"'; g.textAlign = 'center'; [...sg.text].forEach((ch, i) => g.fillText(ch, w / 2, 18 + i * 22)); });
+      if (sg.place === 'blade') { const bt = T.text(sg.text, sg.bg, sg.fg, 26, 22 * len, 16); const vt = tex(26, 22 * len, (g, w, h) => { g.fillStyle = sg.bg; g.fillRect(0, 0, w, h); g.fillStyle = sg.fg; g.font = '900 16px "Noto Sans CJK KR", "Noto Sans KR", sans-serif'; g.textAlign = 'center'; [...sg.text].forEach((ch, i) => g.fillText(ch, w / 2, 18 + i * 22)); });
         const b = new THREE.Mesh(new THREE.BoxGeometry(.06, .2 * len + .1, .3), [mat(0xffffff, { map: vt }), trim, trim, trim, trim, trim]); b.position.set(hw + .22, base + 1.1 + .1 * len, hd - .25); add(b); box(.24, .04, .04, trim, hw + .1, base + 1.25 + .2 * len, hd - .25); } }
     // props
-    for (const p of s.props ?? []) {
+    (s.props ?? []).forEach((p, i) => {
+      enter('prop:' + i);
       const fx = p.x ?? 0, fz = hd + .45;
       if (p.type === 'lantern') P.lantern(fx, base + H - .05, hd + .3, p.color);
       if (p.type === 'stool') P.stool(fx, 0, fz);
@@ -149,14 +160,17 @@ export function makeBuilder(scene) {
       if (p.type === 'bookstand') { box(.5, .5, .3, texMat(T.plankH('#8a6a4a')), fx, 0, fz); for (let i = 0; i < 5; i++) box(.06, .2, .2, mat(['#c0504d', '#4f81bd', '#e3b448', '#5b8a6a', '#8064a2'][i]), fx - .18 + i * .08, .5, fz); }
       if (p.type === 'flag') { cyl(.025, .025, 1.6, mat(0xdddddd), fx, 0, fz, 6); const f = box(.02, .5, .4, glowMat(p.color), fx, 1.05, fz + .2); }
       if (p.type === 'standee') { box(.36, .9, .04, mat(0xf2d0a0), fx, 0, fz + .1); box(.36, .25, .045, mat(0xe23b3b), fx, .45, fz + .1); box(.22, .22, .046, mat(0x2b2b2b), fx, .68, fz + .1); }
-      if (p.type === 'cat' && p.on === 'roof') P.cat(-hw * .3, top + (s.roof.type === 'hip' ? .25 : .3), hd * .2, '#2a2a2a', -.4);
+      if (p.type === 'cat' && p.on === 'roof') P.cat(-hw * .3, top + (r.type === 'hip' ? .25 : .3), hd * .2, '#2a2a2a', -.4);
       if (p.type === 'cat' && p.on === 'sill') P.cat(hw + .12, base + .52, -hd * .45, '#e8a04a', Math.PI / 2);
       if (p.type === 'glove' && p.on === 'roof') { const g = ball(.3, mat(p.color), -hw * .55, top + .62, -hd * .1); g.scale.set(1.1, 1, .9); ball(.13, mat(p.color), -hw * .55 + .25, top + .62, -hd * .1 + .12); box(.36, .2, .3, mat(0xf4f4f4), -hw * .55 - .05, top + .2, -hd * .1); }
-    }
+    });
   }
 
   // ---------- interior ----------
   function interior(s) {
+    if (!s || !Array.isArray(s.size)) return;
+    enter('room');
+    s = { floor: { type: 'wood', a: '#b48a5a' }, wall: { mat: 'plaster', color: '#efe3cf' }, items: [], ...s };
     const [W, D] = s.size, ox = -W / 2, oz = -D / 2, WH = 2.0;   // back corner of the room = (ox, oz)
     const at = (x, z) => [ox + x, oz + z];
     const fm = s.floor.type === 'checker' ? texMat(T.checker(s.floor.a, s.floor.b), W, D) : texMat(T.plankH(s.floor.a), W, D);
@@ -166,11 +180,12 @@ export function makeBuilder(scene) {
     box(W, .12, .06, mat(shade(s.wall.color, .55)), 0, 0, oz + .03); box(.06, .12, D, mat(shade(s.wall.color, .55)), ox + .03, 0, 0);
     box(W + .12, .14, .1, mat(shade(s.wall.color, .55)), 0, 0, -oz + .05); box(.1, .14, D, mat(shade(s.wall.color, .55)), -ox + .05, 0, 0); // cut-away front wall stubs
     const onWall = (wall, a) => wall === 'z' ? { x: ox + a, z: oz + .08, rx: 0 } : { x: ox + .08, z: oz + a, rx: Math.PI / 2 };
-    for (const it of s.items) {
+    s.items.forEach((it, i) => {
+      enter('item:' + i);
       const [x, z] = it.at && Array.isArray(it.at) ? at(...it.at) : [0, 0];
       switch (it.type) {
         case 'stove': box(.7, .8, .55, mat(0x7c8288), x, 0, z); box(.72, .05, .57, mat(0x3a3d42), x, .8, z); cyl(.2, .18, .3, mat(0xc0c4c8), x, .85, z, 10); cyl(.19, .19, .02, mat(0xf3e2b8), x, 1.13, z, 10); break;
-        case 'counter': { const L = it.len, rot = it.rot === 90; const g = new THREE.Group(); scene.add(g); g.position.set(x, 0, z); if (rot) g.rotation.y = Math.PI / 2;
+        case 'counter': { const L = it.len, rot = it.rot === 90; const g = new THREE.Group(); cur.add(g); g.position.set(x, 0, z); if (rot) g.rotation.y = Math.PI / 2;
           const m1 = new THREE.Mesh(new THREE.BoxGeometry(L, .95, .5), texMat(T.plank(it.color), L * 1.5, 1)); m1.position.y = .475; g.add(m1);
           const m2 = new THREE.Mesh(new THREE.BoxGeometry(L + .08, .06, .6), mat(shade(it.color, 1.25))); m2.position.y = .98; g.add(m2);
           if (it.on === 'bowls') for (let i = 0; i < Math.floor(L / .5); i++) { const b = new THREE.Mesh(new THREE.CylinderGeometry(.1, .07, .08, 8), mat(0xf4efe6)); b.position.set(-L / 2 + .3 + i * .5, 1.05, .05); g.add(b); const n = new THREE.Mesh(new THREE.CylinderGeometry(.085, .085, .02, 8), mat(0xe8b86a)); n.position.set(-L / 2 + .3 + i * .5, 1.09, .05); g.add(n); }
@@ -190,7 +205,7 @@ export function makeBuilder(scene) {
         case 'case': box(1.2, .6, .6, mat(0x2b2e3d), x, 0, z); box(1.2, .5, .6, mat(0xc8f0ff, { transparent: true, opacity: .35 }), x, .6, z);
           box(.2, .12, .2, mat(0xe8c040), x - .35, .6, z); cyl(.06, .06, .3, mat(0xff4fa3), x, .6, z, 6); box(.3, .14, .14, mat(0xc23a3a), x + .35, .6, z); break;
         case 'shelf': { const L = it.len; const w = it.wall === 'x'; const [sx, sz] = w ? [ox + .2, oz + it.at] : [x, oz + .2];
-          const g = new THREE.Group(); g.position.set(sx, 0, sz); if (w) g.rotation.y = Math.PI / 2; scene.add(g);
+          const g = new THREE.Group(); g.position.set(sx, 0, sz); if (w) g.rotation.y = Math.PI / 2; cur.add(g);
           const back = new THREE.Mesh(new THREE.BoxGeometry(L, 1.6, .06), mat(0x5b4636)); back.position.set(0, .8, -.15); g.add(back);
           for (const y of [.35, .8, 1.25]) { const sh = new THREE.Mesh(new THREE.BoxGeometry(L, .05, .34), texMat(T.plankH('#8a6a4a'), L, 1)); sh.position.set(0, y, 0); g.add(sh);
             const n = Math.floor(L / .22); for (let i = 0; i < n; i++) { const xx = -L / 2 + .15 + i * .22;
@@ -198,7 +213,7 @@ export function makeBuilder(scene) {
               if (it.goods === 'figures') { const c = ['#ff4fa3', '#4fe3ff', '#ffd166', '#e23b3b', '#8a6aff'][i % 5]; const b = new THREE.Mesh(new THREE.BoxGeometry(.14, .26, .14), mat(c)); b.position.set(xx, y + .155, 0); g.add(b); }
               if (it.goods === 'gloves') { const b = new THREE.Mesh(new THREE.SphereGeometry(.09, 8, 6), mat(['#e23b3b', '#3a6ee8', '#2b2b2b'][i % 3])); b.position.set(xx, y + .1, 0); g.add(b); } } }
           g.traverse(o => { if (o.isMesh) o.castShadow = o.receiveShadow = true; }); break; }
-        case 'bookshelf': { const L = it.len; const w = it.wall === 'x'; const g = new THREE.Group(); g.position.set(w ? ox + .2 : ox + it.at, 0, w ? oz + it.at : oz + .2); if (w) g.rotation.y = Math.PI / 2; scene.add(g);
+        case 'bookshelf': { const L = it.len; const w = it.wall === 'x'; const g = new THREE.Group(); g.position.set(w ? ox + .2 : ox + it.at, 0, w ? oz + it.at : oz + .2); if (w) g.rotation.y = Math.PI / 2; cur.add(g);
           const fr = new THREE.Mesh(new THREE.BoxGeometry(L, 1.8, .36), texMat(T.plank('#6b4a2a'), L, 1)); fr.position.set(0, .9, 0); g.add(fr);
           const cols = ['#c0504d', '#4f81bd', '#e3b448', '#5b8a6a', '#8064a2', '#d98c4a', '#3a3a3a'];
           for (const y of [.12, .55, 1.0, 1.42]) { let xx = -L / 2 + .06; let i = Math.floor(y * 10); while (xx < L / 2 - .1) { const bw = .05 + ((i * 7) % 4) * .015, bh = .28 + ((i * 3) % 3) * .05; const b = new THREE.Mesh(new THREE.BoxGeometry(bw, bh, .26), mat(cols[i % cols.length])); b.position.set(xx + bw / 2, y + bh / 2, .06); g.add(b); xx += bw + .01; i++; } }
@@ -211,7 +226,7 @@ export function makeBuilder(scene) {
         case 'neon': { const p = onWall(it.wall, it.at); const m = new THREE.Mesh(new THREE.TorusGeometry(.28, .03, 6, 16), glowMat(it.color)); m.position.set(p.x + .03, 1.35, p.z); m.rotation.y = p.rx; add(m);
           const m2 = new THREE.Mesh(new THREE.BoxGeometry(.03, .03, .5), glowMat('#ff4fa3')); m2.position.set(p.x + .03, 1.35, p.z); add(m2); break; }
       }
-    }
+    });
   }
   return { exterior, interior };
 }

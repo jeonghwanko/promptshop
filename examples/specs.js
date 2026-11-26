@@ -3,6 +3,7 @@
 // Interior: room spans x 0..W, z 0..D; back walls at z=0 (upper-right) and x=0 (upper-left).
 export const SPECS = {
   ramen: {
+    name: '밤라멘',
     line: '밤에만 여는 청록 기와 포장마차 라멘집',
     ext: {
       size: [2.6, 1.6], floors: 1,
@@ -34,6 +35,7 @@ export const SPECS = {
     },
   },
   bookcafe: {
+    name: '고양이 서재',
     line: '고양이가 주인인 작은 2층 북카페',
     ext: {
       size: [2.2, 2.0], floors: 2,
@@ -68,6 +70,7 @@ export const SPECS = {
     },
   },
   goods: {
+    name: 'KO 굿즈',
     line: '네온 간판 번쩍이는 격투 굿즈 상점',
     ext: {
       size: [2.4, 1.8], floors: 1,

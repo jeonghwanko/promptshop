@@ -40,6 +40,17 @@ To export PNGs with headless Chrome:
 scripts/render.sh            # writes out/<id>-ext.png and out/<id>-int.png
 ```
 
+## Watch it build
+
+`build.html` shows a shop being built while the model is still writing. The model answers in **JSON Lines, one part per line** (name → body → front → roof → sign → props → room → furniture), and every finished line is built at once: the body rises out of the ground, then each part drops into place, and a build log lists what each line added.
+
+- `src/steps.js`: the prompt (`buildPrompt`), a streaming line reader (`lineReader`), and `applyStep`, which validates each step (colors, ranges, known types) before it reaches the renderer.
+- `src/stage.js`: a live view that rebuilds after every step and animates the new part.
+
+Inside a claude.ai artifact the page calls Claude through the artifact runtime. Opened anywhere else it replays an example build. To use another model, feed its streamed text into `lineReader(onStep)`.
+
+`scripts/bundle.py out.html` inlines the page and its modules into one file.
+
 ## Use it
 
 ```js
