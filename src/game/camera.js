@@ -18,7 +18,8 @@ export function startZoom(slot) {
   const k = Math.min(innerWidth * .8 / w, (innerHeight - 160) * .85 / h);
   return Math.max(1, Math.min(3, Math.floor(k * Math.SQRT2)));   // the island is round: its outline is the square's corners pulled in by √2
 }
-export function scrollToSlot(s) { const box = $('mapbox'), [cx, cz] = centerOf(s), [px0, py0] = pr.P(cx, cz), px = px0 * S.zoom, py = py0 * S.zoom; box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: 'smooth' }); }
+/** Bring island s to the middle of the screen; smooth = false jumps (the first view, where there is nothing to glide from). */
+export function scrollToSlot(s, smooth = true) { const box = $('mapbox'), [cx, cz] = centerOf(s), [px0, py0] = pr.P(cx, cz), px = px0 * S.zoom, py = py0 * S.zoom; box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: smooth ? 'smooth' : 'instant' }); }
 /** A pointer event → a point on the map canvas. */
 export const mapXY = (e) => { const r = map.getBoundingClientRect(); return [(e.clientX - r.left) * map.width / r.width, (e.clientY - r.top) * map.height / r.height]; };
 /** A point on the map canvas → the screen. */

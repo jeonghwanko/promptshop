@@ -2,6 +2,7 @@
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
 import { SLOTS, centerOf, placePlot, PLOT, neighbours } from '../v2/isles.js';
 import { $, el } from './ui.js';
+import { mountGull } from '../ui/gull.js';
 import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { allPlots, takenSet, nameOf } from './model.js';
 import { save, track } from './persist.js';
@@ -30,7 +31,7 @@ const TUT_IN = [
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
-const setStep = (field, n) => { if (!canWrite()) return; S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n }); guide(); };
+const setStep = (field, n) => { if (!canWrite()) return; if (n > (S.myDoc.wallet[field] ?? 0) && n < 99) gull?.cheer(); S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n }); guide(); };
 const say = (v) => typeof v === 'function' ? v() : v;
 
 // before I have an island: choose one on the map. Invited: next to the friend who sent the link.
@@ -55,22 +56,22 @@ let panned = -1;
 export function guide() {
   const g = $('guide'); document.querySelectorAll('.glow').forEach(e => e.classList.remove('glow'));
   if (inTutOn()) {
-    const st = TUT_IN[inStep()]; g.hidden = false; $('gtext').textContent = typeof st.say === 'function' ? st.say() : st.say;
+    const st = TUT_IN[inStep()]; g.hidden = false; speak(typeof st.say === 'function' ? st.say() : st.say);
     $('gbtns').replaceChildren(...[st.btn ? el('button', { class: 'gold', on: { click: () => setStep('tutIn', inStep() + 1) } }, st.btn) : null,
       el('button', { class: 'skip', on: { click: () => setStep('tutIn', 99) } }, '건너뛰기')].filter(Boolean));
     return;
   }
   if (SHOWCASE || (!S.mySlot && !MAY_JOIN && S.scrolled)) {   // the showcase, or a private board I was not invited to: look around, then make my own
-    g.hidden = false; $('gtext').textContent = SHOWCASE ? '끼룩! 여기는 구경하는 군도야.\n내 군도를 세우고 친구들을 불러 봐!' : '끼룩! 여긴 초대받은 친구들의 군도야.\n내 군도를 세우고 친구들을 불러 봐!';
+    g.hidden = false; speak(SHOWCASE ? '끼룩! 여기는 구경하는 군도야.\n내 군도를 세우고 친구들을 불러 봐!' : '끼룩! 여긴 초대받은 친구들의 군도야.\n내 군도를 세우고 친구들을 불러 봐!');
     $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: (e) => { e.currentTarget.disabled = true; newBoard(); } } }, '내 군도 세우기'));
     return;
   }
   if (picking()) {
-    g.hidden = !pickSpot(); $('gtext').textContent = pickWords(); $('gbtns').replaceChildren();
+    g.hidden = !pickSpot(); speak(pickWords()); $('gbtns').replaceChildren();
     return;
   }
   if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
-  const st = TUT[tutStep()]; g.hidden = false; $('gtext').textContent = say(st.say);
+  const st = TUT[tutStep()]; g.hidden = false; speak(say(st.say));
   if (st.map === 'invite' && panned !== tutStep()) { panned = tutStep(); const n = emptyNeighbours()[0]; if (n) setTimeout(() => { if (S.zoom > 1) { S.zoom = 1; applyZoom(); } scrollToSlot(n); }, 300); }   // once, as the step starts; near enough to see my island too
   $('gbtns').replaceChildren(...[st.btn ? el('button', { class: 'gold', on: { click: () => setStep('tut', tutStep() + 1) } }, say(st.btn)) : null,
     tutStep() < TUT.length - 1 ? el('button', { class: 'skip', on: { click: () => setStep('tut', 99) } }, '건너뛰기') : null].filter(Boolean));
@@ -88,7 +89,7 @@ function guideArrow() {
     if (st.at === 'slow') { const v = S.watching.view, i = [...(v.blocked ?? [])][0], f = i !== undefined && v.fx[i]; if (f && v.onFloor(f.y)) { const [x, y] = v.view.project(f.x, f.y + 1.4, f.z), r = v.top.getBoundingClientRect(); pt = [r.left + x * v.zoom, r.top + y * v.zoom]; } }
     pt = atEl(st.el) ?? pt;
   } else if (picking()) {   // the island to choose: over its name on the map (the words follow the inviter's name as it arrives)
-    $('gtext').textContent = pickWords();
+    speak(pickWords());
     const s = pickSpot(); if (s) { const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx - 4, cz - 4)); pt = [x, y - 34]; }
   } else if (tutOn()) {
     const st = TUT[tutStep()], n = PLOT[S.size];
@@ -106,4 +107,27 @@ function guideArrow() {
 }
 /** The spot the guide makes glow on the map while it asks for a place to build. */
 export const tutGlowSpot = () => S.tutSpot && S.buildMode && tutOn() && TUT[tutStep()].map === 'spot' ? S.tutSpot : null;
-export function initGuide() { setInterval(guideArrow, 120); }
+// ---------- 끼룩이 and its words: the line types itself out while the beak moves; a tap on the bubble shows it all ----------
+let gull = null, spoken = null, typing = null;
+function speak(text) {
+  if (text === spoken) return; spoken = text;
+  const box = $('gtext'), btns = $('gbtns'); clearInterval(typing);
+  box.textContent = text; btns.classList.add('wait');
+  const bub = box.closest('.gbub'); bub.classList.remove('bump'); void bub.offsetWidth; bub.classList.add('bump');
+  setTimeout(() => {   // after the emoji have turned into pixel icons: every letter and icon becomes a piece shown in turn
+    if (spoken !== text) return;
+    const parts = [];
+    for (const n of [...box.childNodes]) {
+      if (n.nodeType === 3) { const frag = document.createDocumentFragment(); for (const ch of n.data) { const sp = document.createElement('span'); sp.textContent = ch; sp.className = 'tw'; frag.append(sp); if (ch.trim()) parts.push(sp); else sp.classList.add('on'); } n.replaceWith(frag); }
+      else { n.classList?.add('tw'); parts.push(n); }
+    }
+    let i = 0; gull?.talk(true);
+    const done = () => { clearInterval(typing); typing = null; for (const q of parts) q.classList.add('on'); gull?.talk(false); btns.classList.remove('wait'); };
+    typing = setInterval(() => { if (i >= parts.length) return done(); parts[i++].classList.add('on'); }, 34);
+    bub.onclick = (e) => { if (typing && !e.target.closest('button')) done(); };
+  }, 0);
+}
+export function initGuide() {
+  gull = mountGull(document.querySelector('#guide .gbird'));
+  setInterval(guideArrow, 120);
+}

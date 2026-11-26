@@ -1,0 +1,9 @@
+<!doctype html><meta charset="utf-8"><title>끼룩이 poses</title>
+<script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.js" } }</script>
+<style>body { background:#3f7fb0; display:flex; flex-wrap:wrap; gap:16px; padding:16px; font:12px sans-serif; color:#fff } figure { margin:0; text-align:center } canvas { image-rendering:pixelated; width:auto; height:200px; background:rgba(255,255,255,.08) }</style>
+<script type="module">
+import { gullFrames } from '../src/ui/gull.js';
+const f = gullFrames(3);
+for (const [n, c] of Object.entries(f)) { const fig = document.createElement('figure'); fig.append(c, Object.assign(document.createElement('figcaption'), { textContent: `${n} ${c.width}×${c.height}` })); document.body.append(fig); }
+document.title = 'ready';
+</script>

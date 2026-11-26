@@ -34,7 +34,8 @@ async function person(url) {
   const ev = async (e) => { const r = await send('Runtime.evaluate', { expression: e, awaitPromise: true }); return r.result.value ?? r.result.description; };
   const click = async (x, y) => { for (const type of ['mouseMoved', 'mousePressed', 'mouseReleased']) await send('Input.dispatchMouseEvent', { type, x, y, button: 'left', clickCount: 1 }); };
   const shot = async (n) => { if (!shots) return; const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(`${shots}/site_${n}.png`, Buffer.from(r.data, 'base64')); };
-  const clickSel = async (sel) => { const b = JSON.parse(await ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)}); if(!e||!e.offsetParent) return 'null'; const r=e.getBoundingClientRect(); return JSON.stringify([r.left+r.width/2, r.top+r.height/2])})()`)); if (b) await click(b[0], b[1]); return !!b; };
+  const clickSel = async (sel) => { for (let i = 0; i < 30 && await ev(`!!document.querySelector(${JSON.stringify(sel)})?.closest('.wait')`); i++) await sleep(150);   // the guide's buttons show once its line is typed
+    const b = JSON.parse(await ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)}); if(!e||!e.offsetParent) return 'null'; const r=e.getBoundingClientRect(); return JSON.stringify([r.left+r.width/2, r.top+r.height/2])})()`)); if (b) await click(b[0], b[1]); return !!b; };
   const arrowNow = async () => JSON.parse(await ev(`(()=>{ const a = document.getElementById('garrow'); return JSON.stringify(a.hidden ? null : [parseFloat(a.style.left), parseFloat(a.style.top)]); })()`));
   const arrow = async () => { let a = await arrowNow(); for (let i = 0; i < 20; i++) { await sleep(300); const b = await arrowNow(); if (JSON.stringify(a) === JSON.stringify(b)) return b; a = b; } return a; };   // once the camera has settled
   const text = () => ev(`document.getElementById('guide').hidden ? '' : document.getElementById('gtext').textContent`);
@@ -74,7 +75,7 @@ await until(async () => (await B.text()).includes('옆'), 15000); await sleep(15
 check('friend: guide points next door', (await B.text()).includes('옆'), await B.text());
 const b1 = await B.arrow(); if (b1) await B.click(b1[0], b1[1] + 22); await sleep(800);
 await B.ev(`[...document.querySelectorAll('#panel button.gold')].find(b => b.textContent.includes('이 섬에 살기'))?.click()`);
-check('friend moved in (token)', await until(() => B.ev('__isles.S.mySlot > 0'), 8000));
+check('friend moved in (token)', await until(() => B.ev('__isles.S.mySlot > 0'), 8000), await B.ev(`JSON.stringify({ b1: ${JSON.stringify(b1)}, panel: document.getElementById('panel').hidden ? '' : document.getElementById('panel').innerText, toast: document.getElementById('toast').textContent, at: (() => { const e = document.elementFromPoint(${b1?.[0] ?? 0}, ${(b1?.[1] ?? 0) + 22}); return e?.className || e?.tagName; })() })`));
 await B.ev(`(()=>{ __isles.myDoc.wallet.tut = 99; __isles.guide(); document.getElementById('d-home').click(); })()`); await sleep(1000);
 await B.ev(`[...document.querySelectorAll('#panel .card.tile button.gold')].find(b => b.textContent.includes('무료'))?.click()`); await sleep(1500);
 check('friend: free half bridge', (await B.ev('Object.keys(__isles.myDoc?.half ?? {}).length')) === 1); await B.shot('5-friendhome');
@@ -83,7 +84,7 @@ await A.front(); await sleep(4000); await A.shot('6-inviter');
 check('inviter sees the friend', await A.ev(`__isles.S.owners.size === 2 && !!document.querySelector('#d-home .badge')`));
 // 7. without the token, a third person is shown the way to an archipelago of their own, and cannot move in
 const C = await person(base + `/?board=${board}`); await sleep(6000); await C.shot('7-stranger');
-await until(async () => (await C.text()).includes('초대받은'), 15000);
+await until(async () => (await C.text()).includes('초대받은'), 25000);
 check('no token: told to make their own', (await C.text()).includes('초대받은'), await C.text());
 const free = await C.ev(`(() => { for (let s = 1; s <= 10; s++) if (!__isles.S.owners.has(s)) return s; })()`);
 const st = await C.ev(`(async () => { const me = await (await fetch('/api/me', { headers: { 'x-isles': '1' } })).json(); const r = await fetch('/api/doc/i-${board}/' + me.uid, { method: 'PUT', headers: { 'x-isles': '1', 'content-type': 'application/json' }, body: JSON.stringify({ slot: ${free}, plots: {}, half: {}, wallet: {} }) }); return r.status + ' ' + (await r.text()); })()`);

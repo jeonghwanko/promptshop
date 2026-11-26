@@ -42,7 +42,7 @@ let seen = null;   // the islands taken when the map was last rebuilt
 hooks.rebuilt = (oldGround) => {
   if (!S.scrolled) {   // the first view: my island; invited, the inviter's; else the whole archipelago to choose from
     S.scrolled = true; const at = S.mySlot || (FROM && S.owners.has(FROM) ? FROM : 0) || pickSpot() || 1;   // (choosing: the island the guide points at, big enough to read)
-    S.zoom = S.mySlot ? startZoom(at) : 1; applyZoom(); setTimeout(() => scrollToSlot(at), 50);
+    S.zoom = S.mySlot ? startZoom(at) : 1; applyZoom(); setTimeout(() => scrollToSlot(at, false), 50);
     track('arrive', { from: FROM, has: !!S.mySlot, taken: S.owners.size });
   }
   // a friend took an island: it rises from the sea, and 내 섬 gets a mark (no window)

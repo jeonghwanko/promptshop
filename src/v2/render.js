@@ -26,8 +26,9 @@ function toCel(root) {
  * - a dark 1px outline outside the silhouette (tinted from the pixel it borders),
  * - inner lines where depth jumps (the nearer side darkens) and softer lines at sharp creases,
  * - contact shading: pixels with nearer neighbours around them (inside corners) darken a little.
+ * soft: only the outline and big depth jumps (parts in front of others): a round character stays clean, not striped.
  */
-function crispen(color, normal, depth, W, H) {
+function crispen(color, normal, depth, W, H, soft = false) {
   const c = color.getContext('2d'), img = c.getImageData(0, 0, W, H), px = img.data;
   const n = normal.getContext('2d').getImageData(0, 0, W, H).data, d = depth.getContext('2d').getImageData(0, 0, W, H).data;
   const solid = (i) => n[i * 4 + 3] > 0, dep = (i) => 1 - d[i * 4] / 255,   /* depth pass writes 1 - z: near is bright */ nv = (i) => [n[i * 4] / 127.5 - 1, n[i * 4 + 1] / 127.5 - 1, n[i * 4 + 2] / 127.5 - 1];
@@ -42,9 +43,11 @@ function crispen(color, normal, depth, W, H) {
     const di = dep(i), ni = nv(i); let k = 1, front = 0;
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
       const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const j = yy * W + xx; if (!solid(j)) continue;
-      if (dep(j) - di > .02) k = Math.min(k, .55);                              // I am in front of a jump: an inner outline
+      if (dep(j) - di > (soft ? .12 : .02)) k = Math.min(k, .55);                // I am in front of a jump: an inner outline
+      if (soft) continue;
       const nj = nv(j); if (ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2] < .5) k = Math.min(k, .82);   // a crease
     }
+    if (soft) { if (k < 1) dark(i, k); continue; }
     // an inside corner: I sit behind the line through two opposite neighbours (a flat slanted wall stays on that line)
     for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) for (const r of [1, 2, 3]) {
       const ax = x + dx * r, ay = y + dy * r, bx = x - dx * r, by = y - dy * r; if (ax < 0 || ay < 0 || bx < 0 || by < 0 || ax >= W || bx >= W || ay >= H || by >= H) continue;
@@ -59,8 +62,8 @@ export function renderBuilding(input, opt = {}) { return renderView(input, 'ext'
 
 // ---------- the shared camera and render pipeline (buildings, cut-aways and voxel buttons all go through it) ----------
 /** The fixed isometric camera: looking down 30°, turned 45°. */
-function isoCamera(dist, far) {
-  const pitch = Math.PI / 6, yaw = Math.PI / 4, dir = new THREE.Vector3(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw));
+function isoCamera(dist, far, yaw = Math.PI / 4, pitch = Math.PI / 6) {   // (other angles only for characters off the map)
+  const dir = new THREE.Vector3(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw));
   const cam = new THREE.OrthographicCamera(-1, 1, 1, -1, 0.1, far);
   cam.position.copy(dir).multiplyScalar(dist); cam.lookAt(0, 0, 0); cam.updateMatrixWorld();
   return { cam, right: new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 0), up: new THREE.Vector3().setFromMatrixColumn(cam.matrixWorld, 1) };
@@ -78,7 +81,7 @@ function frameBox({ cam, right, up }, box, ppu, pad) {
  * Render the scene to a W×H canvas; with crisp, add the outline and corner shading from a normal and a depth pass.
  * skip(mesh): meshes left out of those passes (the ground, see-through ghosts).
  */
-function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => false }) {
+function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => false, soft = false }) {
   const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.setClearColor(0x000000, 0);
   if (shadows) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.BasicShadowMap; }
@@ -96,7 +99,7 @@ function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => fal
     for (const p of corners(box)) { const dd = p.sub(cam.position).dot(camDir); dn = Math.min(dn, dd); df = Math.max(df, dd); }
     const dCan = pass(new THREE.MeshDepthMaterial(), Math.max(.1, dn - 1), df + 1);
     scene.overrideMaterial = null; for (const o of hidden) o.visible = true;
-    crispen(out, nCan, dCan, W, H);
+    crispen(out, nCan, dCan, W, H, soft);
   }
   renderer.dispose(); renderer.forceContextLoss?.();
   return out;
@@ -132,13 +135,16 @@ export function renderView(input, view = 'ext', opt = {}) {
  * Render a small voxel model the way buildings are rendered (same camera angle, light, outline and corner shading).
  * voxels: [[x, y, z, '#rrggbb'], ...] with y up; k: screen pixels per voxel unit. Returns a canvas.
  */
-export function renderVoxels(voxels, { k = 3, crisp = true } = {}) {
-  const scene = new THREE.Scene(), iso = isoCamera(300, 1000);
-  addLights(scene, false);
+/** bounds: [[x0, y0, z0], [x1, y1, z1]] to frame several pictures alike (an animation's frames); else the voxels' own box. */
+export function renderVoxels(voxels, { k = 3, crisp = true, bounds = null, yaw, pitch, character = false } = {}) {
+  // character: a figure off the map (the guide): its own angle, a light from the front and a clean outline
+  const scene = new THREE.Scene(), iso = isoCamera(300, 1000, yaw, pitch);
+  if (character) { const key = new THREE.DirectionalLight(0xffffff, 1.6); key.position.set(-.6, 1.2, 1.4).multiplyScalar(30); scene.add(key, new THREE.HemisphereLight(0xffffff, 0xa9b8c8, 1.9)); } else addLights(scene, false);
   const mesh = new THREE.InstancedMesh(new THREE.BoxGeometry(1, 1, 1), new THREE.MeshLambertMaterial(), voxels.length);
   const m = new THREE.Matrix4(), col = new THREE.Color(), box = new THREE.Box3();
   voxels.forEach(([x, y, z, c], i) => { m.makeTranslation(x + .5, y + .5, z + .5); mesh.setMatrixAt(i, m); mesh.setColorAt(i, col.set(c)); box.expandByPoint(new THREE.Vector3(x, y, z)); box.expandByPoint(new THREE.Vector3(x + 1, y + 1, z + 1)); });
+  if (bounds) { box.makeEmpty(); box.expandByPoint(new THREE.Vector3(...bounds[0])); box.expandByPoint(new THREE.Vector3(bounds[1][0] + 1, bounds[1][1] + 1, bounds[1][2] + 1)); }
   scene.add(mesh);
   const { W, H } = frameBox(iso, box, k, { l: 2, r: 2, b: 2, t: 2 });
-  return shoot(scene, iso.cam, box, W, H, { crisp });
+  return shoot(scene, iso.cam, box, W, H, { crisp, soft: character });
 }
