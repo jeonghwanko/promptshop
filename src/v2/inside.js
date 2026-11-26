@@ -32,13 +32,28 @@ export function profileOf(fixtures) {
   out.cook = Math.round(out.cook * 10) / 10; return out;
 }
 
+/**
+ * The same setup seen from the map, where a shop is a door with a queue: how often it can take the next guest,
+ * how long its queue may grow and what a guest pays. Bottleneck of ordering (counters and cooks) and of seats.
+ */
+export function shopRates(fixtures, owned, baseCoin = 3) {
+  const own = fixtures.filter((_, i) => owned.has(i));
+  const counters = own.filter(f => f.kind === 'counter').length, cooks = own.reduce((t, f) => t + (COOK[f.kind] ?? 0), 0);
+  const seats = own.reduce((t, f) => t + (SEATS[f.kind]?.length ?? 0), 0), decor = own.filter(f => DECOR.has(f.kind)).length, browse = own.filter(f => BROWSE.has(f.kind)).length;
+  const st = 4.2 / (1 + .7 * cooks);
+  const order = counters ? counters / st : seats ? 1 / st : .3 + browse * .08;
+  const seat = seats ? seats / 13 : Infinity;
+  const rate = Math.min(order, seat);
+  return { interval: Math.max(.5, .46 / rate), cap: 3 + 2 * counters + Math.floor(seats / 4), price: baseCoin + Math.min(3, decor), seats, counters, cooks: Math.round(cooks * 10) / 10, decor, slow: seat < order ? 'seat' : 'order' };
+}
+
 const SPEED = 1.5, LIFT = 2.4, PRICE = 4;
 
 export class InsideSim {
   /** plan/fixtures from buildSection; owned: Set of fixture indices */
-  constructor(plan, fixtures, owned, { seed = 1, every = 2.1 } = {}) {
-    this.plan = plan; this.fixtures = fixtures; this.every = every; this.s = seed * 9301 % 233280 || 7;
-    this.people = []; this.t = 0; this.next = .5; this.id = 0; this.kitchen = []; this.cooking = 0;
+  constructor(plan, fixtures, owned, { seed = 1, every = 2.1, price = PRICE } = {}) {
+    this.price = price; this.plan = plan; this.fixtures = fixtures; this.every = every; this.s = seed * 9301 % 233280 || 7;
+    this.people = []; this.t = 0; this.next = Number.isFinite(every) ? .5 : Infinity; this.id = 0; this.kitchen = []; this.cooking = 0;
     this.stats = { served: 0, lostLine: 0, lostSeat: 0, coins: 0, log: [] };
     this.events = [];
     this.setOwned(owned);
@@ -79,7 +94,7 @@ export class InsideSim {
     const s = free[Math.floor(this.rnd() * free.length)]; s.who = p.id; p.seat = s; p.state = 'toSeat'; this.route(p, s.f, s.x, s.z); return true;
   }
   afterCounter(p) {
-    if (!this.seats.length) { if (!this.counters.length) this.pay(PRICE, p.f, p.x, p.z); return this.leave(p, 'ok'); }   // nothing to sit on: pay on the way out
+    if (!this.seats.length) { if (!this.counters.length) this.pay(this.price, p.f, p.x, p.z); return this.leave(p, 'ok'); }   // nothing to sit on: pay on the way out
     if (!this.findSeat(p)) { const d = this.plan.door; p.state = 'standing'; p.wait = 5; p.mood = 'seat?'; this.route(p, 0, d.x + .3 + this.rnd() * .9, d.z - .35 - this.rnd() * .3); }
   }
 
@@ -89,7 +104,7 @@ export class InsideSim {
     // table service: the kitchen cooks one order at a time, faster with more cooks
     if (this.kitchen.length) { this.cooking += dt; if (this.cooking >= this.serviceTime) { this.cooking = 0; const id = this.kitchen.shift(), p = this.people.find(q => q.id === id); if (p) { p.ordered = true; p.state = 'toSeat'; } } }
     for (const c of this.counters) {
-      if (c.busy) { c.left -= dt; if (c.left <= 0) { const p = this.people.find(q => q.id === c.busy); c.busy = null; if (p) { if (!this.seats.length) this.pay(PRICE, c.fi, c.x, c.z); p.state = 'served'; p.mood = ''; this.afterCounter(p); } } }
+      if (c.busy) { c.left -= dt; if (c.left <= 0) { const p = this.people.find(q => q.id === c.busy); c.busy = null; if (p) { if (!this.seats.length) this.pay(this.price, c.fi, c.x, c.z); p.state = 'served'; p.mood = ''; this.afterCounter(p); } } }
       if (!c.busy && c.q.length) { const p = this.people.find(q => q.id === c.q[0]); if (p && !p.moves.length && Math.hypot(p.x - c.x, p.z - (c.z + .55)) < .2) { c.q.shift(); c.busy = p.id; c.left = this.serviceTime; p.state = 'order'; } }
     }
     for (const p of this.people) {
@@ -110,7 +125,7 @@ export class InsideSim {
         case 'food': break;
         case 'sit': if ((p.wait -= dt) <= 0) {
           const tip = this.decor.get(p.f) ? Math.min(3, this.decor.get(p.f)) : 0;
-          this.pay(PRICE + tip, p.f, p.x, p.z, tip > 0);   // the bill is paid at the table, with a tip if the floor is decorated
+          this.pay(this.price + tip, p.f, p.x, p.z, tip > 0);   // the bill is paid at the table, with a tip if the floor is decorated
           p.seat.who = null; p.seat = null; this.stats.served++;
           const t = this.toilets.find(t => !t.who);
           if (t && this.rnd() < .35) { t.who = p.id; p.wc = t; p.state = 'wc'; p.wait = 3; p.mood = ''; this.route(p, t.fi, t.x, t.z + .45); } else this.leave(p, 'ok');

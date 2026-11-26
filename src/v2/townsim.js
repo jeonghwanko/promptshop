@@ -68,8 +68,10 @@ export class TownSim {
       shops.set(id, { id, lot, door: lot.door ?? doorOf(lot), serves: r.serves, source: r.source, owner: b.owner, cap: LOT_CAP[lot.size] + Math.min(4, Math.floor((b.levels - 1) / 2)), coin: LOT_COIN[lot.size],
         queue: old?.queue ?? [], busy: old?.busy ?? 0, fresh: !old, served: old?.served ?? 0, stock: b.stock ?? Infinity, price: (b.price ?? LOT_COIN[lot.size]) + Math.floor((b.fx ?? 0) / 4),
         speed: 1 + .6 * Math.min(1, (b.fx ?? 0) / Math.max(1, b.fxTotal ?? 8)) });
-      // furniture bought: one more place in the queue per two pieces
-      shops.get(id).cap += Math.floor((b.fx ?? 0) / 2);
+      const sh = shops.get(id);
+      if (b.rates) { sh.cap = b.rates.cap; sh.price = b.rates.price; sh.interval = b.rates.interval; }   // the setup inside decides
+      else sh.cap += Math.floor((b.fx ?? 0) / 2);   // furniture bought: one more place in the queue per two pieces
+      sh.watched = !!b.watched;
     }
     this.shops = shops; this.target = Math.min(70, pop);
     // a new source sends its people out of its own door
@@ -141,11 +143,12 @@ export class TownSim {
       s.queue.forEach((p, i) => { p.x = s.door[0] + .5 - i * .32; p.z = s.door[1] + .3; });
       if (!s.queue.length) continue;
       s.busy += dt;
-      if (s.busy >= 2.2 / (s.speed ?? 1)) {
+      if (s.busy >= (s.interval ?? 2.2 / (s.speed ?? 1))) {
         s.busy = 0; const p = s.queue.shift(); p.inQueue = false; p.target = null; p.wait = .8;
         if (s.stock <= 0) { p.need = null; p.mood = 2; this.events.push({ kind: 'empty', lot: s.id, owner: s.owner, t: this.t }); continue; }
         s.stock--; s.served++; p.mood = 1;
-        this.events.push({ kind: 'coin', lot: s.id, owner: s.owner, coins: s.price, used: 1, t: this.t });
+        // a shop someone is looking inside: the guest walks in there and pays at the table instead
+        this.events.push(s.watched ? { kind: 'enter', lot: s.id, owner: s.owner, used: 1, t: this.t } : { kind: 'coin', lot: s.id, owner: s.owner, coins: s.price, used: 1, t: this.t });
         // a visitor sometimes wants one more thing before going home
         p.need = p.dock && this.rnd() < .3 ? NEED_KEYS[Math.floor(this.rnd() * NEED_KEYS.length)] : null; p.since = this.t; p.tried = false;
       }
