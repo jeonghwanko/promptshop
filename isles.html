@@ -690,28 +690,38 @@ let moving = null;
 function startMove(key) {
   const p = myDoc?.plots[key]; if (!p) return;
   if (watching) closeInside(); setBuildMode(false); closePanel();
-  moving = { key, size: p.size }; hover = null; toast('↔ 옮길 자리를 누르세요 · 같은 크기 내 건물을 누르면 자리를 바꿔요 · Esc 취소');
+  moving = { key, size: p.size }; hover = null; toast('↔ 옮길 자리를 누르세요 · 내 다른 건물을 누르면 자리를 바꿔요 · Esc 취소');
 }
 function cancelMove() { moving = null; hover = null; toast(''); }
 function moveTarget(fx, fz) {   // where the moved building would land under the pointer
   const n = PLOT[moving.size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2);
   if (slotAt(Math.floor(fx), Math.floor(fz)) !== mySlot) return null;
   // the same-sized building of mine under the pointer: swap
-  const other = Object.entries(myDoc.plots).find(([k, p]) => k !== moving.key && p.size === moving.size && fx >= p.x && fx < p.x + n && fz >= p.z && fz < p.z + n);
-  if (other) return { x: other[1].x, z: other[1].z, swap: other[0] };
+  const other = Object.entries(myDoc.plots).find(([k, p]) => k !== moving.key && fx >= p.x && fx < p.x + PLOT[p.size] && fz >= p.z && fz < p.z + PLOT[p.size]);
+  if (other) { const sw = swapDoors(moving.key, other[0]); return sw ? { x: other[1].x, z: other[1].z, swap: other[0], ...sw } : { x: other[1].x, z: other[1].z, door: null, why: '크기가 달라 그 두 자리는 서로 맞지 않아요' }; }
   const taken = new Set(); for (const p of allPlots()) if (p.key !== moving.key) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) taken.add(i + ',' + k);
-  return { x, z, door: placePlot(world, mySlot, x, z, n, taken) };
+  const door = placePlot(world, mySlot, x, z, n, taken);
+  if (door) return { x, z, door };
+  // why it does not fit, said in words
+  let why = '길에 한 면이 닿아야 해요';
+  for (let i = x; i < x + n; i++) for (let k = z; k < z + n; k++) { if (slotAt(i, k) !== mySlot) why = '섬 밖이에요'; else if (world.isRoad(i, k)) why = why === '섬 밖이에요' ? why : '길 위예요'; else if (taken.has(i + ',' + k)) why = why === '섬 밖이에요' || why === '길 위예요' ? why : '다른 건물과 겹쳐요'; }
+  return { x, z, door: null, why };
+}
+// doors for two of my buildings trading places, or null if either does not fit the other's spot
+function swapDoors(ka, kb) {
+  const a = myDoc.plots[ka], b = myDoc.plots[kb], taken = new Set();
+  for (const p of allPlots()) if (p.key !== ka && p.key !== kb) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) taken.add(i + ',' + k);
+  const da = placePlot(world, mySlot, b.x, b.z, PLOT[a.size], taken); if (!da) return null;
+  const tA = new Set(taken); for (let i = b.x; i < b.x + PLOT[a.size]; i++) for (let k = b.z; k < b.z + PLOT[a.size]; k++) tA.add(i + ',' + k);
+  const db = placePlot(world, mySlot, a.x, a.z, PLOT[b.size], tA); return db ? { da, db } : null;
 }
 function dropMove(t) {
-  if (!t || (!t.door && !t.swap)) return toast('길에 닿은 빈 땅이나, 같은 크기 내 건물을 누르세요 · Esc 취소', 1800);
+  if (!t || (!t.door && !t.swap)) return toast(`${t?.why ?? '내 섬 땅을 누르세요'} · 내 다른 건물을 누르면 자리를 바꿔요 · Esc 취소`, 2000);
   const a = myDoc.plots[moving.key], plots = { ...myDoc.plots }; delete plots[moving.key];
   const at = (p, x, z, door) => ({ ...p, x, z, door });
   if (t.swap) {   // exchange places; each finds its door again from its new spot
     const b = plots[t.swap]; delete plots[t.swap];
-    const doorOfSpot = (x, z, n, skip) => { const taken = new Set(); for (const p of allPlots()) if (!skip.includes(p.key)) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) taken.add(i + ',' + k); return placePlot(world, mySlot, x, z, n, taken); };
-    const n = PLOT[a.size], da = doorOfSpot(b.x, b.z, n, [moving.key, t.swap]), db = doorOfSpot(a.x, a.z, n, [moving.key, t.swap]);
-    if (!da || !db) return toast('그 자리끼리는 바꿀 수 없어요', 1600);
-    plots[`${mySlot}_${b.x}_${b.z}`] = at(a, b.x, b.z, da); plots[`${mySlot}_${a.x}_${a.z}`] = at(b, a.x, a.z, db);
+    plots[`${mySlot}_${b.x}_${b.z}`] = at(a, b.x, b.z, t.da); plots[`${mySlot}_${a.x}_${a.z}`] = at(b, a.x, a.z, t.db);
   } else plots[`${mySlot}_${t.x}_${t.z}`] = at(a, t.x, t.z, t.door);
   myDoc.plots = plots;
   // a thump of dust where it lands
@@ -1191,7 +1201,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, moveWithIsland(u, d)])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), centerOf };
+window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
