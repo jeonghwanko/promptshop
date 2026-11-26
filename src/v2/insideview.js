@@ -68,6 +68,9 @@ export class InsideView {
     const pic = document.createElement('div'); Object.assign(pic.style, { position: 'absolute', left: (this.box.ax - axp * z) + 'px', top: (this.box.ay - ayp * z) + 'px', width: W * z + 'px', height: H * z + 'px' });
     for (const c of [v.canvas, this.top, this.txt]) { c.style.position = c === v.canvas ? 'static' : 'absolute'; if (c !== v.canvas) { c.style.left = '0'; c.style.top = '0'; } }
     pic.append(v.canvas, this.top, this.txt); this.el.replaceChildren(pic); this.pic = pic;
+    // building work: its own canvas reaching above the picture, where a new floor goes up
+    this.EXT = 70; this.wk = document.createElement('canvas'); this.wk.width = Math.round(W * this.ts); this.wk.height = Math.round((H + this.EXT) * this.ts);
+    Object.assign(this.wk.style, { position: 'absolute', left: '0', top: (-this.EXT * z) + 'px', width: W * z + 'px', height: (H + this.EXT) * z + 'px', pointerEvents: 'none' }); pic.append(this.wk); this.wg = this.wk.getContext('2d');
     Object.assign(this.el.style, { width: this.box.w + 'px', height: this.box.h + 'px' });
     for (const l of v.labels) {
       const e = document.createElement('div'); e.textContent = l.text;
@@ -76,6 +79,36 @@ export class InsideView {
     }
     }
     this.floorTabs();
+  }
+  /** Show building work on top of the top floor: p is how far along (0..1), null to stop. */
+  construct(p) { if (p === null) { this.work = null; return; } if (!this.work) { this.work = { p: 0, shown: 0, t: 0, parts: [] }; const n = this.view.plan?.floors?.length ?? 1; if (n > 1) this.setFloor(n - 1); } this.work.p = p; }
+  drawWork(dt) {
+    const w = this.work, g = this.wg; if (!this.wk) return; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this.wk.width, this.wk.height); if (!w) return;
+    g.setTransform(this.ts, 0, 0, this.ts, 0, this.EXT * this.ts);
+    w.t += dt; w.shown += (w.p - w.shown) * Math.min(1, dt * 2.5);
+    const P = this.view.project, pl = this.view.plan, fy = pl.floors[this.floor]?.y ?? 0, y0 = fy + 1.35, Hh = 1.5, X = pl.W / 2, Z = pl.D / 2;
+    const C = [[-X, -Z], [X, -Z], [X, Z], [-X, Z]], at = (c, y) => P(c[0], y, c[1]);
+    const poly = (pts, fill) => { g.beginPath(); pts.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fillStyle = fill; g.fill(); };
+    // the new floor filling in, as a pale block rising with the work
+    const top = y0 + Hh * Math.max(.05, w.shown);
+    // only the two back walls rise (the front is open in a cut-away; a block there would hide the room)
+    poly([at(C[0], y0), at(C[1], y0), at(C[1], top), at(C[0], top)], 'rgba(226,206,170,.9)');
+    poly([at(C[0], y0), at(C[3], y0), at(C[3], top), at(C[0], top)], 'rgba(205,184,148,.9)');
+    for (const [a, b] of [[C[0], C[1]], [C[0], C[3]]]) { for (let yy = y0 + .25; yy < top; yy += .25) { const p0 = at(a, yy), p1 = at(b, yy); g.strokeStyle = 'rgba(160,130,95,.35)'; g.lineWidth = .6; g.beginPath(); g.moveTo(p0[0], p0[1]); g.lineTo(p1[0], p1[1]); g.stroke(); } }
+    // scaffolding: poles, planks at two heights, braces on the back faces
+    g.lineCap = 'round'; const line = (a, b, c, wdt) => { g.strokeStyle = c; g.lineWidth = wdt; g.beginPath(); g.moveTo(a[0], a[1]); g.lineTo(b[0], b[1]); g.stroke(); };
+    for (const c of [C[0], C[1], C[3]]) { line(at(c, y0 - .1), at(c, y0 + Hh + .2), '#3a2a1c', 2.6); line(at(c, y0 - .1), at(c, y0 + Hh + .2), '#c9cfd6', 1.4); }
+    for (const yy of [y0 + Hh * .5, y0 + Hh]) for (const [a, b] of [[C[0], C[1]], [C[0], C[3]]]) { line(at(a, yy), at(b, yy), '#3a2a1c', 3); line(at(a, yy), at(b, yy), '#c08a4a', 1.8); }
+    line(at(C[0], y0), at(C[1], y0 + Hh * .5), '#c9cfd6', 1); line(at(C[0], y0 + Hh * .5), at(C[3], y0 + Hh), '#c9cfd6', 1);
+    // hazard tape along the top of the old back walls
+    for (const [a0, b0] of [[C[1], C[0]], [C[0], C[3]]]) { const a = at(a0, y0 + .05), b = at(b0, y0 + .05), n = 12; for (let k = 0; k < n; k++) { const u0 = k / n, u1 = (k + 1) / n; line([a[0] + (b[0] - a[0]) * u0, a[1] + (b[1] - a[1]) * u0], [a[0] + (b[0] - a[0]) * u1, a[1] + (b[1] - a[1]) * u1], k % 2 ? '#2e241a' : '#ffcf3f', 2.2); } }
+    // sparks where something is being fixed, and dust at the foot
+    if (Math.random() < dt * 9) { const [c0, c1] = Math.random() < .5 ? [C[0], C[1]] : [C[0], C[3]], u = Math.random(), yy = y0 + Hh * (.3 + Math.random() * .7) * Math.max(.3, w.shown);
+      const [sx, sy] = P(c0[0] + (c1[0] - c0[0]) * u, yy, c0[1] + (c1[1] - c0[1]) * u); for (let k = 0; k < 6; k++) w.parts.push({ x: sx, y: sy, vx: (Math.random() - .5) * 40, vy: -20 - Math.random() * 30, t: 0, spark: true }); }
+    if (Math.random() < dt * 3) { const c = [C[0], C[1], C[3]][Math.floor(Math.random() * 3)], [sx, sy] = at(c, y0); w.parts.push({ x: sx, y: sy, vx: (Math.random() - .5) * 10, vy: -6, t: 0 }); }
+    for (const q of w.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.spark) q.vy += 90 * dt; }
+    w.parts = w.parts.filter(q => q.t < (q.spark ? .45 : 1.1));
+    for (const q of w.parts) { if (q.spark) { g.fillStyle = `rgba(255,${200 + Math.random() * 55 | 0},90,${1 - q.t / .45})`; g.fillRect(q.x - .6, q.y - .6, 1.4, 1.4); } else { g.fillStyle = `rgba(215,200,170,${.55 * (1 - q.t / 1.1)})`; g.beginPath(); g.arc(q.x, q.y, 2 + q.t * 5, 0, 7); g.fill(); } }
   }
   /** Is a point at height y on the floor being shown? (one-floor buildings: always) */
   onFloor(y) { const n = this.view.plan?.floors?.length ?? 1; if (n < 2) return true; const g = this.view.plan.gap; return Math.floor((y + .01) / g) === this.floor; }
@@ -149,7 +182,7 @@ export class InsideView {
   }
   /** Step the sim and draw. Returns the coin events of this step ({n, tip}). */
   frame(dt) {
-    this.sim.step(dt);
+    this.sim.step(dt); this.drawWork(dt);
     const { g, view, sim } = this, P = view.project, paid = [];
     g.clearRect(0, 0, this.top.width, this.top.height);
     const tg = this.tg; tg.setTransform(1, 0, 0, 1, 0, 0); tg.clearRect(0, 0, this.txt.width, this.txt.height); tg.setTransform(this.ts, 0, 0, this.ts, 0, 0);

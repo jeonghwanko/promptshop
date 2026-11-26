@@ -320,6 +320,36 @@ async function widen() {
   closePanel(); scrollToSlot(mySlot); toast('🌱 땅이 솟아올라요…', 1600);
   setTimeout(() => { celebrate('🌱 땅이 넓어졌어요!', `땅 +${fresh.length}칸 · 이제 건물 ${maxPlots()}채까지`); }, landAnim.end * 1000 + 100);
 }
+// ---------- a building site: fence tape, scaffold, a tower crane, sparks and dust while Claude designs; a dust burst when it is done ----------
+const site = { parts: [], t: 0, done: null };
+function drawSite(dt) {
+  site.t += dt; const P = (x, z) => pr.P(x, z), b = building ?? site.done; if (!b) { site.parts.length = 0; return; }
+  const n = PLOT[b.size], x0 = b.x, z0 = b.z, C = [P(x0, z0), P(x0 + n, z0), P(x0 + n, z0 + n), P(x0, z0 + n)], H = 26 + n * 10;
+  const line = (a, c, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(Math.round(a[0]) + .5, Math.round(a[1]) + .5); g.lineTo(Math.round(c[0]) + .5, Math.round(c[1]) + .5); g.stroke(); };
+  if (building) {
+    // scaffold poles at the corners with planks, drawn light so the building shows through
+    for (const c of C) line(c, [c[0], c[1] - H], 'rgba(58,42,28,.9)', 2);
+    for (const f of [.45, .9]) for (let k = 0; k < 4; k++) if (k !== 1 && k !== 2) line([C[k][0], C[k][1] - H * f], [C[(k + 1) % 4][0], C[(k + 1) % 4][1] - H * f], '#c08a4a', 2);
+    // fence tape round the lot
+    for (let k = 0; k < 4; k++) { const a = C[k], c = C[(k + 1) % 4], m = 10; for (let i = 0; i < m; i++) line([a[0] + (c[0] - a[0]) * i / m, a[1] + (c[1] - a[1]) * i / m - 4], [a[0] + (c[0] - a[0]) * (i + 1) / m, a[1] + (c[1] - a[1]) * (i + 1) / m - 4], i % 2 ? '#2e241a' : '#ffcf3f', 2); }
+    // a tower crane on the back corner, its jib turning a little, a load swinging on the hook
+    const base = C[0], mast = H + 40, top = [base[0], base[1] - mast], sw = Math.sin(site.t * .7) * 14, tip = [top[0] + 34 + sw, top[1] + 6], back = [top[0] - 18 - sw * .4, top[1] - 2];
+    line(base, top, '#2e241a', 4); line(base, top, '#ffcf3f', 2);
+    for (let y = 8; y < mast; y += 8) line([base[0] - 1, base[1] - y], [base[0] + 1, base[1] - y + 6], '#b58a10', 1);
+    line(back, tip, '#2e241a', 4); line(back, tip, '#ffcf3f', 2); g.fillStyle = '#5b5f66'; g.fillRect(Math.round(back[0]) - 3, Math.round(back[1]) - 1, 6, 5);
+    const hook = [tip[0] - 6, tip[1] + 18 + Math.sin(site.t * 2) * 3]; line([tip[0] - 6, tip[1]], hook, '#2e241a', 1); g.fillStyle = '#c08a4a'; g.fillRect(Math.round(hook[0]) - 4, Math.round(hook[1]), 8, 4);
+    // sparks and dust
+    if (Math.random() < dt * 8) { const k = Math.floor(Math.random() * 4), c = C[k]; for (let i = 0; i < 5; i++) site.parts.push({ x: c[0] + (Math.random() - .5) * 20, y: c[1] - H * (.3 + Math.random() * .6), vx: (Math.random() - .5) * 50, vy: -20 - Math.random() * 30, t: 0, spark: true }); }
+    if (Math.random() < dt * 4) { const k = Math.floor(Math.random() * 4); site.parts.push({ x: C[k][0], y: C[k][1], vx: (Math.random() - .5) * 12, vy: -8, t: 0 }); }
+  } else if (site.done && site.done.t === 0) {   // finished: a ring of dust bursts out from the foot
+    for (let i = 0; i < 26; i++) { const a = i / 26 * 6.28; site.parts.push({ x: (C[0][0] + C[2][0]) / 2, y: (C[0][1] + C[2][1]) / 2, vx: Math.cos(a) * 60, vy: Math.sin(a) * 26 - 6, t: 0, big: true }); }
+  }
+  if (site.done) { site.done.t += dt; if (site.done.t > 1.2) site.done = null; }
+  for (const q of site.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.spark) q.vy += 100 * dt; else { q.vx *= .96; q.vy *= .96; } }
+  site.parts = site.parts.filter(q => q.t < (q.spark ? .45 : q.big ? 1.1 : 1));
+  for (const q of site.parts) { if (q.spark) { g.fillStyle = `rgba(255,${200 + Math.random() * 55 | 0},90,${1 - q.t / .45})`; g.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); }
+    else { g.fillStyle = `rgba(225,210,180,${(q.big ? .8 : .5) * (1 - q.t / (q.big ? 1.1 : 1))})`; g.beginPath(); g.arc(q.x, q.y, (q.big ? 4 : 2) + q.t * (q.big ? 9 : 5), 0, 7); g.fill(); } }
+}
 let landAnim = null; const splash = [];
 function drawLandAnim(dt) {   // old coast, then each new tile rising into place, with spray
   const a = landAnim; a.t += dt;
@@ -504,6 +534,7 @@ function frame(t) {
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
   for (const b of boats) items.push({ d: b.x + b.z, draw: () => drawBoat(b) });
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
+  drawSite(dt);
   // island labels: owner names, empty slots invite
   g.textAlign = 'center';
   for (let s = 1; s <= SLOTS && !zoomShop; s++) {   // map words would be blown up behind an open shop
@@ -812,10 +843,10 @@ function startExtend(key, { inShop = false } = {}) {
     const line = input.value.trim() || ideas[0]; err.textContent = ''; log.replaceChildren();
     if (bad(line)) { err.textContent = '그 표현으로는 지을 수 없어요.'; return; }
     if (!sample) { err.textContent = '이 화면에서는 Claude를 부를 수 없어요.'; return; }
-    go.disabled = true; note('…', '설계 중');
+    go.disabled = true; note('…', '설계 중'); const wv = inShop ? watching?.view : null; wv?.construct(.08);
     const steps = [];
     try {
-      const rd = lineReader((st) => { steps.push(st); note({ floor: '층', fixture: '가구', order: '순서' }[st.step] ?? st.step, st.note || st.name || ''); });
+      const rd = lineReader((st) => { steps.push(st); wv?.construct(Math.min(.9, .15 + steps.length * .1)); note({ floor: '층', fixture: '가구', order: '순서' }[st.step] ?? st.step, st.note || st.name || ''); });
       await sample(extendPrompt(line, p.b.input), { modelTier: 'quick', cache: false, onText: ({ delta }) => rd.push(delta) }); rd.end();
       const next = applyExtension(p.b.input, steps); if (!next) throw { code: 'nothing' };
       // keep what was bought: the same fixture (floor, zone, kind, n-th of its kind) in the new layout
@@ -825,12 +856,12 @@ function startExtend(key, { inShop = false } = {}) {
       for (const i of ownedOf(p)) { const j = newIndex.get(keyOf(oldFx, i)) ?? newFx.findIndex((f, jj) => !own.has(jj) && f.kind === oldFx[i]?.kind && f.fi === oldFx[i]?.fi); if (j >= 0) own.add(j); else refund += costOf(oldFx[i]?.kind); }
       if (refund) { myDoc.wallet.coins += refund; note('정리', `자리가 바뀐 가구 값 ${refund}동전을 돌려받았어요`); }
       const mp = myDoc.plots[key]; mp.b = { ...mp.b, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size;
-      G().permits--; rebuild(); await save(true);
+      wv?.construct(1); G().permits--; rebuild(); await save(true);
       const nn = normalize(next);
       note('완공', `${nn.levels}층 · 새 가구 ${newFx.length - own.size}개`);
       celebrate('🏗️ 증축 완공!', `${nn.name || TYPE_KO[nn.type]} ${nn.levels}층 · 새 자리를 채워 보세요`);
       setTimeout(() => { closePanel(); if (watching) closeInside(true); openShop(key); setTimeout(() => watching?.view?.setFloor(nn.levels - 1), 400); }, 900);   // back in the shop, on the new floor
-    } catch (e) { err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : '증축하지 못했어요. 다시 눌러 주세요.'; go.disabled = false; }
+    } catch (e) { wv?.construct(null); err.textContent = e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : '증축하지 못했어요. 다시 눌러 주세요.'; go.disabled = false; }
   }
   go.onclick = run; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 }
@@ -1249,7 +1280,7 @@ function startBuild(x, z, door) {
       G().permits--;
       const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
       myDoc.plots = { ...myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, lay: LAYOUT, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
-      building = null;
+      site.done = { x, z, size: sz, t: 0 }; building = null;
       // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
       const answered = need && roleOf(s.type, s.levels).serves === need;
       if (answered) { myDoc.wallet.coins += REQ_BONUS; const d = dockOf(mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
@@ -1462,7 +1493,7 @@ if (db) {
 } else { docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(u, d))])); rebuild(); }
 if (!db) showHome();   // without a database there is nothing to wait for
 // for checks from the browser console
-window.__isles = { get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
+window.__isles = { site: (x, z, sz, on) => { if (on) building = { x, z, size: sz, stage: { canvas: document.createElement('canvas'), W: 0, H: 0 } }; else { site.done = { x, z, size: sz, t: 0 }; building = null; } }, get watching() { return watching; }, get myDoc() { return myDoc; }, startMove: (k) => startMove(k), tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: () => cancelMove(), openShop: (k) => openShop(k), close: () => closeInside(), get zoom() { return zoom; }, centerOf };
 // ?world=1 opens the world map at once (for checks)
 if (new URLSearchParams(location.search).get('world')) setTimeout(openWorld, 600);
 // ?open=<plot key> opens a building's inside at once (for checks)
