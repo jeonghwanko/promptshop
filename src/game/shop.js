@@ -145,9 +145,11 @@ export function stepInside(dt) {
 export function initShop() {
   $('shopwrap').addEventListener('click', (e) => { if (e.target === $('shopwrap')) closeInside(); });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });
-  // the phone turned or the window changed: the cut-away was sized for the old screen, so it opens again for this one
-  let t = 0, w0 = innerWidth, h0 = innerHeight;
+  // the phone turned (portrait ↔ landscape): the cut-away was sized for the other shape, so it opens again for this one.
+  // Only a turn: a phone's toolbars and keyboard change the height as a finger lands, and reopening then looked like a reload.
+  let t = 0, wide0 = innerWidth > innerHeight;
   addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => {
-    const k = S.watching?.key; if (!k || S.watching.extending || (Math.abs(innerWidth - w0) < 40 && Math.abs(innerHeight - h0) < 120)) return;   // a phone keyboard alone does not count
-    w0 = innerWidth; h0 = innerHeight; closeInside(); setTimeout(() => openShop(k), 450); }, 250); });
+    const wide = innerWidth > innerHeight; if (wide === wide0) return; wide0 = wide;
+    const k = S.watching?.key; if (!k || S.watching.extending || document.activeElement?.tagName === 'INPUT') return;
+    closeInside(); setTimeout(() => openShop(k), 450); }, 250); });
 }
