@@ -3,7 +3,6 @@
 import * as THREE from 'three';
 import { surface, mat, glow, shade, texMat, tex } from './materials.js';
 import { buildRoof } from './roofs.js';
-import { iconTexture } from './icons.js';
 import { MAX_SHOWN_LEVELS } from './spec.js';
 
 const GH = 1.45, FH = 1.25, PL = 0.12;                    // ground floor, upper floor, default plinth height
@@ -268,15 +267,16 @@ export function buildExterior(spec, section) {
   const fz = main.z + md / 2, fx = main.x, gy = plinthH + GH;
   enter('sign');
   {
-    const it = iconTexture(spec.sign.icon, spec.sign.fg, spec.sign.bg), im = mat(0xffffff, { map: it }), edge = mat(shade(spec.sign.bg, .6));
+    // the board carries only its colour: the picture is stamped on afterwards in crisp pixels (render.js stampSign), where root.userData.sign says
+    const im = mat(spec.sign.bg), edge = mat(shade(spec.sign.bg, .6)), mark = (x, y, z, face) => { root.userData.sign = { x, y, z, face, icon: spec.sign.icon, fg: spec.sign.fg, bg: spec.sign.bg }; };
     // signs are drawn big (×1.85) with a light frame, so the picture reads at the map's chunky pixel size
     const SB = 1.85, frame = mat(shade(spec.sign.bg, 1.35)), board = (s) => { const g = new THREE.Group(), b = new THREE.Mesh(new THREE.BoxGeometry(s * SB, s * SB, .06), [edge, edge, edge, edge, im, edge]); g.add(b);
       const f = new THREE.Mesh(new THREE.BoxGeometry(s * SB + .1, s * SB + .1, .04), frame); f.position.z = -.02; g.add(f); return g; };
     const top = main.top ?? gy + 2;
-    if (spec.sign.place === 'front') { const b = board(.72); b.position.set(fx + (main.ground === 'shopfront' ? mw * .33 : 0), gy + (main.shown > 1 ? .22 : -.18) + .38, fz + .12); add(b); }
-    if (spec.sign.place === 'roof') { const b = board(.7); b.position.set(fx, top + .8, fz - .25); add(b); box(.05, .2, .05, trim, fx, top, fz - .25); }
-    if (spec.sign.place === 'blade') { const b = new THREE.Mesh(new THREE.BoxGeometry(.06, .72 * SB, .72 * SB), [im, edge, edge, edge, edge, edge]); b.position.set(fx + mw / 2 + .42, gy + .35, fz - .4); add(b); box(.3, .04, .04, trim, fx + mw / 2 + .15, gy + .6, fz - .3); }
-    if (spec.sign.place === 'pole') { cyl(.06, .06, 2.6, mat('#9aa0a6'), fx + mw / 2 + .6, 0, fz + .5, 6); const b = board(.75); b.position.set(fx + mw / 2 + .6, 2.95, fz + .5); add(b); }
+    if (spec.sign.place === 'front') { const b = board(.72); b.position.set(fx + (main.ground === 'shopfront' ? mw * .33 : 0), gy + (main.shown > 1 ? .22 : -.18) + .38, fz + .12); add(b); mark(b.position.x, b.position.y, fz + .16, 'front'); }
+    if (spec.sign.place === 'roof') { const b = board(.7); b.position.set(fx, top + .8, fz - .25); add(b); mark(fx, top + .8, fz - .21, 'front'); box(.05, .2, .05, trim, fx, top, fz - .25); }
+    if (spec.sign.place === 'blade') { const b = new THREE.Mesh(new THREE.BoxGeometry(.06, .72 * SB, .72 * SB), [im, edge, edge, edge, edge, edge]); b.position.set(fx + mw / 2 + .42, gy + .35, fz - .4); add(b); mark(fx + mw / 2 + .46, gy + .35, fz - .4, 'side'); box(.3, .04, .04, trim, fx + mw / 2 + .15, gy + .6, fz - .3); }
+    if (spec.sign.place === 'pole') { cyl(.06, .06, 2.6, mat('#9aa0a6'), fx + mw / 2 + .6, 0, fz + .5, 6); const b = board(.75); b.position.set(fx + mw / 2 + .6, 2.95, fz + .5); add(b); mark(fx + mw / 2 + .6, 2.95, fz + .54, 'front'); }
   }
 
   // ---------- hero prop ----------

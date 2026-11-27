@@ -49,6 +49,13 @@ const D = {
   crown: (p) => { p.r(2, 5, 2, 7); p.r(7, 3, 2, 9); p.r(12, 5, 2, 7); p.r(2, 9, 12, 4); p.r(4, 7, 3, 2); p.r(9, 7, 3, 2); },
 };
 
+/** The same pictogram as a plain 16×16 canvas (stamped crisp onto a rendered building, see render.js stampSign). */
+export function iconPixels(name, fg, bg) {
+  const c = document.createElement('canvas'); c.width = c.height = 16; const g = c.getContext('2d');
+  g.fillStyle = bg; g.fillRect(0, 0, 16, 16);
+  const p = { r: (x, y, w, h) => { g.fillStyle = fg; g.fillRect(x, y, w, h); }, b: (x, y, w, h) => { g.fillStyle = bg; g.fillRect(x, y, w, h); } };
+  (D[name] ?? D.star)(p); return c;
+}
 /** A pictogram texture: `fg` on `bg`, 16×16. */
 export function iconTexture(name, fg, bg) {
   return tex(16, 16, (g) => {

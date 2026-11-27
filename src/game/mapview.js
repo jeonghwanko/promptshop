@@ -3,7 +3,7 @@
 import { join } from './panel.js';
 import { SLOTS, centerOf, PLOT, dockOf, neighbours, bridgeTiles, placePlot } from '../v2/isles.js';
 import { BRIDGE } from './rules.js';
-import { renderView } from '../v2/render.js';
+import { renderView, stampSign } from '../v2/render.js';
 import { drawWaves } from '../v2/ground.js';
 import { drawPerson } from '../v2/townview.js';
 import { iconCanvas, EMOJI } from '../ui/icons.js';
@@ -20,9 +20,10 @@ import { placeAsk } from './build.js';
 
 // each building is rendered once into a sprite (with its alpha, for picking by pixel)
 // at half resolution, then doubled: the map's chunky pixels (the ground is painted the same way, see ground.js)
-function chunky({ canvas: c, anchor }) {
+function chunky({ canvas: c, anchor, sign }) {
   const o = document.createElement('canvas'); o.width = c.width * 2; o.height = c.height * 2; const og = o.getContext('2d');
-  og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, o.width, o.height); return { canvas: o, anchor: { x: anchor.x * 2, y: anchor.y * 2 } };
+  og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, o.width, o.height); if (sign) stampSign(o, sign, 2);   // the sign's picture in crisp map pixels
+  return { canvas: o, anchor: { x: anchor.x * 2, y: anchor.y * 2 } };
 }
 const sprites = new Map();
 function sprite(p) {
@@ -45,9 +46,9 @@ function filled(src, x0, y0, edge, w, h) {
   g.save(); g.globalAlpha = .22; g.drawImage(silhouette(src), x0, y0); g.restore();
   g.save(); g.beginPath(); for (let c = 0; c < w; c += 4) { const top = Math.max(0, edge + ((c / 4 * 7) % 3) * 2); g.rect(x0 + c, y0 + top, 4, h - top); } g.clip(); g.drawImage(src, x0, y0); g.restore();
 }
-// A building in front that covers much of one behind it turns see-through where that one stands (30%), so every shop stays in
+// A building in front that covers much of one behind it turns see-through where that one stands (every other chunky pixel), so every shop stays in
 // sight: only the covered part, only while it covers. Worked out when the layout changes, not every frame.
-const GHOST_MIN = .2, GHOST_A = .3;
+const GHOST_MIN = .2, GHOST_A = 1;   // the see-through part is a pixel checker (a blend read as a render fault)
 let ghostSig = '', ghosts = new Map();
 const SOLID = 200;   // the body only: a sprite's cast shadow is see-through (about 90) and must not count
 function bodyOf(sp) { if (sp.body) return sp.body; const c = document.createElement('canvas'); c.width = sp.canvas.width; c.height = sp.canvas.height; const cg = c.getContext('2d'), im = cg.createImageData(c.width, c.height);
@@ -69,9 +70,26 @@ function ghostsFor(list) {   // list: [{ key, s, x0, y0, d }]
     const mask = mk(), mg = mask.getContext('2d'); for (const B of behind) mg.drawImage(bodyOf(B.s), B.x0 - A.x0, B.y0 - A.y0);
     const solid = mk(), sg = solid.getContext('2d'); sg.drawImage(A.s.canvas, 0, 0); sg.globalCompositeOperation = 'destination-out'; sg.drawImage(mask, 0, 0);
     const ghost = mk(), gg = ghost.getContext('2d'); gg.drawImage(A.s.canvas, 0, 0); gg.globalCompositeOperation = 'destination-in'; gg.drawImage(mask, 0, 0);
-    ghosts.set(A.key, { solid, ghost, through: gg.getImageData(0, 0, W, H).data });
+    const through = gg.getImageData(0, 0, W, H).data;   // the whole see-through area (taps there go to the one behind), before the checker
+    { const im = gg.getImageData(0, 0, W, H), dd = im.data; for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) if (((x >> 1) + (y >> 1)) & 1) dd[(y * W + x) * 4 + 3] = 0; gg.putImageData(im, 0, 0); }   // a checker of chunky pixels, not a blend
+    ghosts.set(A.key, { solid, ghost, through });
   }
   return ghosts;
+}
+/** A building with no power: its picture with the colour drained out (cached on the sprite). */
+function offOf(sp) {
+  if (sp.off) return sp.off; const c = document.createElement('canvas'); c.width = sp.canvas.width; c.height = sp.canvas.height; const cg = c.getContext('2d');
+  cg.drawImage(sp.canvas, 0, 0); const im = cg.getImageData(0, 0, c.width, c.height), d = im.data;
+  for (let i = 0; i < d.length; i += 4) { if (!d[i + 3]) continue; const L = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11;
+    d[i] = (L * .75 + d[i] * .25) * .86 + 6; d[i + 1] = (L * .75 + d[i + 1] * .25) * .86 + 10; d[i + 2] = (L * .75 + d[i + 2] * .25) * .86 + 22; }
+  cg.putImageData(im, 0, 0); return sp.off = c;
+}
+/** Over a roof with no power: a grey bolt, outlined. */
+let greyBolt = null;
+function offMark(x, y) {
+  if (!greyBolt) { const ic = iconCanvas('bolt'); if (!ic) return; const c = document.createElement('canvas'); c.width = ic.width; c.height = ic.height; const cg = c.getContext('2d'); cg.drawImage(ic, 0, 0);
+    const im = cg.getImageData(0, 0, c.width, c.height), d = im.data; for (let i = 0; i < d.length; i += 4) { const L = d[i] * .3 + d[i + 1] * .59 + d[i + 2] * .11; d[i] = L * .8 + 20; d[i + 1] = L * .8 + 26; d[i + 2] = L * .8 + 40; } cg.putImageData(im, 0, 0); greyBolt = c; }
+  g.imageSmoothingEnabled = false; g.drawImage(greyBolt, Math.round(x - 7), Math.round(y - 20), 14, 14);
 }
 /** The building under a pointer (its picture's own pixels, frontmost first), or null. */
 export function buildingAt(e) { const [sx, sy] = mapXY(e);
@@ -149,7 +167,7 @@ function drawPipe(p, upto = 1) {
   g.save(); g.strokeStyle = 'rgba(95,182,224,.9)'; g.lineWidth = 2; g.beginPath(); ws.slice(0, n).forEach(([x, z], i) => { const [px, py] = pr.P(x + .5, z + .5); i ? g.lineTo(px + 6, py + 2) : g.moveTo(px, py); }); g.stroke(); g.restore();
 }
 /** Where the cable leaves the plant: the top of its lamp post. */
-function plantTop(slot) { const [x, z] = plantTiles(slot)[0], [px, py] = pr.P(x + .5, z + .5), cap = slotSupply(slot)[0]; const per = Math.min(6, Math.ceil(cap / 2)); return [Math.round(px), Math.round(py - 10 - Math.ceil(cap / per) * 7)]; }
+function plantTop(slot) { const [x, z] = plantTiles(slot)[0], [px, py] = pr.P(x + .5, z + .5), cap = slotSupply(slot)[0]; const per = Math.min(6, Math.ceil(cap / 2)); return [Math.round(px), Math.round(py - 16 - Math.ceil(cap / per) * 7)]; }   // (the board stands 6 px up on its posts)
 /** A building being connected: how far along (0–1), or null. */
 function connectU(key) { const c = S.connect; if (!c || c.key !== key) return null; const u = (performance.now() - c.t0) / c.dur; if (u > 1.4) { S.connect = null; return null; } return u; }
 function drawPlants(items) {
@@ -161,14 +179,17 @@ function drawPlants(items) {
     { const [x, z] = tiles[0], [px, py] = pr.P(x + .5, z + .5), cap = sup[0], per = Math.min(6, Math.ceil(cap / 2)), rows = Math.ceil(cap / per), k = squash(0);
       items.push({ d: x + z + .5, draw: () => { g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(1, k);
         g.fillStyle = 'rgba(23,63,120,.28)'; g.beginPath(); g.ellipse(0, 1, 15, 6, 0, 0, 7); g.fill();
-        const W = Math.max(22, per * 7 + 6), H = 10 + rows * 7;
-        g.fillStyle = '#4f6f9a'; g.fillRect(-W / 2, -H, W, H); g.fillStyle = '#7d9cc4'; g.fillRect(-W / 2, -H, W, 2);   // slate blue: nothing on the map near black g.fillStyle = '#f2c12e'; g.fillRect(-W / 2 + 3, -5, W - 6, 2);
-        for (let i = 0; i < cap; i++) { const r = Math.floor(i / per), c = i % per, lx = Math.round(-per * 3.5 + c * 7), ly = -H + 4 + r * 7;
+        // a wooden lamp board on two posts (a thing in the world, not a panel): lit lamps = power left
+        const W = Math.max(22, per * 7 + 6) + 2 & ~1, H = 10 + rows * 7 + 1 & ~1, lift = 6;
+        g.fillStyle = '#7a5238'; g.fillRect(-W / 2 + 2, -lift - 2, 2, lift + 2); g.fillRect(W / 2 - 4, -lift - 2, 2, lift + 2);
+        g.fillStyle = '#7a5238'; g.fillRect(-W / 2, -H - lift, W, H); g.fillStyle = '#c98a4e'; g.fillRect(-W / 2 + 2, -H - lift + 2, W - 4, H - 4);
+        g.fillStyle = '#e8b27a'; g.fillRect(-W / 2, -H - lift, W, 2); g.fillStyle = '#a8703e'; for (let y = -H - lift + 6; y < -lift - 2; y += 4) g.fillRect(-W / 2 + 2, y, W - 4, 1);
+        for (let i = 0; i < cap; i++) { const r = Math.floor(i / per), c = i % per, lx = Math.round(-per * 3.5 + c * 7), ly = -H - lift + 4 + r * 7;
           const lit = i < left[0], going = d && lit && i >= left[0] - d[0];
           if (lit && !(going && !blink)) { g.fillStyle = 'rgba(255,214,102,.35)'; g.fillRect(lx - 1, ly - 1, 7, 7); }
-          g.fillStyle = lit ? (going && !blink ? '#7a6a3a' : '#ffd166') : '#2c4468'; g.fillRect(lx, ly, 5, 5); }
+          g.fillStyle = lit ? (going && !blink ? '#b0905a' : '#ffd166') : '#6b4630'; g.fillRect(lx, ly, 5, 5); }
         g.restore();
-        if (mine && left[0] <= 0) warnMark(Math.round(px), Math.round(py - H - 16));   // no lamp left: it asks to be grown before anything is built
+        if (mine && left[0] <= 0) warnMark(Math.round(px), Math.round(py - H - lift - 16));   // no lamp left: it asks to be grown before anything is built
       } });
     }
     // the water tank (from 동네 on): a wooden barrel with a glass strip, its water the water left
@@ -211,7 +232,6 @@ function drawBillFly(dt, tops) {
     g.globalAlpha = u < .9 ? 1 : (1 - u) * 10; g.drawImage(ci, Math.round(x - 6), Math.round(y - 6), 12, 12); g.globalAlpha = 1; }
   S.billFly = f.filter(c => c.t < .7);
 }
-const NIGHT = '#141c2c';   // a building with no power: night blue, not a see-through ghost
 /** The moment power reaches a building: a burst of light specks from its front, once. */
 function lightUp(p, px, py) { const c = S.connect; if (!c || c.key !== p.key || c.lit) return; c.lit = true; for (let i = 0; i < 14; i++) splash.push({ x: px + (Math.random() - .5) * 30, y: py - 10 - Math.random() * 30, vx: (Math.random() - .5) * 80, vy: -30 - Math.random() * 50, t: 0, spark: true }); }
 /** Dark: a building being connected (before the light reaches it) or cut off for an unpaid bill. */
@@ -262,11 +282,11 @@ export function drawMap(dt) {
       const lit = b >= 0 && b < 33 ? .3 : b >= 33 && b < 66 ? .15 : 0;
       items.push({ d: p.x + p.z + n, draw: () => { g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(sx, sy);
         if (rev < 1) filled(s.canvas, -s.anchor.x, -s.anchor.y, Math.round(s.anchor.y - rev * s.anchor.y), s.canvas.width, s.canvas.height); else g.drawImage(s.canvas, -s.anchor.x, -s.anchor.y);
-        if (isDark(p)) { g.globalAlpha = .45; g.drawImage(silhouette(s.canvas, NIGHT), -s.anchor.x, -s.anchor.y); g.globalAlpha = 1; }   // dark until power reaches it
+        if (isDark(p)) g.drawImage(offOf(s), -s.anchor.x, -s.anchor.y);   // dark until power reaches it
         g.restore(); }, key: p.key, s, px, py }); continue; }
     const gh = ghostMap.get(p.key);
     items.push({ gh, d: p.x + p.z + n, draw: () => { const x0 = Math.round(px - s.anchor.x), y0 = Math.round(py - s.anchor.y); if (gh) { g.drawImage(gh.solid, x0, y0); g.globalAlpha = GHOST_A; g.drawImage(gh.ghost, x0, y0); g.globalAlpha = 1; } else g.drawImage(s.canvas, x0, y0);
-      if (isDark(p)) { g.globalAlpha = .45; g.drawImage(silhouette(s.canvas, NIGHT), x0, y0); g.globalAlpha = 1; }   // lights out
+      if (isDark(p)) { g.drawImage(offOf(s), x0, y0); offMark(px, py - s.anchor.y + s.top); }   // no power: the colour drains out and a grey bolt shows why (not a dark blot)
       const u = connectU(p.key); if (u != null && u >= 1) { lightUp(p, px, py); const f = Math.max(0, 1 - (u - 1) / .3); if (f > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = .45 * f; g.drawImage(s.canvas, x0, y0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; } } }, key: p.key, s, px, py }); }
   if (!S.zoomShop) drawPlants(items);
   if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; tops['@site'] = [px, py - Math.max(40, st.H * .6)]; items.push({ d: building.x + building.z + n, draw: () => {
@@ -326,7 +346,9 @@ export function drawMap(dt) {
   g.font = '900 11px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
   { const si = iconCanvas('star');
     for (const p of all) { if (zoomShop || !p.b || !tops[p.key] || !servesOf(p) || isDark(p)) continue; const n = starsInfo(p).stars, [x, y] = tops[p.key];   // (they come with the light)
-      for (let k = 0; k < n; k++) g.drawImage(si, Math.round(x - n * 6 + k * 12), Math.round(y - 26), 12, 12); } }
+      if (!n) continue;   // one star and its count (a row of stars overlapped the next roof's): outlined, no plate over the picture
+      const X = Math.round(x - 8), Y = Math.round(y - 26); g.drawImage(si, X - 4, Y, 12, 12);
+      g.textAlign = 'left'; g.lineWidth = 3; g.strokeStyle = '#1f3a5c'; g.strokeText(String(n), X + 9, Y + 10); g.fillStyle = '#ffd166'; g.fillText(String(n), X + 9, Y + 10); g.textAlign = 'center'; } }
   g.font = '900 12px "Noto Sans KR", sans-serif';
   // cut off for an unpaid bill: a coin with a red mark over the roof
   { const ci = iconCanvas('coin'); for (const p of all) if (p.b && tops[p.key] && isOff(p) && !zoomShop) { const [x, y] = tops[p.key]; g.drawImage(ci, Math.round(x - 8), Math.round(y - 30), 16, 16); g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x + 9, y - 28, 5, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '900 9px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.fillText('!', x + 9, y - 25); } }

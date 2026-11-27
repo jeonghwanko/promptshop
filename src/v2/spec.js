@@ -21,7 +21,7 @@ export const HEROES = ['none', 'sculpture', 'outdoor_pool', 'giant_glove', 'stal
 export const ICONS = ['fish', 'fork', 'cup', 'bread', 'glass', 'burger', 'noodle', 'cart', 'bag', 'pill', 'news', 'pc', 'bed', 'flag', 'badge', 'fire', 'mail', 'book', 'star', 'cap', 'cross',
   'column', 'frame', 'mask', 'film', 'music', 'dumbbell', 'wave', 'ball', 'train', 'bus', 'fuel', 'car', 'gear', 'box', 'wrench', 'wheat', 'house', 'tree', 'cross_r', 'lotus', 'moon', 'clock', 'crown'];
 export const PROPS = ['plant', 'bench', 'stool', 'lantern', 'flag', 'crate', 'barrel', 'bike', 'aboard', 'parasol', 'bollard', 'tree', 'vending', 'car', 'cat'];
-export const MAX_SHOWN_LEVELS = 8;
+export const MAX_SHOWN_LEVELS = 5;   // floors drawn on the map; taller buildings show a band for the rest (2026-11-28: 8 → 5, a tower no longer as tall as the island)
 
 function roofOf(input, type, style) {
   const special = ['sawtooth', 'round', 'dome', 'gambrel', 'cone', 'mansard', 'skillion', 'pyramidal', 'onion'].includes(type.roof);

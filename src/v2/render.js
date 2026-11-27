@@ -3,6 +3,7 @@ import * as THREE from 'three';
 import { buildExterior } from './exterior.js';
 import { buildSection } from './interior.js';
 import { normalize } from './spec.js';
+import { iconPixels } from './icons.js';
 
 const PPU = 40 / Math.SQRT2;
 
@@ -108,7 +109,7 @@ function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => fal
 }
 /** The warm sun (with or without shadows) and the sky light every render uses. */
 function addLights(scene, shadows, mapSize = 2048) {
-  const sun = new THREE.DirectionalLight(0xfff4dc, 1.75); sun.position.set(-1.25, 2.2, 0.35).multiplyScalar(30);
+  const sun = new THREE.DirectionalLight(0xfff4dc, 1.75); sun.position.set(-1.0, 3.4, 0.3).multiplyScalar(30);   // high sun: short shadows (a tall building's long shadow read as an overlay)
   if (shadows) { sun.castShadow = true; sun.shadow.mapSize.set(mapSize, mapSize); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 120 }); sun.shadow.bias = -0.0015; }
   scene.add(sun, new THREE.HemisphereLight(0xb8ecff, 0xe6d7a8, 2.25));   // a sky-blue fill: shaded sides turn cool and clear, not dark
 }
@@ -123,8 +124,8 @@ export function renderView(input, view = 'ext', opt = {}) {
   const res = opt.res === .5 ? .5 : Math.max(1, Math.round(opt.res ?? 1));   // .5: half the pixels, shown at twice the size (the map's chunky pixels)
   const scene = new THREE.Scene(), iso = isoCamera(100, 400), cam = iso.cam;
   addLights(scene, true, res > 1 ? 4096 : 2048);   // finer pixels need a finer shadow map, or the shadows go blocky
-  let labels = [], fixtures = [], plan = null;
-  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor, look: opt.look }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else scene.add(buildExterior(spec));
+  let labels = [], fixtures = [], plan = null, signSpot = null;
+  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor, look: opt.look }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else { const root = buildExterior(spec); scene.add(root); signSpot = root.userData.sign ?? null; }
   const crisp = opt.crisp ?? CRISP;
   if (crisp && opt.cel) toCel(scene);   // cel bands dull the walls here, so they are off unless asked for
   const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU * res, view === 'section' ? { l: 8 * res, r: 18 * res, b: 12 * res, t: 8 * res } : { l: 10 * res, r: 56 * res, b: 26 * res, t: 10 * res });
@@ -138,7 +139,9 @@ export function renderView(input, view = 'ext', opt = {}) {
   const v = new THREE.Vector3(), project = (x, y, z) => { v.set(x, y, z).project(cam); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; };
   const [ax, ay] = project(0, 0, 0), anchor = { x: ax, y: ay };   // where the ground origin lands in the canvas
   const px = labels.map(l => { const [x, y] = project(l.pos.x, l.pos.y, l.pos.z); return { x, y, text: l.text, count: l.count }; });
-  return { canvas: out, labels: px, anchor, fixtures, plan, project, res };
+  let sign = null; if (signSpot) { const [sx, sy] = project(signSpot.x, signSpot.y, signSpot.z); sign = { ...signSpot, sx, sy }; }
+  if (sign && res >= 1) stampSign(out, sign, 1, res);   // a half-size render is stamped by its caller after doubling (mapview chunky)
+  return { canvas: out, labels: px, anchor, fixtures, plan, project, res, sign };
 }
 
 /**
@@ -157,4 +160,16 @@ export function renderVoxels(voxels, { k = 3, crisp = true, bounds = null, yaw, 
   scene.add(mesh);
   const { W, H } = frameBox(iso, box, k, { l: 2, r: 2, b: 2, t: 2 });
   return shoot(scene, iso.cam, box, W, H, { crisp, soft: character });
+}
+
+/**
+ * Stamp a sign's picture onto a rendered building in crisp pixels: the 16×16 pictogram, k canvas pixels per picture pixel, sheared 2:1
+ * the way the wall it hangs on runs (front: down to the right, side: up to the right). sign: from renderView, its sx, sy at scale `at`
+ * (a half-size render doubled: at = 2).
+ */
+export function stampSign(canvas, sign, at = 1, k = 1) {
+  const ic = iconPixels(sign.icon, sign.fg, sign.bg), g = canvas.getContext('2d'), dir = sign.face === 'side' ? -1 : 1;
+  g.imageSmoothingEnabled = false;
+  const x0 = Math.round(sign.sx * at - 8 * k), y0 = Math.round(sign.sy * at - 8 * k - dir * 4 * k);
+  for (let i = 0; i < 16; i++) g.drawImage(ic, i, 0, 1, 16, x0 + i * k, y0 + dir * Math.floor(i / 2) * k, k, 16 * k);
 }

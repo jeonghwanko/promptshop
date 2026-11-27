@@ -13,7 +13,7 @@ const C = {
   grass: hex('#a9cf7c'), grass2: hex('#9cc472'), wild: hex('#b2d488'), tuft: hex('#c6ec7c'), rim: hex('#d6f294'),
   sand: hex('#f8e6ac'), sand2: hex('#efd696'), wet: hex('#dcc48e'),
   road: hex('#cfc9bd'), roadE: hex('#aaa396'), pave: hex('#efe2c4'), pave2: hex('#e8d9b8'),
-  wood: hex('#c98a4e'), wood2: hex('#a8703e'), woodShade: hex('#1a6a9a'),
+  wood: hex('#c98a4e'), wood2: hex('#a8703e'), rail: hex('#7a5238'), post: hex('#6b4630'), woodShade: hex('#1a6a9a'),
   soil: hex('#c08452'), soil2: hex('#a26a40'), rock: hex('#b4a698'), rock2: hex('#978a80'), cliffD: hex('#7a5a4e'),
 };
 const last = { sig: '', canvas: null };
@@ -70,8 +70,10 @@ export function paintGround(world, pr, { taken = new Set(), avoid = new Set() } 
     const i = y * HW + x, l = lv[i], b = BAYER[(y & 3) * 4 + (x & 3)];
     const [u, v] = pr.inv(x * K + K / 2, y * K + K / 2), tx = Math.floor(u), tz = Math.floor(v), ti = inW(tx, tz) ? tz * W + tx : -1;
     if (l <= .5 && ti >= 0 && woodG[ti]) {   // planks across the walk, a dark seam every quarter tile
-      const across = world.isRoad(tx - 1, tz) || world.isRoad(tx + 1, tz) || woodG[ti - 1] && woodG[ti + 1] ? v : u, f = (across * 4) % 1;
-      put(i, f < .18 ? C.wood2 : C.wood); kind[i] = WOOD; continue;
+      // a walk along x or z: planks across it, a rail along each side
+      const alongX = world.isRoad(tx - 1, tz) || world.isRoad(tx + 1, tz) || (woodG[ti - 1] && woodG[ti + 1]) || (inW(tx - 1, tz) && woodG[ti - 1] && !(inW(tx, tz - 1) && woodG[ti - W]));
+      const along = alongX ? u : v, side = alongX ? v - tz : u - tx, f = (along * 4) % 1;
+      put(i, side < .12 || side > .88 ? C.rail : side < .2 || side > .8 ? C.wood2 : f < .18 ? C.wood2 : C.wood); kind[i] = WOOD; continue;
     }
     if (l > .5) {
       const s = slotNear(u, v), joined = world.joined.has(s);
@@ -101,7 +103,7 @@ export function paintGround(world, pr, { taken = new Set(), avoid = new Set() } 
   }
   for (let y = 1; y < HH - 2; y++) for (let x = 0; x < HW; x++) { const i = y * HW + x; if (kind[i] !== WATER) continue;
     if (kind[i + HW] === LAND || (kind[i + HW * 2] === LAND && hash(x, y) > .35)) put(i, C.foam);   // foam along the back edges
-    else if (kind[i - HW] === WOOD) put(i, C.woodShade); }                                           // a bridge's shadow on the water
+    else if (kind[i - HW] === WOOD) { put(i, C.woodShade); if (x % 12 < 2) for (let q = 0; q < 4 && y + q < HH; q++) { const j = i + q * HW; if (kind[j] === WATER) put(j, q < 3 ? C.post : C.foam); } } }   // a bridge's shadow on the water, and its posts every few planks
   g2.putImageData(img, 0, 0);
 
   // ---------- trees and bushes on the free land of joined islands ----------
