@@ -32,7 +32,7 @@ export const left = (store, uid) => Math.max(0, PER_USER - store.sql.prepare(`SE
 let client = null;
 // SAMPLE=cli on a small VM: at most CLAUDE_CLI_MAX `claude` processes at once (each takes a few hundred MB); the rest wait in line.
 const CLI_MAX = +(process.env.CLAUDE_CLI_MAX ?? 2); let cliBusy = 0; const cliLine = [];
-const cliSlot = (req) => cliBusy < CLI_MAX ? (cliBusy++, Promise.resolve()) : new Promise((go) => { const t = () => { cliBusy++; go(); }; cliLine.push(t); req.on('close', () => { const i = cliLine.indexOf(t); if (i >= 0) { cliLine.splice(i, 1); go(); cliBusy++; } }); });
+const cliSlot = (res) => cliBusy < CLI_MAX ? (cliBusy++, Promise.resolve()) : new Promise((go) => { const t = () => { cliBusy++; go(); }; cliLine.push(t); res.on('close', () => { const i = cliLine.indexOf(t); if (i >= 0) { cliLine.splice(i, 1); go(); cliBusy++; } }); });
 const cliFree = () => { cliBusy--; cliLine.shift()?.(); };
 /** Stream the answer to `prompt` into res (plain text). */
 export async function stream(prompt, res, req) {
@@ -41,16 +41,16 @@ export async function stream(prompt, res, req) {
   res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
   if (mode === 'echo') { res.write('{"step":"building","type":"cafe","name":"시험 카페"}\n'); return res.end(); }
   if (mode === 'cli') {
-    await cliSlot(req); if (req.destroyed) { cliFree(); return res.end(); }
+    await cliSlot(res); if (res.destroyed) { cliFree(); return res.end(); }
     const cli = spawn(process.env.CLAUDE_BIN ?? 'claude', ['-p', '--model', 'haiku', '--output-format', 'stream-json', '--include-partial-messages', '--verbose', '--tools', '', '--no-session-persistence', '--system-prompt', SYSTEM], { stdio: ['pipe', 'pipe', 'pipe'], cwd: os.tmpdir() });
     cli.stdin.end(prompt); let buf = '';
     cli.stdout.on('data', (c) => { buf += c; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); try { const m = JSON.parse(line), d = m.type === 'stream_event' && m.event?.type === 'content_block_delta' && m.event.delta?.text; if (d) res.write(d); } catch {} } });
     cli.on('error', (e) => { console.error('claude cli', e.message); });
-    cli.on('close', () => { cliFree(); res.end(); }); req.on('close', () => { if (!res.writableEnded) cli.kill(); });
+    cli.on('close', () => { cliFree(); res.end(); }); res.on('close', () => { if (!res.writableEnded) cli.kill(); });   // res, not req: req closes as soon as its body is read
     return;
   }
   client ??= new Anthropic();   // ANTHROPIC_API_KEY from the environment
-  const ctl = new AbortController(); req.on('close', () => { if (!res.writableEnded) ctl.abort(); });
+  const ctl = new AbortController(); res.on('close', () => { if (!res.writableEnded) ctl.abort(); });
   try {
     const s = client.messages.stream({ model: MODEL, max_tokens: 8000, thinking: { type: 'disabled' }, system: SYSTEM, messages: [{ role: 'user', content: prompt }] }, { signal: ctl.signal });
     for await (const ev of s) if (ev.type === 'content_block_delta' && ev.delta.type === 'text_delta') res.write(ev.delta.text);
