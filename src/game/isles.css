@@ -402,3 +402,44 @@ body:has(.guide:not([hidden]):not(.min)) .toast { top:112px; bottom:auto; }
   .guide { bottom:206px; }
   .toast { bottom:220px; }
 }
+
+/* ---------- the build log: Claude's steps floating beside the lot (build.js logOpen / placeLog) ---------- */
+.buildlog { position:fixed; z-index:8; display:flex; flex-direction:column; align-items:flex-start; gap:5px; max-width:min(320px, calc(100vw - 24px)); pointer-events:none; transition:opacity .4s; }
+.buildlog.out { opacity:0; }
+.buildlog .ln { display:flex; align-items:baseline; gap:7px; max-width:100%; padding:5px 12px 6px; border-radius:11px; background:rgba(46,36,26,.88); color:#fbf1dc; font:400 15px/1.25 var(--f-disp); box-shadow:0 3px 0 rgba(20,30,40,.3); animation:lnIn .38s cubic-bezier(.2,1.4,.4,1) both; transition:opacity .3s; }
+.buildlog .ln b { flex:none; font-weight:400; color:#ffd166; }
+.buildlog .ln span { min-width:0; overflow:hidden; text-overflow:ellipsis; white-space:nowrap; }
+.buildlog:not(.sum) .ln:not(.head):nth-last-child(n+4) { opacity:.75; } .buildlog:not(.sum) .ln:not(.head):nth-last-child(n+6) { opacity:.45; }
+.buildlog .ln.done { background:#ffd166; color:#2e241a; font-size:17px; } .buildlog .ln.done b { color:#8a4b00; }
+.buildlog .ln.err b { color:#ff9a8a; }
+.buildlog .ln.head { font-size:17px; } .buildlog .ln.head span:not(.dots) { color:#e9dcc2; } .buildlog .dots i { font-style:normal; animation:dotBlink 1.2s infinite; } .buildlog .dots i:nth-child(2) { animation-delay:.2s; } .buildlog .dots i:nth-child(3) { animation-delay:.4s; }
+@keyframes lnIn { from { opacity:0; transform:translateY(10px) scale(.92); } }
+@keyframes dotBlink { 0%, 100% { opacity:.2; } 40% { opacity:1; } }
+@media (prefers-reduced-motion: reduce) { .buildlog .ln, .buildlog .dots i { animation:none; } }
+@media (max-width:760px) { .buildlog .ln { font-size:14px; padding:4px 10px 5px; } .buildlog .ln.done, .buildlog .ln.head { font-size:15px; } }
+@media (max-width:760px) { .buildlog { align-items:center; } .buildlog:not(.sum) .ln:not(.head):nth-last-child(n+5) { display:none; } }
+/* guesses while Claude thinks are plainly guesses (pale, dashed); parts Claude sent are solid; the result is one tidy board */
+.buildlog .ln.idea { background:rgba(46,36,26,.6); color:#d9c7a3; box-shadow:inset 0 0 0 1.5px rgba(251,241,220,.25); }
+.buildlog .ln.idea b { color:#c9b48a; }
+.buildlog .ln.got b { color:#ffd166; }
+.buildlog.sum { gap:0; padding:6px; border-radius:16px; background:rgba(46,36,26,.92); box-shadow:0 5px 0 rgba(20,30,40,.35); animation:lnIn .4s cubic-bezier(.2,1.4,.4,1) both; }
+.buildlog.sum .ln { background:none; box-shadow:none; animation:none; padding:4px 8px; }
+.buildlog.sum .ln.done { background:#ffd166; border-radius:11px; margin-bottom:4px; }
+.buildlog.sum .ln.kv b { min-width:3.2em; color:#c9b48a; }
+.buildlog.sum .ln.kv span { white-space:normal; }
+/* on a phone the result board and 끼룩이's bubble would share the middle: the bubble waits while the board is up */
+@media (max-width:760px) { body:has(.buildlog.sum:not(.out)) .guide .gbub { display:none; } }
+.buildlog.sum { z-index:46; align-items:stretch; }
+
+/* ---------- the first session opens the screen one part at a time (reveal.js) ---------- */
+body.hide-coins #coinb .cic, body.hide-coins #wallet, body.hide-coins #rate { display:none; }
+body.hide-coins #coinb .pmt { margin-left:0; padding-left:4px; border-left:0; }
+body.hide-permits #pmt { display:none; }
+body.hide-coins.hide-permits #coinb { display:none; }
+body.hide-level #who .lvr, body.hide-level #who small { display:none; } body.hide-level #who { padding-left:14px; }
+body.hide-boat #boat, body.hide-world #d-world, body.hide-home #d-home, body.hide-auto #d-auto, body.hide-zoom .hud.tr .zoomb { display:none !important; }
+body.hide-rewards .want .wt small { display:none; }
+body.hide-counts .want .cnt { display:none; }
+.newly { animation:newly 1.4s cubic-bezier(.2,1.5,.4,1); }
+@keyframes newly { 0% { transform:scale(.4); opacity:0; filter:drop-shadow(0 0 0 #ffd166); } 35% { transform:scale(1.18); opacity:1; filter:drop-shadow(0 0 10px #ffd166); } 100% { transform:none; filter:none; } }
+@media (prefers-reduced-motion: reduce) { .newly { animation:none; } }

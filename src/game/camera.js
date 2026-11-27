@@ -6,8 +6,10 @@ import { S, pr, map } from './state.js';
 // Zoom steps. From one map pixel per device pixel up, whole device pixels (crisp pixel art at any screen scaling, e.g.
 // Windows at 125%); below it, halves and three quarters, drawn smooth instead (see applyZoom).
 const dpr = () => window.devicePixelRatio || 1;
+// A phone gets quarter steps in between too: with whole steps only, my island jumps from too small to too big there.
 const zoomSteps = () => { const d = dpr(), lo = Math.min(1 / d, Math.max(innerWidth / pr.width, innerHeight / pr.height) * .9);
-  return [...new Set([lo, .5 / d, .75 / d, 1 / d, 2 / d, 3 / d, 4 / d].map(z => +z.toFixed(4)).filter(z => z >= lo - 1e-6 && z <= 3.01))].sort((a, b) => a - b); };
+  const fine = innerWidth <= 760 ? [1.25, 1.5, 1.75, 2.5].map(k => k / d) : [];
+  return [...new Set([lo, .5 / d, .75 / d, 1 / d, 2 / d, 3 / d, 4 / d, ...fine].map(z => +z.toFixed(4)).filter(z => z >= lo - 1e-6 && z <= 3.01))].sort((a, b) => a - b); };
 /** The biggest step at which a w×h box (map pixels at zoom 1) takes at most fx of the screen's width and fy of its free height. */
 function fitZoom(w, h, fx, fy) { const k = Math.min(innerWidth * fx / w, (innerHeight - 200) * fy / h), st = zoomSteps(); return st.filter(z => z <= k + 1e-6).pop() ?? st[0]; }
 /** Zoom to z, keeping the point under `at` (screen x, y; default the middle of the screen) where it is. */
@@ -15,13 +17,15 @@ function setZoom(z, at) {
   const box = $('mapbox'), [sx, sy] = at ?? [box.clientWidth / 2, box.clientHeight / 2], cx = (box.scrollLeft + sx - map.offsetLeft) / S.zoom, cy = (box.scrollTop + sy - map.offsetTop) / S.zoom;
   S.zoom = z; applyZoom(); box.scrollTo({ left: map.offsetLeft + cx * S.zoom - sx, top: map.offsetTop + cy * S.zoom - sy });
 }
-export const applyZoom = () => { map.style.width = pr.width * S.zoom + 'px'; map.style.imageRendering = S.zoom * dpr() < .999 ? 'auto' : 'pixelated'; const st = zoomSteps(); $('zin').disabled = S.zoom >= st[st.length - 1]; $('zout').disabled = S.zoom <= st[0] + 1e-6; };
+export const applyZoom = () => { map.style.width = pr.width * S.zoom + 'px'; map.style.imageRendering = Math.abs(S.zoom * dpr() - Math.round(S.zoom * dpr())) > .01 || S.zoom * dpr() < .999 ? 'auto' : 'pixelated'; const st = zoomSteps(); $('zin').disabled = S.zoom >= st[st.length - 1]; $('zout').disabled = S.zoom <= st[0] + 1e-6; };   // whole device pixels crisp, the steps between smooth
 const zoomBy = (d, at) => { const st = zoomSteps(), i = st.findIndex(z => Math.abs(z - S.zoom) < 1e-6), n = st[Math.max(0, Math.min(st.length - 1, (i < 0 ? st.indexOf(1) : i) + d))]; if (n !== S.zoom) setZoom(n, at); };
 /** The first view: the biggest whole step at which my island (with room for its land to grow) still fits in most of the screen. */
 export function startZoom(slot) {
   const [cx, cz] = centerOf(slot), r = (Math.sqrt(landSize(slot) / Math.PI) + 1) / Math.SQRT2, xs = [[-r, -r], [r, -r], [-r, r], [r, r]].map(([dx, dz]) => pr.P(cx + dx, cz + dz));   // round: the square's corners pulled in by √2
   const w = Math.max(...xs.map(p => p[0])) - Math.min(...xs.map(p => p[0])), h = Math.max(...xs.map(p => p[1])) - Math.min(...xs.map(p => p[1]));
-  return fitZoom(w, h, .4, .55);   // my island about two fifths of the screen: the sea and the neighbours around it stay in view
+  // PC: my island about two fifths of the screen, the sea and the neighbours around it in view. A phone has no room for
+  // that: the island (room to grow included) fills the width, and as much of the free height as is left
+  return innerWidth <= 760 ? fitZoom(w, h, .98, .9) : fitZoom(w, h, .4, .55);
 }
 /** Choosing an island: the one pointed at and its neighbours, a step further out than they need — room to look around,
  *  names still readable (the whole archipelago at once makes them too small to read). */

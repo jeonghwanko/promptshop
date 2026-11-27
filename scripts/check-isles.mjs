@@ -8,7 +8,7 @@ execSync(`curl -s localhost:5300/api/db/i/dev-me -o ${S}/qa26.json`);
 const put = (path, file) => execSync(`curl -s -X PUT localhost:5300/api/db/${path} --data-binary @${file}`);
 const del = (path) => execSync(`curl -s -X DELETE localhost:5300/api/db/${path}`);
 (await import('node:fs')).writeFileSync(S + '/rb.json', '{"name":"회귀","lat":-35,"lng":-58}');
-const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 5; doc.wallet.tutV = 2; delete doc.wallet.tutIn; doc.rev = 1;
+const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 4; doc.wallet.tutV = 3; delete doc.wallet.tutIn; doc.rev = 1;
 (await import('node:fs')).writeFileSync(S + '/rd.json', JSON.stringify(doc));
 del('i-qarg/qa-x'); put('boards/qarg', S + '/rb.json'); put('i-qarg/qa-x', S + '/rd.json');
 const port = 9370, chrome = spawn('google-chrome', ['--headless=new', '--password-store=basic', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=/tmp/cdp-rg-${Date.now()}`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
@@ -54,8 +54,8 @@ const pt = JSON.parse(await ev(`JSON.stringify(__isles.screenOf('1_18_13'))`));
 await send('Input.dispatchMouseEvent', { type: 'mouseMoved', x: pt[0], y: pt[1] }); await send('Input.dispatchMouseEvent', { type: 'mousePressed', x: pt[0], y: pt[1], button: 'left', clickCount: 1 }); await sleep(800); await send('Input.dispatchMouseEvent', { type: 'mouseReleased', x: pt[0], y: pt[1], button: 'left', clickCount: 1 }); await sleep(300);
 check('long press moves', (await ev(`document.getElementById('toast').textContent`)).includes('옮길'));
 await ev(`__isles.cancel()`); await sleep(300);
-// festival
-await ev(`__isles.fest(3)`); await sleep(1500); check('festival coming', (await ev(`JSON.stringify(__isles.festState)`)).includes('coming'), await ev(`document.getElementById('festp').textContent`));
+// festival (it waits for the first-visit guide to end: end it)
+await ev(`(()=>{ __isles.myDoc.wallet.tut = 99; __isles.guide(); })()`); await ev(`__isles.fest(3)`); await sleep(1500); check('festival coming', (await ev(`JSON.stringify(__isles.festState)`)).includes('coming'), await ev(`document.getElementById('festp').textContent`));
 await sleep(4000); { const fs0 = await ev(`JSON.stringify(__isles.festState)`); check('festival landed', fs0.includes('here'), fs0 + ' ' + await ev(`__isles.S.role`)); }
 // panel, cards, world
 await ev(`document.getElementById('d-home').click()`); await sleep(500); check('home panel', await ev(`!document.getElementById('panel').hidden && document.querySelectorAll('#panel .stat').length === 3`)); await shot('home');

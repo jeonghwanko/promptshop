@@ -15,11 +15,12 @@ import { faceEl } from '../ui/faces.js';
 import { START_STOCK, REQ_BONUS, levelOf, sizesOpen, bad } from './rules.js';
 import { refundOf } from './migrate.js';
 import { $, el } from './ui.js';
-import { S, me, sample, pr, sim, now, canWrite, pops, splash, nextBoat, map } from './state.js';
+import { S, me, sample, pr, sim, now, canWrite, splash, nextBoat, map } from './state.js';
 import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf } from './model.js';
 import { stakeSite, dustSite } from './mapfx.js';
 import { save } from './persist.js';
 import { scrollToSlot, scrollToPoint } from './camera.js';
+import { logOpen, logStep, logNote, logDone, logFail, logDrop } from './buildlog.js';
 import { celebrate, why, callBoat } from './hud.js';
 import { tutEvent, tutOn } from './guide.js';
 import { show, showHome, closePanel, showBuilding } from './panel.js';
@@ -137,30 +138,30 @@ async function build() {
   const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); S.building = { x, z, size: sz, stage };
   S.buildMode = false; document.body.classList.remove('buildmode'); input.value = `“${line}”`; drawAsk(true); tutEvent('line');
   scrollToPoint(...pr.P(x + n / 2, z + n / 2 - 1));
-  const stamps = el('span', { class: 'stamps' }, STAMPS.map(([k, ko]) => el('i', { 'data-k': k }, ko))), last = el('span', { class: 'last' }, '구상 중…');
-  $('bsub').replaceChildren(stamps, last);
-  const note = (tag, t) => { last.textContent = t ? `${tag} · ${t}` : tag; };
-  const done = (msg) => { S.building = null; input.value = msg === undefined ? '' : line; S.current?.kind === 'build' && (S.current = null); if (msg) say(msg); stakeSite(null); setBuildMode(msg !== undefined); };
+  const stamps = el('span', { class: 'stamps' }, STAMPS.map(([k, ko]) => el('i', { 'data-k': k }, ko)));
+  $('bsub').replaceChildren(stamps); logOpen(x, z, n, line, need);
+  const note = (tag, t) => logNote(tag, t);
+  const done = (msg) => { if (msg) logFail(msg); S.building = null; input.value = msg === undefined ? '' : line; S.current?.kind === 'build' && (S.current = null); if (msg) say(msg); stakeSite(null); setBuildMode(msg !== undefined); };
   const seen = []; let raw = '', broken = 0;
   const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
-    if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note(STEP_KO[s.step] ?? s.step, s.note || s.type || '');
+    if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } logStep(s);
     const st = stamps.querySelector(`[data-k="${s.step}"]:not(.on)`); if (st) st.classList.add('on');
     if (ch.view === 'ext' || st) thud(x, z, n);
-    const words = (s.note || '').trim(); if (words) pops.push({ key: '@site', text: words.length > 16 ? words.slice(0, 15) + '…' : words, t: 0 }); };   // Claude's own words, over the lot
+  };
   try {
     const rd = lineReader(apply, () => broken++);
     await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
-    const c = check(b.input, { broken, line }); for (const f of c.fixed) note('수선', f);
+    const c = check(b.input, { broken, line });
     const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
-    if (problems.length) { note('다시', `남은 문제 ${problems.length}개`); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
+    if (problems.length) { note('다듬기', '빠진 곳을 채우는 중'); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
       // the fix is a bonus: if it fails (the line, a timeout), the building from the first answer still stands
-      try { await sample(revisePrompt(line, raw, problems), { purpose: 'revise', modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); } catch { note('다시', '그대로 지을게요'); }
+      try { await sample(revisePrompt(line, raw, problems), { purpose: 'revise', modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); } catch { note('다듬기', '이대로 지을게요'); }
       check(b.input, { line }); }
     if (!b.input) throw { code: 'nothing' };
     fitToLot(b.input, n); const s = normalize(b.input);
     if (bad(s.name)) return done('그 이름으로는 세울 수 없어요.');
     // the world may have moved on while Claude wrote: another tab took the island, the permit spent elsewhere, the island full, the spot taken
-    if (!canWrite()) { S.building = null; stakeSite(null); return; }
+    if (!canWrite()) { S.building = null; stakeSite(null); logDrop(); return; }
     if (G().permits <= 0) return done('허가증이 없어요.');
     if (Object.keys(S.myDoc.plots).length >= maxPlots()) return done(`섬에는 ${maxPlots()}채까지 지을 수 있어요.`);
     if (!placePlot(S.world, S.mySlot, x, z, n, takenSet())) return done('그 자리에 다른 건물이 섰어요. 다시 눌러 주세요.');
@@ -178,9 +179,10 @@ async function build() {
     const role = roleOf(s.type, s.levels), answered = need && role.serves === need;
     if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
     else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), 400);
+    logDone(seen, s);
     done(); tutEvent('built');
     rebuild(); await save(true);
-  } catch (e) { S.building = null; stakeSite(null); S.current?.kind === 'build' && (S.current = null); input.value = line; setBuildMode(true); say(failText(e, '짓지 못했어요. 다시 눌러 주세요.')); }
+  } catch (e) { logFail(failText(e, '짓지 못했어요')); S.building = null; stakeSite(null); S.current?.kind === 'build' && (S.current = null); input.value = line; setBuildMode(true); say(failText(e, '짓지 못했어요. 다시 눌러 주세요.')); }
 }
 
 /** No 🎫: the guests still to serve, and what brings them sooner — my boat now, or the inside of a shop to fit out. */

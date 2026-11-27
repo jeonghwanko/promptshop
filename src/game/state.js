@@ -60,7 +60,8 @@ export const S = {
   moving: null,                  // the building being moved: { key, size }
   watching: null,                // the shop whose inside is open
   zoomShop: null, camBefore: null,   // the roof lifting off an opened shop; the camera to go back to
-  joinShown: false, guided: false,
+  joinShown: false, guided: false, inviteGuide: false,   // 끼룩이 pointing at a free island next door, once the island has grown (guide.js)
+ 
   // the map as last drawn
   drawn: [], lastTops: {}, landAnim: null, unmet: [],
   // boats and the festival

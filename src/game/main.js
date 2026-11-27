@@ -90,7 +90,7 @@ hooks.rebuilt = (oldGround) => {
   else if (S.mySlot && S.joinShown) closePanel();   // the join card goes away once my island is known
   if (S.myDoc && S.mySlot && !S.guided) { S.guided = true; const w = S.myDoc.wallet, none = !Object.keys(S.myDoc.plots).length;
     if (w.tut === undefined && none) w.tut = 0;
-    if (w.tut >= 2 && w.tut <= 3 && none) w.tut = 1;   // came back in the middle of the first build: start it again from the faces
+    if (w.tut >= 1 && w.tut <= 2 && none) w.tut = 0;   // came back in the middle of the first build: start it again from the faces
     guide(); }
 };
 

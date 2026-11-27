@@ -13,6 +13,7 @@ import { site, drawSite, drawFestBoat, drawBoat } from './mapfx.js';
 import { mapXY, toScreen } from './camera.js';
 import { NEED_ICON } from './hud.js';
 import { picking, pickSpot } from './guide.js';
+import { placeLog } from './buildlog.js';
 
 // each building is rendered once into a sprite (with its alpha, for picking by pixel)
 const sprites = new Map();
@@ -155,14 +156,12 @@ export function drawMap(dt) {
       g.imageSmoothingEnabled = false; const ic = iconCanvas(NEED_ICON[k]); if (ic) g.drawImage(ic, x - 9, y - 9, 18, 18);
       g.font = '900 10px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeText(String(c), x + 11, y + 13); g.fillStyle = '#ff8a7a'; g.fillText(String(c), x + 11, y + 13); }); }
   drawSplash(dt);
-  S.drawn = items; S.lastTops = tops; placeJoin();
+  S.drawn = items; S.lastTops = tops; placeJoin(); placeLog();
   { const sb = S.spotBlink, a = sb ? (performance.now() - sb.t0) / 1400 : 1; if (a >= 1) S.spotBlink = null;   // where a building of this size fits: three blinks
     else for (const q of sb.spots) outline(q.x, q.z, sb.n, `rgba(255,224,120,${(Math.sin(a * Math.PI * 6 - Math.PI / 2) + 1) / 2 * .9})`); }
-  // where the next building goes while the bar is open: a glowing lot and a small "여기" tag over it (a tap elsewhere moves it)
-  { const sp = S.buildMode && !S.building && S.spot; if (sp) { const n = PLOT[S.size], t = (Math.sin(performance.now() / 180) + 1) / 2, pts = [pr.P(sp.x, sp.z), pr.P(sp.x + n, sp.z), pr.P(sp.x + n, sp.z + n), pr.P(sp.x, sp.z + n)];
-    g.fillStyle = `rgba(255,214,102,${.22 + .14 * t})`; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.fill();
-    g.strokeStyle = `rgba(255,${200 + 55 * t | 0},90,${.75 + .25 * t})`; g.lineWidth = 3; g.lineJoin = 'round'; g.stroke();
-    const [tx, ty] = pr.P(sp.x, sp.z); g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; g.textAlign = 'center'; const tw = g.measureText('여기').width + 16, by = ty - 12 - 3 * t;
-    g.fillStyle = '#2e241a'; g.beginPath(); g.roundRect(tx - tw / 2, by - 22, tw, 22, 8); g.fill(); g.beginPath(); g.moveTo(tx - 5, by); g.lineTo(tx + 5, by); g.lineTo(tx, by + 5); g.fill();
-    g.fillStyle = '#fbf1dc'; g.fillText('여기', tx, by - 6); } }
+  // where the next building goes while the bar is open: a quiet yellow lot, no tag and no pulse, so it reads as a place,
+  // not a button (the button is the bar's; a tap elsewhere on my island still moves the lot)
+  { const sp = S.buildMode && !S.building && S.spot; if (sp) { const n = PLOT[S.size], pts = [pr.P(sp.x, sp.z), pr.P(sp.x + n, sp.z), pr.P(sp.x + n, sp.z + n), pr.P(sp.x, sp.z + n)];
+    g.fillStyle = 'rgba(255,214,102,.3)'; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.fill();
+    g.strokeStyle = 'rgba(255,214,102,.9)'; g.lineWidth = 2.5; g.lineJoin = 'round'; g.stroke(); } }
 }

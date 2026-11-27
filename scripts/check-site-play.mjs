@@ -54,10 +54,10 @@ const a1 = await A.arrow(); if (a1) await A.click(a1[0], a1[1] + 22); await slee
 await A.ev(`[...document.querySelectorAll('#panel button.gold')].find(b => b.textContent.includes('이 섬에 살기'))?.click()`);
 check('moved in', await until(() => A.ev('__isles.S.mySlot > 0 && __isles.S.role === "live"'), 8000), await A.ev('__isles.S.mySlot'));
 // 3. the first loop with a real build
-await A.clickSel('#gbtns .gold'); await sleep(600); await A.clickSel('#wants .want'); await sleep(1200); await A.clickSel('#bsub button');
+await A.clickSel('#wants .want'); await sleep(1200); await A.clickSel('#bsub button');
 check('built by Claude', await until(() => A.ev('Object.values(__isles.myDoc.plots).some(p => p.b)'), 120000)); await A.shot('3-built');
 check('one call used', (await A.ev(`fetch('/api/me', { headers: { 'x-isles': '1' } }).then(r => r.json()).then(v => v.left)`)) === 4);
-await A.ev(`(()=>{ __isles.myDoc.wallet.tut = 6; __isles.S.dirty = true; __isles.guide(); })()`); await sleep(1500);
+await A.ev(`(()=>{ __isles.myDoc.wallet.tut = 99; __isles.S.inviteGuide = true; __isles.S.dirty = true; __isles.guide(); })()`); await sleep(1500);
 // 4. the invite: a link with a token, and the archipelago's picture for previews
 const a3 = await A.arrow(); if (a3) await A.click(a3[0], a3[1] + 18); await sleep(800);
 await A.ev(`navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }`);

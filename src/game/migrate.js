@@ -37,12 +37,13 @@ export function migrateLayout(d) {
 export const refundOf = (lost) => lost.reduce((t, l) => { let c = costOf(l.kind); for (let L = 1; L < l.level; L++) c += upgradeCost(l.kind, L); return t + c; }, 0);
 
 /**
- * The first-visit guide under the old build steps (a 짓기 button, a hand of cards, a tap on the map, a signboard: nine steps)
- * moved to where the same step is now (a face over the bar, the bar: seven steps). Guides saved since carry tutV 2.
+ * The first-visit guide's step, saved under an older list of steps, moved to where the same step is now (tutV 3: a face,
+ * the line, building, the boat, a shop, a friend — six steps, no buttons in the bubble). v1: a 짓기 button, a hand of
+ * cards, a tap on the map, a signboard (nine steps); v2: a hello with a button, then the faces and the bar (seven steps).
  */
-const OLD_TUT = [0, 1, 1, 2, 2, 3, 4, 5, 6];
+const TO_V3 = { 1: [0, 0, 0, 1, 1, 2, 3, 4, 5], 2: [0, 0, 1, 2, 3, 4, 5] };
 export function migrateGuide(d) {
-  const w = d?.wallet; if (!w || (w.tutV ?? 1) >= 2) return d;
-  const tut = typeof w.tut === 'number' && w.tut < OLD_TUT.length ? OLD_TUT[w.tut] : w.tut;
-  return { ...d, wallet: { ...w, tut, tutV: 2 } };
+  const w = d?.wallet, v = w?.tutV ?? 1; if (!w || v >= 3) return d;
+  const m = TO_V3[v] ?? TO_V3[1], tut = typeof w.tut === 'number' && w.tut < m.length ? m[w.tut] : w.tut;
+  return { ...d, wallet: { ...w, tut, tutV: 3 } };
 }

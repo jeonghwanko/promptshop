@@ -112,7 +112,7 @@ export async function join(s) {
   const byInviter = !!FROM && S.owners.has(FROM) && neighbours(s).includes(FROM);
   track('pick', { slot: s, from: FROM, nextToInviter: byInviter, pick: PICK });
   // invited next to a friend: my half of the bridge to them is free, so we are joined in the first session
-  const ok = await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0, tutV: 2, ...(byInviter ? { freeHalf: FROM } : {}) } });
+  const ok = await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0, tutV: 3, ...(byInviter ? { freeHalf: FROM } : {}) } });
   if (!ok) { closePanel(); return toast('초대 링크를 받은 친구만 이 군도에 살 수 있어요', 2600); }
   closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide();
 }

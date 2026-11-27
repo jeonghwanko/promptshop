@@ -39,7 +39,9 @@ export async function shareInvite() {
   hooks.happened('invite');
   if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title, url }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
   try { await navigator.clipboard.writeText(url); toast('🔗 링크를 복사했어요', 1600); }
-  catch { const i = el('input', { type: 'text', readonly: '', value: url }); document.querySelector('.invitecard')?.append(i); i.select(); }
+  catch {   // no clipboard (a page without https): the link in one box to copy by hand, the same box on every press
+    const card = document.querySelector('.invitecard'); let i = card?.querySelector('input.link'); if (card && !i) { i = el('input', { type: 'text', readonly: '', class: 'link' }); card.append(i); }
+    if (i) { i.value = url; i.select(); } }
 }
 /** The archipelago as it is now, small: what a friend will see. */
 function preview() {
@@ -49,7 +51,7 @@ function preview() {
 /** The invite card: a picture, how many islands are free, one button. Null when the archipelago is full. */
 export function inviteCard() {
   const free = SLOTS - S.owners.size; if (!free || !S.mySlot) return null;
-  track('invite_open', { slot: S.mySlot });
+  track('invite_open', { slot: S.mySlot }); hooks.happened('invite');   // the guide's last step is done once the card is open
   return el('div', { class: 'card invitecard' }, preview(), el('b', {}, `빈 섬 ${free}개`),
     el('button', { class: 'gold', on: { click: () => shareInvite() } }, '초대 링크 복사'));
 }

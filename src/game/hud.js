@@ -12,6 +12,7 @@ import { toScreen, scrollToSlot } from './camera.js';
 import { showHome, closePanel } from './panel.js';
 import { setBuildMode } from './build.js';
 import { closeInside } from './shop.js';
+import { applyReveal } from './reveal.js';
 
 /** The pixel icon for each kind of guest. */
 export const NEED_ICON = { food: 'food', cafe: 'cafe', shop: 'bag', fun: 'heart', rest: 'bed' };
@@ -29,7 +30,7 @@ export function celebrate(title, sub) {
 let flyAt = 0;
 export function flyCoin(key) {
   const t = performance.now(); if (t - flyAt < 140 || document.hidden) return; flyAt = t;
-  const tp = S.lastTops[key], cb = $('coinb').querySelector('.cic'); if (!tp || !cb || $('coinb').hidden) return;
+  const tp = S.lastTops[key], cb = $('coinb').querySelector('.cic'); if (!tp || !cb || $('coinb').hidden || !cb.getClientRects().length) return;   // not while the coins are still closed
   const [x0, y0] = toScreen(tp[0], tp[1]), b = cb.getBoundingClientRect(), x1 = b.left + b.width / 2, y1 = b.top + b.height / 2;
   if (x0 < -40 || y0 < -40 || x0 > innerWidth + 40 || y0 > innerHeight + 40) return;
   const c = iconEl('coin', 20, ''); Object.assign(c.style, { position: 'fixed', left: '0', top: '0', zIndex: 17, pointerEvents: 'none', imageRendering: 'pixelated' }); document.body.append(c);
@@ -110,6 +111,8 @@ export function hud() {
     $('boatt').textContent = can ? '부르기!' : docked ? '도착!' : bp.shops ? `${Math.max(0, Math.ceil(nb))}초` : '';
   } else B.hidden = true;
   dockState();
+  // the parts the first session has opened; the 🎫 opens as one is spent, so it flies there from the bar's button
+  if (applyReveal().includes('permits')) { const r = $('bgo').getBoundingClientRect(); if (r.width) flyIcon('ticket', [r.left + r.width / 2, r.top + r.height / 2], $('pmt')); }
   const dm = sim.demand(); S.unmet = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => [k, dm[k].waiting]);
 }
 
