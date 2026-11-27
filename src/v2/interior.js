@@ -244,7 +244,13 @@ export function buildSection(b, { owned, floor, layout = LAYOUT, look = {} } = {
       placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x, z, y: floorIdx * GAP });
       if (kind === 'counter') for (let k = 0; k < 4; k++) box(.22, .015, .14, mat(k ? '#e9c46a' : '#f4d35e'), x, 0, z + .55 + k * .32);   // where the line stands
       const parts = cur.children.slice(before), fg = new THREE.Group(); fg.userData.fixture = true; for (const m of parts) { cur.remove(m); fg.add(m); }
-      const rot = oo?.rot === 90; groups.push({ fg, fi: floorIdx, idx, w: rot ? fd : (kind === 'counter' ? (oo?.len ?? fw) : fw), d: rot ? fw : fd, zone: r.zone });
+      const rot = oo?.rot === 90, gw = rot ? fd : (kind === 'counter' ? (oo?.len ?? fw) : fw), gd = rot ? fw : fd; groups.push({ fg, fi: floorIdx, idx, w: gw, d: gd, zone: r.zone });
+      // the height of its body (the top of the parts that cover a quarter of its footprint or more: a table top, not the cup on it), for people it hides
+      // and the ground those parts cover, around its centre (chairs round a table are not the table)
+      let h = 0; const body = new THREE.Box3();
+      for (const m of parts) { if (!m.isMesh) continue; m.updateMatrix(); m.geometry.computeBoundingBox(); const bb = m.geometry.boundingBox.clone().applyMatrix4(m.matrix);
+        if ((bb.max.x - bb.min.x) * (bb.max.z - bb.min.z) >= gw * gd * .25) { h = Math.max(h, bb.max.y); body.union(bb); } }
+      Object.assign(placed[idx], { h, w: gw, d: gd, body: body.isEmpty() ? null : [body.min.x - x, body.max.x - x, body.min.z - z, body.max.z - z] });
       cur.add(fg);
       if (!isOwned(idx)) for (const m of parts) m.traverse(o => { if (o.isMesh) { o.material = o.material.clone(); o.material.transparent = true; o.material.opacity = .22; o.material.depthWrite = false; o.castShadow = false; } });
     } };

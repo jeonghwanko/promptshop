@@ -58,11 +58,16 @@ export class InsideView {
     const v0 = renderView(this.input, 'section', { owned: this.owned, floor: this.floor, res: this.res, look: this.look }), R = v0.res ?? 1;
     const v = R === 1 ? v0 : { ...v0, project: (x, y, z) => { const [a, b] = v0.project(x, y, z); return [a / R, b / R]; }, labels: v0.labels.map(l => ({ ...l, x: l.x / R, y: l.y / R })) };
     this.view = v; this.fx = v.fixtures; this.R = R;
+    // bought fixtures as screen boxes, to hide the part of a person they stand in front of
+    this.occ = []; v.fixtures.forEach((f, i) => { if (!owned(this.owned, i) || !(f.h > .25) || !f.body) return;
+      this.occ.push({ fi: f.fi, stand: f.kind === 'counter', x0: f.x + f.body[0], x1: f.x + f.body[1], z0: f.z + f.body[2], z1: f.z + f.body[3], y: f.y + f.h }); });
     const W = v.canvas.width / R, H = v.canvas.height / R, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 4) / 4);   // whole steps when there is room, quarter steps for tall buildings
     // the zoom and the box are fixed at the first drawing: changing floor or buying must not resize the view (it jumps and shakes)
     const zz = this.lockZ ?? (this.lockZ = z); this.zoom = zz; this.top.width = v.canvas.width; this.top.height = v.canvas.height;
     { const z = zz;
-    for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = zz / R >= 1 ? 'pixelated' : 'auto'; c.style.display = 'block'; }
+    // device pixels per picture pixel: blown up whole (or by 2 and more, where uneven steps don't show) it stays sharp; less, it is smoothed (a phone at 1.25 × 3 / 2)
+    const k = z * (devicePixelRatio || 1) / R, sharp = k >= 2 || (k >= 1 && Math.abs(k - Math.round(k)) < .01) ? 'pixelated' : 'auto';
+    for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = sharp; c.style.display = 'block'; }
     { const d = Math.min(3, devicePixelRatio || 1); this.ts = z * d; this.txt.width = Math.round(W * this.ts); this.txt.height = Math.round(H * this.ts); this.txt.style.width = W * z + 'px'; this.txt.style.height = H * z + 'px'; }
     // the picture sits in an inner layer placed so the floor's centre stays on the same spot whichever floor is shown
     const fy = v.plan?.floors?.[this.floor]?.y ?? 0, [axp, ayp] = v.project(0, fy, 0);
@@ -111,6 +116,22 @@ export class InsideView {
     for (const q of w.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.spark) q.vy += 90 * dt; }
     w.parts = w.parts.filter(q => q.t < (q.spark ? .45 : 1.1));
     for (const q of w.parts) { if (q.spark) { g.fillStyle = `rgba(255,${200 + Math.random() * 55 | 0},90,${1 - q.t / .45})`; g.fillRect(q.x - .6, q.y - .6, 1.4, 1.4); } else { g.fillStyle = `rgba(215,200,170,${.55 * (1 - q.t / 1.1)})`; g.beginPath(); g.arc(q.x, q.y, 2 + q.t * 5, 0, 7); g.fill(); } }
+  }
+  /**
+   * Where a person standing at (px, pz) on floor fi is cut off by the bought fixtures in front of them: a fixture hides them
+   * when the line from their feet toward the camera (+x, +z) passes through its body (or they stand in a counter, a clerk).
+   * Returns the screen y above which they show (the highest such top), or null.
+   */
+  cutAt(px, pz, fi) {
+    if (this.R < 2) return null;   // the small old figures are drawn over everything, as before
+    let cut = null;
+    for (const o of this.occ) { if (o.fi !== fi) continue;
+      const t0 = Math.max(0, o.x0 - px, o.z0 - pz), t1 = Math.min(o.x1 - px, o.z1 - pz);   // where the line is inside the body on both axes
+      if (t1 <= .02 || t1 < t0) continue;
+      if (Math.max(o.x0 - px, o.z0 - pz) < 0 && !o.stand) continue;   // standing in it is sitting on it (a stool, a sofa, a bed); only a counter has someone standing inside
+      const top = this.view.project(px + t0, o.y, pz + t0)[1];   // its top edge where the line goes in: the far edge, the highest on screen
+      cut = cut === null ? top : Math.min(cut, top); }
+    return cut;
   }
   /** Is a point at height y on the floor being shown? (one-floor buildings: always) */
   onFloor(y) { const n = this.view.plan?.floors?.length ?? 1; if (n < 2) return true; const g = this.view.plan.gap; return Math.floor((y + .01) / g) === this.floor; }
@@ -223,14 +244,14 @@ export class InsideView {
       const bx = Math.round(x) - (L - 1) * 2, by = Math.round(y) - 6; g.fillStyle = '#2e241a'; g.fillRect(bx - 1, by - 1, (L - 1) * 4 + 1, 4); g.fillStyle = '#ffd25a'; for (let k = 0; k < L - 1; k++) g.fillRect(bx + k * 4, by, 3, 2); }   // one gold pip per level above 1
     const list = [];
     for (const s of sim.staff) { if (!this.onFloor(sim.floorY(s.f))) continue; const fy = sim.floorY(s.f), [x, y] = P(s.x, fy, s.z);
-      list.push({ x, y, s, cut: s.kind === 'clerk' ? P(s.x, fy + .72, s.z)[1] : null }); }   // a clerk stands in the counter: only what rises above its top shows
-    for (const p of sim.people) { p.moving = p.moves.length > 0; if (!this.onFloor(p.y)) continue; const [x, y] = P(p.x, p.y, p.z); list.push({ x, y, p });
+      list.push({ x, y, s, cut: this.cutAt(s.x, s.z, s.f) }); }   // a clerk stands in the counter: only what rises above its top shows
+    for (const p of sim.people) { p.moving = p.moves.length > 0; if (!this.onFloor(p.y)) continue; const [x, y] = P(p.x, p.y, p.z); list.push({ x, y, p, cut: this.cutAt(p.x, p.z, p.f) });
       const m = p.moves[0]; if (m) { const [nx] = P(m.x, p.y, m.z); if (Math.abs(nx - x) > .3) p.dir = nx > x ? 1 : -1; } }   // which way they face: where they walk next
     if (this.tabs) { const cnt = this.tabs.map(() => 0), g0 = this.view.plan.gap; for (const p of sim.people) { const k = Math.max(0, Math.min(cnt.length - 1, Math.floor((p.y + .01) / g0))); cnt[k]++; }
       this.tabs.forEach((b, k) => { const t = cnt[k] ? String(cnt[k]) : ''; const sm = b.lastChild; if (sm.textContent !== t) sm.textContent = t; }); }
     list.sort((a, b) => a.y - b.y);
     const draw = this.R >= 2 ? personHD : person;   // finer pixels get finer people
-    list.forEach((o, k) => { if (o.cut != null) { g.save(); g.beginPath(); g.rect(o.x - 30, o.cut - 60, 60, 60); g.clip(); }
+    list.forEach((o, k) => { if (o.cut != null) { g.save(); g.beginPath(); g.rect(o.x - 30, o.cut - 90, 60, 90); g.clip(); }
       o.s ? draw(g, o.x, o.y, { t: 0, id: k * 7 + 3, dir: -1 }, o.s.kind) : draw(g, o.x, o.y, o.p); if (o.cut != null) g.restore(); });
     for (const e of sim.events.splice(0)) {
       if (e.kind === 'coin') paid.push(e);
@@ -250,6 +271,7 @@ export class InsideView {
   }
 }
 
+const owned = (set, i) => set === undefined || (typeof set === 'number' ? i < set : set.has(i));
 function person(g, x, y, p, staff) {
   x = Math.round(x); y = Math.round(y);
   const sit = p.state === 'sit' || p.state === 'food', bob = !sit && p.moving ? (Math.sin(p.t * 12) > 0 ? 1 : 0) : 0;

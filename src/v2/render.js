@@ -128,6 +128,8 @@ export function renderView(input, view = 'ext', opt = {}) {
   const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU * res, { l: 10 * res, r: 56 * res, b: 26 * res, t: 10 * res });   // room on the right and below for the shadow
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.28 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
+  // one upper floor alone: the shadow falls under that floor, not on the ground far below it
+  if (view === 'section' && plan?.floors?.length > 1 && opt.floor !== undefined) ground.position.y = (plan.floors[Math.max(0, Math.min(plan.floors.length - 1, opt.floor))].y || .14) - .14;
   const out = shoot(scene, cam, box, W, H, { crisp, lw: res, shadows: true, skip: (o) => o === ground || (o.material?.transparent && o.material.opacity < .6) });   // outlines on solid parts only
   out.dataset.levels = spec.levels;
   const v = new THREE.Vector3(), project = (x, y, z) => { v.set(x, y, z).project(cam); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; };
