@@ -6,6 +6,7 @@ import { BRIDGE } from './rules.js';
 import { renderView, stampSign } from '../v2/render.js';
 import { drawWaves } from '../v2/ground.js';
 import { drawVault } from './vault.js';
+import { drawGuest } from './special.js';
 import { drawPerson } from '../v2/townview.js';
 import { iconCanvas, EMOJI } from '../ui/icons.js';
 import { START_STOCK } from './rules.js';
@@ -289,7 +290,7 @@ export function drawMap(dt) {
     items.push({ gh, d: p.x + p.z + n, draw: () => { const x0 = Math.round(px - s.anchor.x), y0 = Math.round(py - s.anchor.y); if (gh) { g.drawImage(gh.solid, x0, y0); g.globalAlpha = GHOST_A; g.drawImage(gh.ghost, x0, y0); g.globalAlpha = 1; } else g.drawImage(s.canvas, x0, y0);
       if (isDark(p)) { g.drawImage(offOf(s), x0, y0); offMark(px, py - s.anchor.y + s.top); }   // no power: the colour drains out and a grey bolt shows why (not a dark blot)
       const u = connectU(p.key); if (u != null && u >= 1) { lightUp(p, px, py); const f = Math.max(0, 1 - (u - 1) / .3); if (f > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = .45 * f; g.drawImage(s.canvas, x0, y0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; } } }, key: p.key, s, px, py }); }
-  if (!S.zoomShop) { drawPlants(items); drawVault(items, tops); }
+  if (!S.zoomShop) { drawPlants(items); drawVault(items, tops); drawGuest(items, tops); }
   if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; tops['@site'] = [px, py - Math.max(40, st.H * .6)]; items.push({ d: building.x + building.z + n, draw: () => {
       // a part just landed: squashed down a little, then a little tall (a few frames, the foot stays put)
       const u = building.bumpAt ? (performance.now() - building.bumpAt) / 260 : 1, k = u < 1 ? Math.sin(u * Math.PI * 2) * (1 - u) * .1 : 0;

@@ -13,6 +13,7 @@ import { fileURLToPath } from 'node:url';
 import { openStore } from './store.mjs';
 import { allowWrite, readable } from './rules.mjs';
 import { admit, left, stream } from './claude.mjs';
+import { guestOf } from './special.mjs';
 import { bad } from '../src/game/rules.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -191,6 +192,10 @@ http.createServer(async (req, res) => {
       const board = p.slice(11); if (!/^[a-z0-9]{3,24}$/.test(board) || !isMember(board, uid)) return json(res, { error: 'not a member' }, 403);
       const png = await body(req, 400 * 1024); if (png.subarray(1, 4).toString() !== 'PNG') return json(res, { error: 'not a png' }, 400);
       fs.writeFileSync(path.join(DATA, 'og', board + '.png'), png); return json(res, { ok: true });
+    }
+    if (p === '/api/special') {   // today's special guest of a board (one Claude call a day per board, special.mjs)
+      const board = url.searchParams.get('board') ?? 'main'; if (board !== 'main' && !store.get('boards', board)) return json(res, { error: 'no board' }, 404);
+      return json(res, await guestOf(store, board));
     }
     if (p === '/api/sample' && req.method === 'POST') {
       const { prompt, kind } = JSON.parse((await body(req, 200 * 1024)).toString());

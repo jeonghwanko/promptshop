@@ -1,6 +1,7 @@
 // The archipelago game: one page, ten friends' islands. Loaded by isles.html.
 // This file only puts the pieces together: the state lives in state.js, each screen in its own module (docs/ARCHITECTURE.md).
 import { fillVault } from './vault.js';
+import { loadGuest } from './special.js';
 import { applyTheme } from '../ui/theme.js';
 import { pixelIcons } from '../ui/icons.js';
 import { setVoxelPalette } from '../ui/voxelui.js';
@@ -39,7 +40,7 @@ hooks.yielded = () => {   // another tab plays this island now: this one stops a
   if (document.querySelector('.handoff')) return;
   document.body.append(el('div', { class: 'handoff' }, el('div', {}, el('b', {}, '다른 창에서 플레이 중'), el('button', { class: 'gold', on: { click: () => location.reload() } }, '여기서 하기'))));
 };
-hooks.live = () => { fillVault(); const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // back at my island: what it made while I was away waits at the pier   // a shop of mine opened while waiting: open it again as mine
+hooks.live = () => { fillVault(); loadGuest(); const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // back at my island: what it made while I was away waits at the pier   // a shop of mine opened while waiting: open it again as mine
 hooks.lost = () => showHome('그 섬은 다른 친구가 먼저 들어갔어요. 다른 섬을 골라 주세요.');   // my first save never landed, and the island was taken
 hooks.namesChanged = () => { const c = S.current; if (c?.kind === 'island' && panelOpen()) showIsland(c.slot); };   // the name arrived after the panel was drawn
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };

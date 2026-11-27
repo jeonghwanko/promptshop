@@ -8,6 +8,7 @@ import { mapXY } from './camera.js';
 import { buildingAt } from './mapview.js';
 import { plantAt, plantWindow } from './utility.js';
 import { vaultAt, openVault } from './vault.js';
+import { guestAt, openGuest } from './special.js';
 import { toast } from './hud.js';
 import { setBuildMode, setSpot, openAt, cancelBuild } from './build.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
@@ -70,7 +71,8 @@ export function initInput() {
     const [sx, sy] = mapXY(e), [fx, fz] = pr.inv(sx, sy);
     if (S.moving) return dropMove(moveTarget(fx, fz));
     { const k = buildingAt(e); if (k) { S.choosing = false; return openShop(k); } }
-    if (!S.buildMode && vaultAt(sx, sy) && openVault()) return;   // the chest at my pier: what the island made while I was away
+    if (!S.buildMode && vaultAt(sx, sy) && openVault()) return;
+    if (!S.buildMode && guestAt(sx, sy) && openGuest()) return;   // today's special guest at my pier   // the chest at my pier: what the island made while I was away
     { const k = plantAt(sx, sy); if (k >= 0 && !S.buildMode) return plantWindow(k); }   // my power plant or water tank (after buildings: they are in front)
     { const t = (S.bridgeTags ?? []).find(q => sx >= q.x && sx <= q.x + q.w && sy >= q.y && sy <= q.y + q.h);   // a plank tag: lay my half
       if (t) { const [l, tp] = toScreen(t.x, t.y), [r, b] = toScreen(t.x + t.w, t.y + t.h); return halfBridge(t.n, { getBoundingClientRect: () => ({ left: l, top: tp, right: r, bottom: b, width: r - l, height: b - tp }) }); } }
