@@ -28,7 +28,7 @@ function toCel(root) {
  * - contact shading: pixels with nearer neighbours around them (inside corners) darken a little.
  * soft: only the outline and big depth jumps (parts in front of others): a round character stays clean, not striped.
  */
-function crispen(color, normal, depth, W, H, soft = false) {
+function crispen(color, normal, depth, W, H, soft = false, lw = 1) {   // lw: line width in pixels (the render's resolution factor), so lines keep their weight
   const c = color.getContext('2d'), img = c.getImageData(0, 0, W, H), px = img.data;
   const n = normal.getContext('2d').getImageData(0, 0, W, H).data, d = depth.getContext('2d').getImageData(0, 0, W, H).data;
   const solid = (i) => n[i * 4 + 3] > 0, dep = (i) => 1 - d[i * 4] / 255,   /* depth pass writes 1 - z: near is bright */ nv = (i) => [n[i * 4] / 127.5 - 1, n[i * 4 + 1] / 127.5 - 1, n[i * 4 + 2] / 127.5 - 1];
@@ -36,20 +36,20 @@ function crispen(color, normal, depth, W, H, soft = false) {
   for (let y = 0; y < H; y++) for (let x = 0; x < W; x++) {
     const i = y * W + x;
     if (!solid(i)) {   // outside: an outline pixel if it touches the building
-      let j = -1; for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx, yy = y + dy; if (xx >= 0 && yy >= 0 && xx < W && yy < H && solid(yy * W + xx)) { j = yy * W + xx; break; } }
+      let j = -1; for (let r = 1; r <= lw && j < 0; r++) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx * r, yy = y + dy * r; if (xx >= 0 && yy >= 0 && xx < W && yy < H && solid(yy * W + xx)) { j = yy * W + xx; break; } }
       if (j >= 0) { px[i * 4] = src[j * 4] * .28; px[i * 4 + 1] = src[j * 4 + 1] * .26; px[i * 4 + 2] = src[j * 4 + 2] * .3; px[i * 4 + 3] = 255; }
       continue;
     }
     const di = dep(i), ni = nv(i); let k = 1, front = 0;
-    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) {
-      const xx = x + dx, yy = y + dy; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const j = yy * W + xx; if (!solid(j)) continue;
+    for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (let r = 1; r <= lw; r++) {
+      const xx = x + dx * r, yy = y + dy * r; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const j = yy * W + xx; if (!solid(j)) continue;
       if (dep(j) - di > (soft ? .12 : .02)) k = Math.min(k, .55);                // I am in front of a jump: an inner outline
-      if (soft) continue;
+      if (soft || r > 1) continue;                                               // creases stay one pixel: fine detail inside a part
       const nj = nv(j); if (ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2] < .5) k = Math.min(k, .82);   // a crease
     }
     if (soft) { if (k < 1) dark(i, k); continue; }
     // an inside corner: I sit behind the line through two opposite neighbours (a flat slanted wall stays on that line)
-    for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) for (const r of [1, 2, 3]) {
+    for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) for (const r of [lw, 2 * lw, 3 * lw]) {
       const ax = x + dx * r, ay = y + dy * r, bx = x - dx * r, by = y - dy * r; if (ax < 0 || ay < 0 || bx < 0 || by < 0 || ax >= W || bx >= W || ay >= H || by >= H) continue;
       const a = ay * W + ax, b = by * W + bx; if (solid(a) && solid(b) && di - (dep(a) + dep(b)) / 2 > .006) front++; }
     k *= 1 - Math.min(.25, front * .03);                                           // inside corners and under eaves
@@ -81,7 +81,7 @@ function frameBox({ cam, right, up }, box, ppu, pad) {
  * Render the scene to a W×H canvas; with crisp, add the outline and corner shading from a normal and a depth pass.
  * skip(mesh): meshes left out of those passes (the ground, see-through ghosts).
  */
-function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => false, soft = false }) {
+function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => false, soft = false, lw = 1 }) {
   const renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
   renderer.setPixelRatio(1); renderer.setSize(W, H); renderer.setClearColor(0x000000, 0);
   if (shadows) { renderer.shadowMap.enabled = true; renderer.shadowMap.type = THREE.BasicShadowMap; }
@@ -99,36 +99,41 @@ function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => fal
     for (const p of corners(box)) { const dd = p.sub(cam.position).dot(camDir); dn = Math.min(dn, dd); df = Math.max(df, dd); }
     const dCan = pass(new THREE.MeshDepthMaterial(), Math.max(.1, dn - 1), df + 1);
     scene.overrideMaterial = null; for (const o of hidden) o.visible = true;
-    crispen(out, nCan, dCan, W, H, soft);
+    crispen(out, nCan, dCan, W, H, soft, lw);
   }
   renderer.dispose(); renderer.forceContextLoss?.();
   return out;
 }
 /** The warm sun (with or without shadows) and the sky light every render uses. */
-function addLights(scene, shadows) {
+function addLights(scene, shadows, mapSize = 2048) {
   const sun = new THREE.DirectionalLight(0xfff4e6, 1.9); sun.position.set(-1.25, 2.2, 0.35).multiplyScalar(30);
-  if (shadows) { sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 120 }); sun.shadow.bias = -0.0015; }
+  if (shadows) { sun.castShadow = true; sun.shadow.mapSize.set(mapSize, mapSize); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 120 }); sun.shadow.bias = -0.0015; }
   scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
 }
 
-/** Render the exterior ('ext') or the stacked cross-section ('section'). Returns { canvas, labels: [{x, y, text, count}] } in canvas pixels. */
+/**
+ * Render the exterior ('ext') or the stacked cross-section ('section'). Returns { canvas, labels: [{x, y, text, count}] } in canvas pixels.
+ * opt.res: pixels per map pixel (1 = the map's 40 px tile; 2 draws the same picture with twice the detail, lines kept as thick). The result carries res.
+ * opt.look: how a cut-away is drawn (see buildSection).
+ */
 export function renderView(input, view = 'ext', opt = {}) {
   const spec = input.style_ ? input : normalize(input);   // normalized specs carry style_
+  const res = Math.max(1, Math.round(opt.res ?? 1));
   const scene = new THREE.Scene(), iso = isoCamera(100, 400), cam = iso.cam;
-  addLights(scene, true);
+  addLights(scene, true, res > 1 ? 4096 : 2048);   // finer pixels need a finer shadow map, or the shadows go blocky
   let labels = [], fixtures = [], plan = null;
-  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else scene.add(buildExterior(spec));
+  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor, look: opt.look }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else scene.add(buildExterior(spec));
   const crisp = opt.crisp ?? CRISP;
   if (crisp && opt.cel) toCel(scene);   // cel bands dull the walls here, so they are off unless asked for
-  const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU, { l: 10, r: 56, b: 26, t: 10 });   // room on the right and below for the shadow
+  const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU * res, { l: 10 * res, r: 56 * res, b: 26 * res, t: 10 * res });   // room on the right and below for the shadow
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.28 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
-  const out = shoot(scene, cam, box, W, H, { crisp, shadows: true, skip: (o) => o === ground || (o.material?.transparent && o.material.opacity < .6) });   // outlines on solid parts only
+  const out = shoot(scene, cam, box, W, H, { crisp, lw: res, shadows: true, skip: (o) => o === ground || (o.material?.transparent && o.material.opacity < .6) });   // outlines on solid parts only
   out.dataset.levels = spec.levels;
   const v = new THREE.Vector3(), project = (x, y, z) => { v.set(x, y, z).project(cam); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; };
   const [ax, ay] = project(0, 0, 0), anchor = { x: ax, y: ay };   // where the ground origin lands in the canvas
   const px = labels.map(l => { const [x, y] = project(l.pos.x, l.pos.y, l.pos.z); return { x, y, text: l.text, count: l.count }; });
-  return { canvas: out, labels: px, anchor, fixtures, plan, project };
+  return { canvas: out, labels: px, anchor, fixtures, plan, project, res };
 }
 
 /**

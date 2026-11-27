@@ -36,8 +36,8 @@ export class InsideView {
    * @param opts.every  seconds between walk-ins (Infinity: the caller calls sim.spawn())
    * @param opts.maxWidth  CSS pixels available
    */
-  constructor(input, owned, { coins, buy, upgrade, levels = {}, every = 2.1, seed = 3, maxWidth = 900, price, onHover, tags = false, onThud, maxHeight = Infinity, maxZoom = 3 } = {}) {
-    this.maxHeight = maxHeight; this.maxZoom = maxZoom; this.floor = 0;
+  constructor(input, owned, { coins, buy, upgrade, levels = {}, every = 2.1, seed = 3, maxWidth = 900, price, onHover, tags = false, onThud, maxHeight = Infinity, maxZoom = 3, res = 1, look } = {}) {
+    this.res = res; this.look = look; this.maxHeight = maxHeight; this.maxZoom = maxZoom; this.floor = 0;
     this.tags = tags; this.onThud = onThud; this.sel = -1; this.blocked = new Set(); this.onHover = onHover; this.upgradeFn = upgrade; this.levels = levels; this.input = input; this.owned = owned; this.coins = coins; this.buyFn = buy; this.maxWidth = maxWidth;
     this.el = document.createElement('div'); Object.assign(this.el.style, { position: 'relative', maxWidth: '100%' });
     this.floats = []; this.hot = -1;
@@ -54,13 +54,15 @@ export class InsideView {
     }
   }
   redraw() {
-    const v = renderView(this.input, 'section', { owned: this.owned, floor: this.floor });
-    this.view = v; this.fx = v.fixtures;
-    const W = v.canvas.width, H = v.canvas.height, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 4) / 4);   // whole steps when there is room, quarter steps for tall buildings
+    // res draws the picture with more pixels; everything else (people, tags, taps, callers' project × zoom) stays in map pixels
+    const v0 = renderView(this.input, 'section', { owned: this.owned, floor: this.floor, res: this.res, look: this.look }), R = v0.res ?? 1;
+    const v = R === 1 ? v0 : { ...v0, project: (x, y, z) => { const [a, b] = v0.project(x, y, z); return [a / R, b / R]; }, labels: v0.labels.map(l => ({ ...l, x: l.x / R, y: l.y / R })) };
+    this.view = v; this.fx = v.fixtures; this.R = R;
+    const W = v.canvas.width / R, H = v.canvas.height / R, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 4) / 4);   // whole steps when there is room, quarter steps for tall buildings
     // the zoom and the box are fixed at the first drawing: changing floor or buying must not resize the view (it jumps and shakes)
-    const zz = this.lockZ ?? (this.lockZ = z); this.zoom = zz; this.top.width = W; this.top.height = H;
+    const zz = this.lockZ ?? (this.lockZ = z); this.zoom = zz; this.top.width = v.canvas.width; this.top.height = v.canvas.height;
     { const z = zz;
-    for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = 'pixelated'; c.style.display = 'block'; }
+    for (const c of [v.canvas, this.top]) { c.style.width = W * z + 'px'; c.style.height = H * z + 'px'; c.style.imageRendering = zz / R >= 1 ? 'pixelated' : 'auto'; c.style.display = 'block'; }
     { const d = Math.min(3, devicePixelRatio || 1); this.ts = z * d; this.txt.width = Math.round(W * this.ts); this.txt.height = Math.round(H * this.ts); this.txt.style.width = W * z + 'px'; this.txt.style.height = H * z + 'px'; }
     // the picture sits in an inner layer placed so the floor's centre stays on the same spot whichever floor is shown
     const fy = v.plan?.floors?.[this.floor]?.y ?? 0, [axp, ayp] = v.project(0, fy, 0);
@@ -86,7 +88,7 @@ export class InsideView {
     const w = this.work, g = this.wg; if (!this.wk) return; g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this.wk.width, this.wk.height); if (!w) return;
     g.setTransform(this.ts, 0, 0, this.ts, 0, this.EXT * this.ts);
     w.t += dt; w.shown += (w.p - w.shown) * Math.min(1, dt * 2.5);
-    const P = this.view.project, pl = this.view.plan, fy = pl.floors[this.floor]?.y ?? 0, y0 = fy + 1.35, Hh = 1.5, X = pl.W / 2, Z = pl.D / 2;
+    const P = this.view.project, pl = this.view.plan, fy = pl.floors[this.floor]?.y ?? 0, y0 = fy + (pl.wallH ?? 1.3) + .05, Hh = 1.5, X = pl.W / 2, Z = pl.D / 2;
     const C = [[-X, -Z], [X, -Z], [X, Z], [-X, Z]], at = (c, y) => P(c[0], y, c[1]);
     const poly = (pts, fill) => { g.beginPath(); pts.forEach(([x, y], k) => k ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath(); g.fillStyle = fill; g.fill(); };
     // the new floor filling in, as a pale block rising with the work
@@ -184,7 +186,7 @@ export class InsideView {
   frame(dt) {
     this.sim.step(dt); this.drawWork(dt);
     const { g, view, sim } = this, P = view.project, paid = [];
-    g.clearRect(0, 0, this.top.width, this.top.height);
+    g.setTransform(1, 0, 0, 1, 0, 0); g.clearRect(0, 0, this.top.width, this.top.height); g.setTransform(this.R, 0, 0, this.R, 0, 0);
     const tg = this.tg; tg.setTransform(1, 0, 0, 1, 0, 0); tg.clearRect(0, 0, this.txt.width, this.txt.height); tg.setTransform(this.ts, 0, 0, this.ts, 0, 0);
     const can = this.coins ? this.buyable() : new Set();
     if (this.coins && this.tags) {
@@ -220,12 +222,16 @@ export class InsideView {
     for (const [i, L] of Object.entries(this.levels)) { if (L <= 1 || !this.owned.has(+i) || this.tags && +i !== this.sel && +i !== this.flash && +i !== this.burst?.i) continue; const f = this.fx[i]; if (!f || !this.onFloor(f.y)) continue; const [x, y] = P(f.x, f.y + .5, f.z);
       const bx = Math.round(x) - (L - 1) * 2, by = Math.round(y) - 6; g.fillStyle = '#2e241a'; g.fillRect(bx - 1, by - 1, (L - 1) * 4 + 1, 4); g.fillStyle = '#ffd25a'; for (let k = 0; k < L - 1; k++) g.fillRect(bx + k * 4, by, 3, 2); }   // one gold pip per level above 1
     const list = [];
-    for (const s of sim.staff) { if (!this.onFloor(sim.floorY(s.f))) continue; const [x, y] = P(s.x, sim.floorY(s.f), s.z); list.push({ x, y, s }); }
-    for (const p of sim.people) { p.moving = p.moves.length > 0; if (!this.onFloor(p.y)) continue; const [x, y] = P(p.x, p.y, p.z); list.push({ x, y, p }); }
+    for (const s of sim.staff) { if (!this.onFloor(sim.floorY(s.f))) continue; const fy = sim.floorY(s.f), [x, y] = P(s.x, fy, s.z);
+      list.push({ x, y, s, cut: s.kind === 'clerk' ? P(s.x, fy + .72, s.z)[1] : null }); }   // a clerk stands in the counter: only what rises above its top shows
+    for (const p of sim.people) { p.moving = p.moves.length > 0; if (!this.onFloor(p.y)) continue; const [x, y] = P(p.x, p.y, p.z); list.push({ x, y, p });
+      const m = p.moves[0]; if (m) { const [nx] = P(m.x, p.y, m.z); if (Math.abs(nx - x) > .3) p.dir = nx > x ? 1 : -1; } }   // which way they face: where they walk next
     if (this.tabs) { const cnt = this.tabs.map(() => 0), g0 = this.view.plan.gap; for (const p of sim.people) { const k = Math.max(0, Math.min(cnt.length - 1, Math.floor((p.y + .01) / g0))); cnt[k]++; }
       this.tabs.forEach((b, k) => { const t = cnt[k] ? String(cnt[k]) : ''; const sm = b.lastChild; if (sm.textContent !== t) sm.textContent = t; }); }
     list.sort((a, b) => a.y - b.y);
-    for (const o of list) o.s ? person(g, o.x, o.y, { t: 0 }, o.s.kind) : person(g, o.x, o.y, o.p);
+    const draw = this.R >= 2 ? personHD : person;   // finer pixels get finer people
+    list.forEach((o, k) => { if (o.cut != null) { g.save(); g.beginPath(); g.rect(o.x - 30, o.cut - 60, 60, 60); g.clip(); }
+      o.s ? draw(g, o.x, o.y, { t: 0, id: k * 7 + 3, dir: -1 }, o.s.kind) : draw(g, o.x, o.y, o.p); if (o.cut != null) g.restore(); });
     for (const e of sim.events.splice(0)) {
       if (e.kind === 'coin') paid.push(e);
       this.floats.push({ text: e.kind === 'coin' ? `+${e.n}` : e.why, x: e.x, y: sim.floorY(e.f) + 1.1, z: e.z, t: 0, bad: e.kind === 'lost', tip: e.tip });
@@ -256,6 +262,44 @@ function person(g, x, y, p, staff) {
   g.fillStyle = staff === 'cook' ? '#ffffff' : '#4a3424'; g.fillRect(x - 2, by - (staff === 'cook' ? 13 : 11) - bob, 4, staff === 'cook' ? 3 : 1);
   if (p.vip) { g.fillStyle = '#ffd23a'; g.fillRect(x - 2, by - 12 - bob, 5, 2); g.fillRect(x - 2, by - 14 - bob, 1, 2); g.fillRect(x, by - 14 - bob, 1, 2); g.fillRect(x + 2, by - 14 - bob, 1, 2); }
   if (!staff && p.mood && p.mood !== 'ok') bubble(g, x, by - 14 - bob, p.mood);
+}
+// ---------- people on half-pixels (when the cut-away is drawn at res 2 or more) ----------
+const SKIN = ['#f3cfa6', '#e6b68c', '#c99066', '#9a6440'], HAIR = ['#3a2a20', '#1d1a19', '#6b4226', '#b9792f', '#8a8f99', '#9c3a2a', '#e0c070'];
+const PANTS = ['#3b3f52', '#2f4a6b', '#5a4a3a', '#2b2b2b', '#6b6f78'], INK = '#2a1f18';
+const dim = (hex, k) => { const n = parseInt(hex.slice(1), 16); return `rgb(${(n >> 16) * k | 0},${(n >> 8 & 255) * k | 0},${(n & 255) * k | 0})`; };
+/**
+ * A small figure: head with hair, eyes and cheeks, a shirt with arms and hands, legs and shoes; an ink outline around it.
+ * Drawn on a half-pixel grid of the map (f = .5), about 26 map pixels tall, feet at (x, y).
+ * p.dir: 1 faces right, -1 left. Walking swings the legs and arms; sitting folds the legs.
+ */
+function personHD(g, x, y, p, staff) {
+  const f = .5; x = Math.round(x / f) * f; y = Math.round(y / f) * f;
+  const id = p.id ?? 0, dir = p.dir ?? 1, sit = p.state === 'sit' || p.state === 'food', walk = !sit && p.moving, ph = walk ? (Math.sin(p.t * 12) > 0 ? 1 : -1) : 0;
+  const skin = SKIN[(id * 5 + 1) % SKIN.length], hair = HAIR[(id * 3) % HAIR.length], pants = staff ? '#33343c' : PANTS[(id * 7) % PANTS.length];
+  const shirt = staff ? '#f4f1ea' : SHIRTS[p.shirt ?? 0], shoe = '#2a2420';
+  const parts = [], R = (xf, yf, wf, hf, c, ink = true) => parts.push([dir > 0 ? xf : -xf - wf, yf, wf, hf, c, ink]);   // mirrored for facing left
+  // about 26 map pixels tall: a head and a half above a counter, so a clerk behind one still shows head and shoulders
+  const T = sit ? -21 : -31 + (walk && ph > 0 ? 1 : 0), sw = walk ? ph : 0;   // the top of the shirt; a step lifts the body a half-pixel
+  if (!sit) { const la = ph > 0 ? 1 : 0, lb = ph < 0 ? 1 : 0;   // the lifted leg is a half-pixel shorter
+    R(-6, -16, 5, 14 - la, pants); R(1, -16, 5, 14 - lb, pants); R(-6, -2 - la, 5, 2, shoe); R(1, -2 - lb, 6, 2, shoe); }
+  R(-10, T + 1 + sw, 3, 10, dim(shirt, .82)); R(-10, T + 11 + sw, 3, 3, skin);   // arms, then the shirt over their inner edge
+  R(7, T + 1 - sw, 3, 10, dim(shirt, .72)); R(7, T + 11 - sw, 3, 3, dim(skin, .9));
+  R(-7, T, 14, 15, shirt); R(4, T, 3, 15, dim(shirt, .84), false);   // the side away from the sun
+  if (staff === 'cook') { R(-7, T, 14, 2, '#e2432f', false); R(-1, T + 2, 3, 2, '#e2432f', false); }
+  if (staff === 'clerk') { R(-6, T + 6, 12, 9, '#2e5d8a', false); R(-5, T, 2, 6, '#2e5d8a', false); R(3, T, 2, 6, '#2e5d8a', false); }
+  if (sit) { R(-7, -9, 14, 4, pants); R(-7, -5, 5, 2, shoe); R(2, -5, 5, 2, shoe); }   // thighs forward over the seat
+  const H = T - 15;   // head
+  R(-6, H, 12, 14, skin); R(-7, H + 1, 14, 12, skin); R(5, H + 1, 2, 12, dim(skin, .88), false);
+  if (staff === 'cook') { R(-6, H - 7, 12, 7, '#ffffff'); R(-7, H - 10, 14, 4, '#ffffff'); R(-7, H, 14, 2, '#e8e4dc'); }
+  else { R(-6, H - 1, 12, 4, hair); R(-7, H, 14, 4, hair); R(-7, H + 4, 2, 6, hair, false); R(2, H + 4, 4, 1, hair, false); }   // a cap of hair, the back of the head, a fringe
+  R(0, H + 6, 1, 3, INK, false); R(4, H + 6, 1, 3, INK, false);   // eyes toward the way they face
+  R(-1, H + 10, 2, 1, '#ec9a8e', false); R(5, H + 10, 1, 1, '#ec9a8e', false); R(2, H + 11, 2, 1, '#9a4a3a', false);   // cheeks and a mouth
+  if (p.vip) { R(-6, H - 4, 12, 2, '#ffd23a'); R(-6, H - 6, 2, 2, '#ffd23a'); R(-1, H - 7, 2, 3, '#ffd23a'); R(4, H - 6, 2, 2, '#ffd23a'); }
+  // shadow, ink outline (every part one half-pixel larger), then the colours
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(x - 5, y - .5, 10, 1.5); g.fillRect(x - 4, y - 1, 8, .5);
+  g.fillStyle = INK; for (const [a, b, w, h, , ink] of parts) if (ink) g.fillRect(x + (a - 1) * f, y + (b - 1) * f, (w + 2) * f, (h + 2) * f);
+  for (const [a, b, w, h, c] of parts) { g.fillStyle = c; g.fillRect(x + a * f, y + b * f, w * f, h * f); }
+  if (!staff && p.mood && p.mood !== 'ok') bubble(g, Math.round(x), Math.round(y + (H - 3) * f), p.mood);
 }
 function bubble(g, x, y, mood) {
   if (mood === 'heart') { g.fillStyle = '#e2557a'; for (const [a, b] of [[-2, 0], [-1, -1], [1, -1], [2, 0], [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1], [-1, 2], [0, 2], [1, 2], [0, 3], [0, 0], [-1, 0], [1, 0]]) g.fillRect(x + a, y - 4 + b, 1, 1); return; }

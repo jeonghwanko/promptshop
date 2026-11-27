@@ -38,13 +38,15 @@ export function openShop(key) {
     openInside(key);
   });
 }
+// how the cut-away is drawn: twice the map's pixels (finer furniture and people, still pixel art) with low plain back walls and a darker floor
+const INSIDE = { res: 2, look: { wallH: .45, floor: .78, plainWall: true } };
 function openInside(key) {   // the cut-away in place, over the zoomed map (openShop moves the camera first)
   setTimeout(() => tutEvent('inside'), 0);
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   const myDoc = S.myDoc, mineP = p.owner === me && !!myDoc?.plots[key] && canWrite(), owned = ownedOf(p);
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
-    maxWidth: narrow() ? innerWidth - 16 : innerWidth - 380, tags: true, maxHeight: narrow() ? innerHeight - 270 : innerHeight - 70, maxZoom: 4,
+    maxWidth: narrow() ? innerWidth - 16 : innerWidth - 380, tags: true, maxHeight: narrow() ? innerHeight - 270 : innerHeight - 70, maxZoom: 4, ...INSIDE,
     onThud: () => { const st = $('shopstage'); st.classList.remove('thud'); void st.offsetWidth; st.classList.add('thud'); },
     levels: levelsOf(p),
     upgrade: (i, kind, cost, L) => { if (!mineP || S.myDoc.wallet.coins < cost) return false;
