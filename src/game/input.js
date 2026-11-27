@@ -2,12 +2,13 @@
 // press and hold one of mine to move it, tap a spot to move where the next building goes, tap another island to see it.
 import { SLOTS, PLOT, placePlot, slotAt } from '../v2/isles.js';
 import { $ } from './ui.js';
-import { S, me, pr, map } from './state.js';
+import { S, me, pr, map, canWrite } from './state.js';
 import { allPlots, takenSet, tilesOf } from './model.js';
 import { mapXY } from './camera.js';
 import { buildingAt } from './mapview.js';
+import { plantAt, plantWindow } from './utility.js';
 import { toast } from './hud.js';
-import { setBuildMode, setSpot } from './build.js';
+import { setBuildMode, setSpot, openAt, cancelBuild } from './build.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { showIsland, closePanel, panelOpen, halfBridge } from './panel.js';
 import { picking, guide } from './guide.js';
@@ -18,6 +19,13 @@ import { openShop } from './shop.js';
 function labelAt(sx, sy) {
   for (let s = 1; s <= SLOTS; s++) { if (S.owners.get(s) === me) continue; const [lx, ly] = tagXY(s); if (Math.abs(sx - lx) < 60 && sy > ly - 34 && sy < ly - 6) return s; }
   return 0;
+}
+/** The spot for a building of the size picked nearest a map point on my island (the tile under it first, then the ones
+ *  around it), or null: a pointer near a tile edge still lands where the outline showed. */
+function fitNear(fx, fz) {
+  const n = PLOT[S.size], x0 = Math.round(fx - n / 2), z0 = Math.round(fz - n / 2), taken = takenSet(); let best = null, bd = 9;
+  for (let dz = -1; dz <= 1; dz++) for (let dx = -1; dx <= 1; dx++) { const x = x0 + dx, z = z0 + dz, d = Math.hypot(x + n / 2 - fx, z + n / 2 - fz); if (d >= bd) continue; const door = placePlot(S.world, S.mySlot, x, z, n, taken); if (door) { best = { x, z, door }; bd = d; } }
+  return best;
 }
 /** A tap where nothing can be built: the spots on my island where this size fits blink for a moment (no words). */
 function showSpots(away) {
@@ -35,11 +43,14 @@ export function initInput() {
     addEventListener('pointerup', () => { down = null; box.classList.remove('drag'); setTimeout(() => { dragged = false; }, 0); }); }
 
   map.addEventListener('pointermove', (e) => {
-    if (!S.mySlot || S.building || !(S.buildMode || S.moving)) { S.hover = null; return; }
+    if (!S.mySlot || S.building || S.watching) { S.hover = null; map.style.cursor = ''; return; }
     const [sx, sy] = mapXY(e), [fx, fz] = pr.inv(sx, sy);
     if (S.moving) { S.hover = moveTarget(fx, fz); return; }
-    const n = PLOT[S.size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2);
-    S.hover = slotAt(Math.floor(fx), Math.floor(fz)) === S.mySlot ? { x, z, door: placePlot(S.world, S.mySlot, x, z, n, takenSet()) } : null;
+    const n = PLOT[S.size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2), mine = slotAt(Math.floor(fx), Math.floor(fz)) === S.mySlot, door = mine && placePlot(S.world, S.mySlot, x, z, n, takenSet());
+    // the bar closed: free land where a building fits answers the pointer with a soft outline (a tap there builds)
+    const near = !S.buildMode && mine && canWrite() && !buildingAt(e) ? fitNear(fx, fz) : null;
+    S.hover = S.buildMode ? (mine ? { x, z, door } : null) : near ? { ...near, idle: true } : null;
+    map.style.cursor = S.hover?.idle ? 'pointer' : '';
   });
   map.addEventListener('pointerleave', () => { S.hover = null; });
 
@@ -57,17 +68,21 @@ export function initInput() {
     if (held) { held = false; return; }   // the press that picked a building up is not also a tap
     const [sx, sy] = mapXY(e), [fx, fz] = pr.inv(sx, sy);
     if (S.moving) return dropMove(moveTarget(fx, fz));
-    { const k = buildingAt(e); if (k) return openShop(k); }
+    { const k = buildingAt(e); if (k) { S.choosing = false; return openShop(k); } }
+    { const k = plantAt(sx, sy); if (k >= 0 && !S.buildMode) return plantWindow(k); }   // my power plant or water tank (after buildings: they are in front)
     { const t = (S.bridgeTags ?? []).find(q => sx >= q.x && sx <= q.x + q.w && sy >= q.y && sy <= q.y + q.h);   // a plank tag: lay my half
       if (t) { const [l, tp] = toScreen(t.x, t.y), [r, b] = toScreen(t.x + t.w, t.y + t.h); return halfBridge(t.n, { getBoundingClientRect: () => ({ left: l, top: tp, right: r, bottom: b, width: r - l, height: b - tp }) }); } }
     const s = slotAt(Math.floor(fx), Math.floor(fz)) || labelAt(sx, sy);   // an island, or its name tag over the water
     if (S.buildMode) {   // the bar is open: the tap moves where the building goes (touch screens have no hover)
-      const n = PLOT[S.size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2), door = s === S.mySlot ? placePlot(S.world, S.mySlot, x, z, n, takenSet()) : null;
-      if (door) return setSpot(x, z, door);
+      const sp = s === S.mySlot ? fitNear(fx, fz) : null;
+      if (sp) return setSpot(sp.x, sp.z, sp.door);
       return showSpots(s !== S.mySlot); }
+    if (s && s === S.mySlot && canWrite()) {   // my own land: build here (where it fits; else the bar opens and the spots that fit blink)
+      const spot = fitNear(fx, fz); if (spot) openAt(spot); else showSpots(false); return; }
+    if (S.choosing && s !== S.mySlot) cancelBuild();   // a face was picked, but the tap is elsewhere: let it go
     if (s && picking() && !S.owners.has(s)) { S.pick = s; closePanel(); return guide(); }   // choosing: the 'live here' button moves to the island I tapped
     if (s && s !== S.mySlot) return showIsland(s);
     if (panelOpen() && S.current?.kind !== 'build') closePanel();
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.buildMode) setBuildMode(false); if (e.key === 'Escape' && S.moving) cancelMove(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && (S.buildMode || S.choosing)) cancelBuild(); if (e.key === 'Escape' && S.moving) cancelMove(); });
 }

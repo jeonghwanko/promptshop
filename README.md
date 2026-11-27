@@ -32,12 +32,13 @@ Saved islands go to `dev-data/db.json`.
 
 ## The game
 
-`isles.html` is an archipelago of ten islands, one per friend. You start on your own island with one permit:
+`isles.html` is an archipelago of ten islands, one per friend. You start on your own island:
 
 - **Build.** Pick a glowing plot, write one line (or tap an example), and Claude streams the building part by part (`src/v2/steps.js`) while it rises from a building site.
 - **Guests.** Boats bring guests to each island's pier. They walk to the shops that sell what they want, queue, pay and sail away. More and fuller shops draw bigger boats.
 - **Inside.** Tap a shop to open its cross-section in place. Each floor runs its own simulation: guests queue at counters, sit at tables and pay when they finish. Fixtures start as see-through ghosts; buying one fills it in and raises the shop's queue, price and speed. Red steam shows where guests get stuck.
-- **Grow.** Served guests fill the permit gauge (a new building) and raise the island's level (bigger plots, more land). Shops can be extended upwards.
+- **Power and water.** Every building, every floor added and every machine put in uses power and water. Each island has a power plant (a post of lamps, one lit per unit used) and a water tank (its level drops as water is used) on the shore by its pier; when they are full, grow them before building more. Power poles carry the cable along the road; a new building stays dark until a light runs along the cable and switches it on. From five buildings on, every building pays its power and water each minute, whatever it earns (an unpaid bill closes the newest buildings until it is paid). Claude builds are limited per day.
+- **Grow.** Served guests raise the island's level (bigger plots, more land). Shops can be extended upwards.
 - **Festival.** Every few minutes a festival boat brings a crowd larger than your shops can take. Serve enough of them in the window to earn stars and tips.
 - **Friends.** Neighbouring islands are joined by bridges that both owners pay half of; residents cross and spend in each other's shops. The world map lists every archipelago.
 

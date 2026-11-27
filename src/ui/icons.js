@@ -7,6 +7,8 @@ const PAL = {
 };
 const OUT = '#2b1e15';
 const I = {
+  bolt: ['.......YYYy...', '......YYYy....', '.....YYYy.....', '....YYYy......', '...YYYy.......', '..YYYYYYYYy...', '...yyYYYYy....', '.....YYYy.....', '....YYYy......', '...YYYy.......', '..YYy.........', '.Yy...........', '..............', '..............'],
+  drop: ['......B.......', '.....BBB......', '.....BBB......', '....BBBBB.....', '...BBBBBBB....', '...BLBBBBB....', '..BBLBBBBBB...', '..BLBBBBBBB...', '..BLBBBBBBb...', '..BBBBBBBBb...', '...BBBBBBb....', '....bbbbb.....', '..............', '..............'],
   coin: ['....yyyyyy....', '..yyYYYYYYyy..', '.yYYWWYYYYYYy.', '.yYWYYyyyyYYy.', 'yYYWYyYYYYyYYy', 'yYYYyYYYYYYYYy', 'yYYYyYYYYYYYYy', 'yYYYyYYYYYYYYy', 'yYYYyYYYYYyYYy', '.yYYYyyyyyYYy.', '.yYYYYYYYYYYy.', '..yyYYYYYYyy..', '....yyyyyy....', '..............'],
   ticket: ['..............', '..............', 'OOOOOOOOOOOOOO', 'OYYYYYYYYYYYYO', 'OYWWWWWYYsYYYO', '.YYYYYYYYYYYY.', '.YWWWWYYYsYYY.', 'OYYYYYYYYYYYYO', 'OYWWWYYYYsYYYO', 'OYYYYYYYYYYYYO', 'OOOOOOOOOOOOOO', '..............', '..............', '..............'],
   boat: ['......R.......', '......RR......', '......W.......', '.....WWW......', '....WWWWW.....', '...WWWWWWW....', '..WWWWWWWWW...', '......n.......', 'NNNNNNNNNNNNNN', '.NNnnnnnnnnNN.', '..NNNNNNNNNN..', '...LLLLLLLL...', '..L.LL..LL.L..', '..............'],
@@ -74,7 +76,7 @@ export const EMOJI = {
   '🎫': 'ticket', '⛵': 'boat', '📣': 'horn', '👑': 'crown', '🌱': 'sprout', '🏗️': 'hammer', '🏗': 'hammer', '⬆': 'up', '↔': 'move', '⇄': 'swap',
   '🍜': 'food', '☕': 'cafe', '🛍️': 'bag', '🛍': 'bag', '🎳': 'pin', '🛏️': 'bed', '🛏': 'bed', '✏️': 'pencil', '✏': 'pencil', '🧑‍🍳': 'helper', '🐦': 'gull',
   '🚪': 'door', '🧾': 'receipt', '🪑': 'chair', '💰': 'moneybag', '🎉': 'star', '🏝️': 'island', '🏝': 'island', '🛋️': 'gear', '🛋': 'gear', '🗺️': 'map', '🗺': 'map',
-  '🌏': 'globe', '★': 'star', '☆': 'star0', '✓': 'check', '🔒': 'lock', '✕': 'close', '¢': 'coin',
+  '🌏': 'globe', '★': 'star', '☆': 'star0', '✓': 'check', '🔒': 'lock', '✕': 'close', '¢': 'coin', '⚡': 'bolt', '💧': 'drop',
 };
 const EMOJI_SRC = Object.keys(EMOJI).sort((a, b) => b.length - a.length).map(e => e.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|');
 const EMOJI_RE = new RegExp(EMOJI_SRC, 'g'), EMOJI_HAS = new RegExp(EMOJI_SRC);

@@ -5,7 +5,7 @@ import { voxelEl } from '../ui/voxelui.js';
 import { SLOTS, neighbours, bridgeId, PLOT, makeIsles, drawIsles, centerOf } from '../v2/isles.js';
 import { moveWithIsland } from './migrate.js';
 import { ISLES_SEED } from '../../examples/isles-seed.js';
-import { db, me, BOARD, pr } from './state.js';
+import { S, db, me, BOARD, pr } from './state.js';
 import { setBuildMode } from './build.js';
 import { bad } from './rules.js';
 
@@ -125,7 +125,7 @@ async function showBoard(b) {
 }
 // the coastlines (about 1 MB) load the first time the world opens, not with the game
 let geo = null;
-export async function openWorld() {
+export async function openWorld() { S.choosing = false;
   geo ??= await import('../v2/geo.js');
   setBuildMode(false); $('world').hidden = false; $('wcard').hidden = true; placing = null;
   wboards = await loadBoards();

@@ -384,9 +384,17 @@ body:has(.guide:not([hidden]):not(.min)) .toast { top:112px; bottom:auto; }
 .bar .bgo:disabled { cursor:default; transform:none; }
 .ask.busy .bar { box-shadow:0 0 0 2px #ffd166, 0 5px 0 rgba(20,30,40,.35); }
 .want:focus-visible, .bar button:focus-visible { outline:3px solid #fff; outline-offset:2px; }
-/* the 🎫 count by the coins: one ticket, one building */
-.coinb .pmt { display:inline-flex; align-items:center; gap:3px; margin-left:4px; padding-left:10px; border-left:1px solid rgba(251,241,220,.22); font:400 20px var(--f-disp); color:#fbf1dc; font-variant-numeric:tabular-nums; }
-.coinb .pmt:empty { display:none; } .coinb .pmt img { width:22px; height:22px; image-rendering:pixelated; } .coinb .pmt.none { color:#a6977e; } .coinb .pmt.got { animation:pop2 .4s; }
+/* power and water by the coins: used / supplied; a full one turns red. A tap opens the supply window */
+.coinb .pmt { display:inline-flex; align-items:center; gap:8px; margin-left:4px; padding-left:10px; border-left:1px solid rgba(251,241,220,.22); font:400 18px var(--f-disp); color:#fbf1dc; font-variant-numeric:tabular-nums; cursor:pointer; }
+.coinb .pmt:empty { display:none; } .coinb .pmt img { width:20px; height:20px; image-rendering:pixelated; }
+.coinb .pmt .um { display:inline-flex; align-items:center; gap:2px; } .coinb .pmt .um.full { color:#ff9a8a; }
+.why.plant { width:min(240px, calc(100vw - 16px)); }
+.why.plant::after { content:''; position:absolute; left:var(--tail, 50%); bottom:-8px; width:16px; height:16px; margin-left:-8px; background:#fbf1dc; transform:rotate(45deg); border-radius:3px; }
+.why.plant.below::after { bottom:auto; top:-8px; }
+.why .cells { display:flex; flex-wrap:wrap; gap:4px; } .why .cells i { width:14px; height:14px; border-radius:3px; background:#3a342c; box-shadow:inset 0 0 0 2px #2e241a; }
+.why .cells.lamps i.on { background:#ffd166; box-shadow:inset 0 0 0 2px #2e241a, 0 0 6px rgba(255,209,102,.8); } .why .cells.water i.on { background:#5fb6e0; }
+.act .price .pu { display:inline-flex; align-items:center; gap:1px; margin-left:6px; opacity:.9; } .act .price .pu img { width:16px; height:16px; }
+.why button img { width:18px; height:18px; image-rendering:pixelated; vertical-align:-3px; }
 .isleb .nm small { display:flex; align-items:center; gap:2px; } .isleb .nm small img { width:14px; height:14px; image-rendering:pixelated; }
 /* the guide and messages sit over the ask, not on it */
 .guide { bottom:156px; }
@@ -436,11 +444,11 @@ body:has(.guide:not([hidden]):not(.min)) .toast { top:112px; bottom:auto; }
 /* ---------- the first session opens the screen one part at a time (reveal.js) ---------- */
 body.hide-coins #coinb .cic, body.hide-coins #wallet, body.hide-coins #rate { display:none; }
 body.hide-coins #coinb .pmt { margin-left:0; padding-left:4px; border-left:0; }
-body.hide-permits #pmt { display:none; }
-body.hide-coins.hide-permits #coinb { display:none; }
+body.hide-util #pmt { display:none; }
+body.hide-coins.hide-util #coinb { display:none; }
 body.hide-level #who .lvr, body.hide-level #who small { display:none; } body.hide-level #who { padding-left:14px; }
 body.hide-boat #boat, body.hide-world #d-world, body.hide-home #d-home, body.hide-auto #d-auto, body.hide-zoom .hud.tr .zoomb { display:none !important; }
-body.hide-rewards .want .wt small { display:none; }
+body.hide-rewards .want .rw { display:none; }
 body.hide-counts .want .cnt { display:none; }
 .newly { animation:newly 1.4s cubic-bezier(.2,1.5,.4,1); }
 @keyframes newly { 0% { transform:scale(.4); opacity:0; filter:drop-shadow(0 0 0 #ffd166); } 35% { transform:scale(1.18); opacity:1; filter:drop-shadow(0 0 10px #ffd166); } 100% { transform:none; filter:none; } }
@@ -495,3 +503,69 @@ body[data-tut="1"] .bar .bsub button { background:#fbf1dc; color:#2e241a; font:4
 .ask .wants.more-l { -webkit-mask-image:linear-gradient(to left, #000 80%, transparent); mask-image:linear-gradient(to left, #000 80%, transparent); }
 .ask .wants.more-r.more-l { -webkit-mask-image:linear-gradient(to right, transparent, #000 15%, #000 85%, transparent); mask-image:linear-gradient(to right, transparent, #000 15%, #000 85%, transparent); }
 .ask .wants { scroll-snap-type:x proximity; } .ask .wants .want { scroll-snap-align:start; }
+/* phones: no room beside the coins for power and water, so the meter hangs under the coin plate (the income line below it) */
+@media (max-width:440px) {
+  .coinb .pmt { position:absolute; top:100%; right:0; margin-top:6px; padding:2px 10px; border-left:0; border-radius:14px; background:rgba(46,36,26,.82); font-size:15px; gap:6px; }
+  .coinb .pmt img { width:16px; height:16px; }
+  .coinb:has(.pmt:not(:empty)) small { margin-top:36px; }
+}
+
+/* the three things I have, top right, all the same size: coins, power left, water left */
+.coinb { gap:12px; padding:6px 16px 6px 10px; }
+.coinb .cic img { width:28px; height:28px; }
+.coinb b { font-size:24px; min-width:0; text-align:left; }
+.coinb .pmt { gap:12px; margin-left:0; padding-left:12px; font:400 24px var(--f-disp); }
+.coinb .pmt .um { gap:4px; } .coinb .pmt img { width:28px; height:28px; }
+@media (max-width:440px) {
+  .coinb { gap:8px; padding:4px 12px 4px 8px; } .coinb .cic img, .coinb .pmt img { width:20px; height:20px; } .coinb b, .coinb .pmt { font-size:19px; }
+  .coinb .pmt { position:static; margin-top:0; padding:0 0 0 8px; gap:8px; border-left:1px solid rgba(251,241,220,.22); border-radius:0; background:none; }
+  .coinb:has(.pmt:not(:empty)) small { margin-top:4px; }
+}
+
+/* a face chip: face, words, the waiting count, and at its end what building it pays */
+.want .rw { display:inline-flex; align-items:center; gap:2px; margin-left:6px; font:400 14px var(--f-disp); color:#b9821a; white-space:nowrap; } .want .rw img { width:16px; height:16px; image-rendering:pixelated; }
+/* the island plate: the level ring and the name only; with the bar open, the ring alone (room for what I have on a phone) */
+#who .nm small { display:none; } body.buildmode #who .nm { display:none; } body.buildmode #who { padding-right:6px; }
+/* the plant window: lamps (lit = power left), and dashed sockets for what growing adds */
+.why .cells.lamps i { border-radius:50%; } .why .cells i.add { background:none; box-shadow:none; outline:2px dashed rgba(46,36,26,.35); outline-offset:-2px; }
+/* the face chips may spread wider than the bar on a wide screen; when they still do not fit they start at the left edge (not cut off on both sides) */
+.ask .wants { justify-content:safe center; }
+@media (min-width:900px) { .ask .wants { margin-inline:-200px; } }
+
+/* a face coming into a freed place fades in there (the others do not move); the count badge keeps one width */
+.want.fresh { animation:wantin .6s ease-out; } @keyframes wantin { from { opacity:0; transform:translateY(6px); } }
+.want .cnt { min-width:26px; text-align:center; font-variant-numeric:tabular-nums; }
+
+/* 취소: the last chip while the bar is open, plain (no face), with the Esc key beside it on a keyboard */
+.want.cancel { background:#3a2f26; color:#fbf1dc; } .want.cancel img { width:22px; height:22px; image-rendering:pixelated; }
+.want.cancel kbd { margin-left:6px; padding:1px 6px; border-radius:6px; background:rgba(251,241,220,.15); font:400 12px var(--f-ui); color:#e8dcc4; box-shadow:inset 0 -2px 0 rgba(0,0,0,.3); }
+body[data-tut="1"] .want.cancel, body[data-tut="2"] .want.cancel { display:none; }
+
+/* +N: the faces of the other kinds waiting, overlapping, and how many in all; its list opens above it */
+.want.more .faces { display:flex; } .want.more .faces .face { width:26px; height:26px; margin-left:-10px; border-radius:7px; box-shadow:0 0 0 2px #fbf1dc; } .want.more .faces .face:first-child { margin-left:0; }
+.why.wantlist { width:auto; min-width:220px; gap:4px; padding:8px; }
+.why .wrow { display:flex; align-items:center; gap:8px; padding:6px 8px; border-radius:10px; background:none; box-shadow:none; color:var(--ink); text-align:left; }
+.why .wrow:hover { background:rgba(46,36,26,.08); } .why .wrow .face { width:30px; height:30px; flex:none; }
+.why .wrow b { flex:1; font:400 16px var(--f-disp); } .why .wrow .cnt { min-width:24px; padding:1px 6px; border-radius:10px; background:#c0392b; color:#fff; font:400 13px var(--f-disp); text-align:center; }
+.why .wrow .rw { display:inline-flex; align-items:center; gap:2px; font:400 13px var(--f-disp); color:#b9821a; } .why .wrow .rw img { width:16px; height:16px; }
+/* the build window: closed, only the faces at the bottom; open (a spot picked), the faces and the bar — over the lot on a
+   PC, following the camera, with a tail pointing at it; a sheet at the bottom on a phone */
+.ask:not(.open) .bar, .ask:not(.open) .berr { display:none; }
+.ask.card { display:flex; flex-direction:column; gap:8px; padding:10px 12px 12px; border-radius:18px; background:rgba(46,36,26,.97); box-shadow:0 10px 26px rgba(0,0,0,.35); }
+.ask.float { position:fixed; z-index:31; width:min(460px, calc(100vw - 16px)); margin:0; }
+.ask.card .wants { margin:0; padding:8px 0 0 4px; gap:6px; justify-content:flex-start; flex-wrap:nowrap; overflow-x:auto; -webkit-mask-image:none; mask-image:none; zoom:1; }
+.ask.card .want { padding:3px 10px 3px 3px; min-height:0; box-shadow:none; } .ask.card .want .face { width:26px; height:26px; }
+.ask.card .want .lg { display:none; } .ask.card .want .sh { display:inline; } .ask.card .want .wt b { font-size:14px; }
+.ask.card .want .rw, .ask.card .want.more .faces .face:nth-child(n+2) { display:none; }
+.ask.card .want .cnt { top:-6px; left:-4px; transform:scale(.8); }
+.ask.card .want.cancel { margin-left:auto; padding:4px; background:none; } .ask.card .want.cancel .wt, .ask.card .want.cancel kbd { display:none; }
+.ask.card .bar { flex-wrap:wrap; gap:8px; padding:0; background:none; box-shadow:none; }
+.ask.card .bwho { display:none; } .ask.card .bmid { flex:1 1 100%; min-width:0; }
+.ask.card #line { box-sizing:border-box; width:100%; padding:8px 12px; border-radius:12px; background:rgba(251,241,220,.1); }
+.ask.card .bsize { margin-right:auto; } .ask.card .bgo { margin-left:auto; }
+@media (max-width:760px) { .ask.card { border-radius:18px 18px 0 0; padding-bottom:max(12px, env(safe-area-inset-bottom, 0px)); } .ask.card .bgo { flex:1 1 auto; } }
+.ask.float::after { content:''; position:absolute; left:var(--tail, 50%); bottom:-8px; width:16px; height:16px; margin-left:-8px; background:rgba(46,36,26,.97); transform:rotate(45deg); border-radius:3px; }
+.ask.float.below::after { bottom:auto; top:-8px; }
+.ask.choosing .want.on { box-shadow:0 0 0 3px #ffd166, 0 4px 0 rgba(20,30,40,.35); }
+
+.bar .bsize button.short { opacity:.45; }

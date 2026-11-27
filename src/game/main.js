@@ -20,6 +20,7 @@ import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { initInput } from './input.js';
 import { inviteLink } from './invite.js';
 import { setBuildMode, startExtend, initAsk } from './build.js';
+import { initUtility } from './utility.js';
 import { dustSite } from './mapfx.js';
 import { initWorld, openWorld } from './world.js';
 
@@ -94,7 +95,7 @@ hooks.rebuilt = (oldGround) => {
     guide(); }
 };
 
-initCamera(); initHud(); initAsk(); initGuide(); initShop(); initInput(); initEconomy(); initWorld();
+initCamera(); initHud(); initUtility(); initAsk(); initGuide(); initShop(); initInput(); initEconomy(); initWorld();
 
 let last = performance.now();
 function frame(t) {

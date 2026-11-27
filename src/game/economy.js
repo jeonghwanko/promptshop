@@ -4,12 +4,14 @@ import { dockOf } from '../v2/isles.js';
 import { NEED_KEYS } from '../v2/townsim.js';
 import { normalize } from '../v2/spec.js';
 import { shopRates, bestNext, FIX_INFO, nextUp, costOf, LV_MAX, upgradeCost } from '../v2/inside.js';
-import { START_STOCK, RESTOCK, BASE_COIN, vipBonus, FEST, festNeeds, festCapacity, festTip, festStars, festBonus } from './rules.js';
+import { START_STOCK, RESTOCK, BASE_COIN, fixUse, billOf, vipBonus, FEST, festNeeds, festCapacity, festTip, festStars, festBonus } from './rules.js';
 import { S, me, sim, pops, earned, boats, nextBoat, canWrite } from './state.js';
-import { hooks, allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, ratesOf, servesOf, islandShops, boatPlan, countGuest, rebuild } from './model.js';
+import { hooks, allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, ratesOf, servesOf, islandShops, boatPlan, countGuest, rebuild, shortOf, myUse } from './model.js';
 import { save } from './persist.js';
 import { toast, celebrate, flyCoin, flyCoinNow, festHud } from './hud.js';
 
+/** What buying by itself leaves in the wallet: the next bill, and a batch of supplies. */
+const reserve = () => Math.max(RESTOCK.coins, billOf(myUse()));
 const earn = (n) => { S.myDoc.wallet.coins += n; earned.push([performance.now(), n]); };
 const useStock = (key, n) => { const p = S.myDoc.plots[key]; if (p) p.stock = Math.max(0, (p.stock ?? START_STOCK) - (n ?? 1)); };
 function vip(e, t) { const p = allPlots().find(q => q.key === e.lot), b = vipBonus(p ? starsInfo(p).stars : 3); earn(b); pops.push({ key: e.lot, text: `👑 VIP +${b}`, mine: true, t }); }
@@ -132,6 +134,7 @@ function autoInvest() {
     const kinds = bestNext(fx, owned, base, order, helpersOf(p), levelsOf(p)), up = Object.values(nextUp(fx, owned, undefined, order)); if (!up.length) continue;
     // the piece that raises income most; when none does, the cheapest next piece (every piece still brings boats sooner)
     const i = up.find(j => kinds.includes(fx[j].kind)) ?? up.sort((a, b) => costOf(fx[a].kind) - costOf(fx[b].kind))[0];
+    if (shortOf(fixUse(fx[i].kind)) >= 0) continue;   // it would not get the power or water it needs
     const r0 = shopRates(fx, owned, base, helpersOf(p), levelsOf(p)), r1 = shopRates(fx, new Set([...owned, i]), base, helpersOf(p), levelsOf(p)), cost = costOf(fx[i].kind);
     const value = (Math.max(0, r1.price / r1.interval - r0.price / r0.interval) + 1e-4) / cost;
     if (!best || value > best.value) best = { p, i, cost, value, kind: fx[i].kind };
@@ -140,15 +143,15 @@ function autoInvest() {
   if (!best) {   // every shop is full: level up what lifts income most per coin
     for (const p of mineServing) {
       const fx = fixturesOf(p), lv = levelsOf(p), base = BASE_COIN[p.size] ?? 1, r0 = shopRates(fx, ownedOf(p), base, helpersOf(p), lv);
-      for (const j of ownedOf(p)) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const r1 = shopRates(fx, ownedOf(p), base, helpersOf(p), { ...lv, [j]: L + 1 }), cost = upgradeCost(fx[j].kind, L);
+      for (const j of ownedOf(p)) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const u0 = fixUse(fx[j].kind, L), u1 = fixUse(fx[j].kind, L + 1); if (shortOf([u1[0] - u0[0], u1[1] - u0[1]]) >= 0) continue; const r1 = shopRates(fx, ownedOf(p), base, helpersOf(p), { ...lv, [j]: L + 1 }), cost = upgradeCost(fx[j].kind, L);
         const value = (r1.price / r1.interval - r0.price / r0.interval) / cost; if (value > 0 && (!best || value > best.value)) best = { p, j, cost, value, kind: fx[j].kind, L }; } }
-    if (!best || myDoc.wallet.coins - best.cost < RESTOCK.coins) return;
+    if (!best || myDoc.wallet.coins - best.cost < reserve()) return;
     myDoc.wallet.coins -= best.cost; levelsOf(best.p)[best.j] = best.L + 1;
     pops.push({ key: best.p.key, text: `${FIX_INFO[best.kind]?.[0] ?? best.kind} Lv${best.L + 1} -${best.cost}`, mine: true, t: 0 });
     if (w?.key === best.p.key) { w.view.levels[best.j] = best.L + 1; w.view.sim.setLevels(w.view.levels); }
     rebuild(); save(true); return;
   }
-  if (myDoc.wallet.coins - best.cost < RESTOCK.coins) return;
+  if (myDoc.wallet.coins - best.cost < reserve()) return;
   const mp = myDoc.plots[best.p.key]; if (!mp) return;
   myDoc.wallet.coins -= best.cost; mp.own = [...new Set([...ownedOf(best.p), best.i])]; mp.fx = mp.own.length;
   pops.push({ key: best.p.key, text: `${FIX_INFO[best.kind]?.[0] ?? best.kind} -${best.cost}`, mine: true, t: 0 });

@@ -1,4 +1,4 @@
-// The side panel: my island (permits, stats, land, neighbours), joining a slot, someone else's island,
+// The side panel: my island (power and water, stats, land, neighbours), joining a slot, someone else's island,
 // a building's card; also widening my island, half bridges and demolishing.
 import { SLOTS, PLOT, centerOf, neighbours, bridgeId, setLand, landSize, LAND_MAX, GAP } from '../v2/isles.js';
 import { normalize } from '../v2/spec.js';
@@ -9,7 +9,8 @@ import { iconEl } from '../ui/icons.js';
 import { START_COINS, BRIDGE, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, LEVELS, levelOf } from './rules.js';
 import { $, el, xbtn } from './ui.js';
 import { S, db, me, site, pr, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
-import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild } from './model.js';
+import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild, myUse, mySupply, waterOn } from './model.js';
+import { plantWindow, PLANT } from './utility.js';
 import { save, createMine, removeOthers, track } from './persist.js';
 import { scrollToSlot, startZoom, applyZoom, scrollToPoint, inSafe } from './camera.js';
 import { toast, celebrate, why } from './hud.js';
@@ -79,11 +80,11 @@ export function showHome(msg) {
       can ? el('div', { class: 'slots' }, Array.from({ length: SLOTS }, (_, i) => i + 1).map(s => { const b = el('button', { class: S.owners.has(s) ? 'ghost' : '', on: { click: () => join(s) } }, String(s)); b.disabled = S.owners.has(s); return b; })) : null,
       msg ? el('div', { class: 'err' }, msg) : null);
   }
-  const mine = Object.keys(myDoc.plots).length, w = G(), lv = levelOf(w.served), bp = boatPlan(mySlot), pct = Math.min(100, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt) * 100);
+  const mine = Object.keys(myDoc.plots).length, w = G(), lv = levelOf(w.served ?? 0), bp = boatPlan(mySlot), u = myUse(), su = mySupply();
   const stat = (ic, big, small) => el('div', { class: 'stat' }, iconEl(ic, 32, ''), el('b', {}, big), el('small', {}, small));
   const bridges = bridgeCards();
   show(el('h2', {}, `${mySlot}번 섬 `, el('small', {}, `Lv.${lv + 1} ${LEVELS[lv].name}`)),
-    el('div', { class: 'card tile' }, iconEl('ticket', 40, ''), el('span', { class: 'tt' }, el('b', {}, `허가증 ${w.permits}`), el('div', { class: 'lvbar' }, Object.assign(el('i'), { style: `width:${pct}%` })), el('small', {}, `손님 ${w.nextAt - w.served}명 더`))),
+    el('div', { class: 'row' }, ...(waterOn() ? [0, 1] : [0]).map(k => el('button', { class: 'card tile', on: { click: (e) => plantWindow(k, null, e.currentTarget) } }, iconEl(k ? 'drop' : 'bolt', 32, ''), el('span', { class: 'tt' }, el('b', {}, PLANT[k]), el('small', {}, `${su[k] - u[k]} 남음`))))),
     el('div', { class: 'stats3' }, stat('people', w.served.toLocaleString('ko-KR'), '받은 손님'), stat('boat', bp.shops ? `${bp.every}초` : '—', bp.shops ? `${bp.people}명씩` : '가게 없음'), stat('door', `${mine}/${maxPlots()}`, '건물')),
     landCard(), nameCard(), msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃'), el('div', { class: 'nb' }, bridges.filter(x => x.tagName === 'SPAN')), ...bridges.filter(x => x.tagName !== 'SPAN'), inviteCard());
@@ -112,7 +113,7 @@ export async function join(s) {
   const byInviter = !!FROM && S.owners.has(FROM) && neighbours(s).includes(FROM);
   track('pick', { slot: s, from: FROM, nextToInviter: byInviter, pick: PICK });
   // invited next to a friend: my half of the bridge to them is free, so we are joined in the first session
-  const ok = await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, permits: 1, tut: 0, tutV: 3, ...(byInviter ? { freeHalf: FROM } : {}) } });
+  const ok = await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, ups: [0, 0], tut: 0, tutV: 3, ...(byInviter ? { freeHalf: FROM } : {}) } });
   if (!ok) { closePanel(); return toast('초대 링크를 받은 친구만 이 군도에 살 수 있어요', 2600); }
   closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide();
 }
@@ -127,7 +128,7 @@ export async function halfBridge(n, fromMap = null) {
   track('bridge_half', { to: n, free: !cost, done: !!S.docs.get(S.owners.get(n))?.half?.[S.mySlot] });
   planks(S.mySlot, n, true); if (!fromMap) showHome();
 }
-export function showIsland(s) {
+export function showIsland(s) { S.choosing = false;
   const uid = S.owners.get(s); S.current = { kind: 'island', slot: s, uid };
   if (!uid) {   // an empty island: live here (no island yet), or call a friend to it
     const by = FROM && neighbours(s).includes(FROM) && S.owners.get(FROM);

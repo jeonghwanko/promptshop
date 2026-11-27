@@ -1,5 +1,5 @@
 // The archipelago's rules: numbers and pure functions only. No DOM, no saved state, no clock, no randomness
-// unless a random function is passed in. Everything that decides prices, permits, levels and festivals lives here,
+// unless a random function is passed in. Everything that decides prices, power and water, levels and festivals lives here,
 // so balancing is one file and the rules can be checked without a browser.
 
 // ---------- money ----------
@@ -19,22 +19,31 @@ export const MAX_PLOTS = 8, PLOTS_PER_LAND = 3;
 export const LAND_COST = [80, 200, 450, 900], LAND_LEVEL = [0, 1, 2, 3];   // per widening step: its price, the island level it needs
 export const maxPlots = (land = 0) => MAX_PLOTS + PLOTS_PER_LAND * land;
 
-// ---------- growth: guests fill the permit gauge; served guests raise the island's level ----------
+// ---------- growth: served guests raise the island's level (it opens bigger sizes) ----------
 export const LEVELS = [{ at: 0, name: '마을', size: 'S' }, { at: 40, name: '동네', size: 'M' }, { at: 150, name: '거리', size: 'L' }, { at: 400, name: '번화가', size: 'L' }];
 export const levelOf = (served) => LEVELS.reduce((i, l, k) => served >= l.at ? k : i, 0);
 export const sizesOpen = (lv) => ['S', 'M', 'L'].slice(0, Math.min(3, lv + 1));
-/** Guests between permits: 6, then 10, 14, 18 … (the first ones come quickly). */
-export const permitGap = (earned) => 6 + 4 * earned;
-/**
- * Bring a wallet's permit gauge up to date (fills missing fields, fixes gaps from older rules) and pay out every
- * permit its served guests have earned. Changes the wallet in place; returns how many permits were paid now.
- */
-export function payPermits(w) {
-  w.permits ??= 1; w.served ??= 0; w.prevAt ??= 0; w.earnedP ??= 0; w.nextAt ??= w.prevAt + permitGap(w.earnedP);
-  if (w.nextAt - w.prevAt > permitGap(w.earnedP)) w.nextAt = w.prevAt + permitGap(w.earnedP);   // islands from before the shorter gaps
-  let got = 0; while (w.served >= w.nextAt) { w.permits++; w.earnedP++; w.prevAt = w.nextAt; w.nextAt = w.prevAt + permitGap(w.earnedP); got++; }
-  return got;
-}
+
+// ---------- power and water: every building, and every machine put in it, uses some; my island supplies a limited amount ----------
+// Growth is held by supply, not by money: a building (or a machine) that does not fit what the island supplies cannot go in
+// until the cable joint or the water works is upgraded. Each building pays its bill every minute, whatever it earns.
+export const UTIL = {
+  base: { S: [1, 1], M: [2, 2], L: [3, 3] },        // a building itself, by size: [power, water]
+  floor: [1, 1],                                     // each floor added later
+  fix: { stove: [1, 1], machine: [1, 0], fridge: [1, 0], tv: [1, 0], lamp: [1, 0], prep: [0, 1], sink: [0, 1], toilet: [0, 1], pool: [0, 2] },
+  start: [4, 6], step: [4, 4],                       // what an island supplies at first (power runs out first, a few buildings in), and each upgrade adds
+  rate: 2,                                           // the bill: coins per unit used, per minute
+  pipe: 2,                                           // laying cable and pipe along the road to a new building: coins per road tile
+  billFrom: 5,                                       // bills start once an island has this many buildings (one lesson at a time)
+};
+/** A machine's use: [power, water]; levels 3 and 5 add its use once more each. */
+export const fixUse = (kind, L = 1) => { const f = UTIL.fix[kind]; if (!f) return [0, 0]; const m = 1 + Math.floor(((L ?? 1) - 1) / 2); return [f[0] * m, f[1] * m]; };
+/** What an island supplies after `ups` upgrades of [cable joint, water works]. */
+export const supplyOf = (ups) => [UTIL.start[0] + UTIL.step[0] * (ups?.[0] ?? 0), UTIL.start[1] + UTIL.step[1] * (ups?.[1] ?? 0)];
+/** The n-th upgrade (0-based) of one of them: 40, 60, 90, 135 … */
+export const supplyCost = (n) => Math.round(40 * 1.5 ** (n ?? 0));
+/** The bill for a use, per minute. */
+export const billOf = (use) => Math.round((use[0] + use[1]) * UTIL.rate);
 
 // ---------- boats ----------
 /** How often a boat comes to an island and how many it brings: more shops and fuller shops draw more. */

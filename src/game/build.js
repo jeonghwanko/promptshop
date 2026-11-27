@@ -1,4 +1,5 @@
-// Building: the guests' wants as faces over the bar, the bar where the line is written (a size and a spot picked for it),
+// Building: a tap on free land of my island picks the spot and opens the build window there (over the lot on a PC, from the
+// bottom on a phone): the guests' wants as faces to pick from, and the bar where the line is written,
 // Claude streaming the building part by part, and extending a shop by one floor.
 import { lineReader } from '../steps.js';
 import { Stage2 } from '../v2/stage.js';
@@ -12,17 +13,18 @@ import { NEED_KEYS, roleOf, typesFor } from '../v2/townsim.js';
 import { startingFixtures } from '../v2/insideview.js';
 import { iconEl } from '../ui/icons.js';
 import { faceEl } from '../ui/faces.js';
-import { START_STOCK, REQ_BONUS, levelOf, sizesOpen, bad } from './rules.js';
+import { START_STOCK, REQ_BONUS, UTIL, levelOf, sizesOpen, bad } from './rules.js';
 import { refundOf } from './migrate.js';
 import { $, el } from './ui.js';
 import { S, me, sample, pr, sim, now, canWrite, splash, nextBoat } from './state.js';
-import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf } from './model.js';
+import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf, shortOf } from './model.js';
+import { noSupply, pipeCost } from './utility.js';
 import { stakeSite, dustSite, hookDrop } from './mapfx.js';
 import { save } from './persist.js';
-import { scrollToSlot, scrollToPoint } from './camera.js';
+import { scrollToSlot, scrollToPoint, toScreen } from './camera.js';
 import { logOpen, logStep, logNote, logDone, logFail, logDrop } from './buildlog.js';
 import { opened } from './reveal.js';
-import { celebrate, why, callBoat } from './hud.js';
+import { celebrate, why } from './hud.js';
 import { tutEvent, tutOn } from './guide.js';
 import { show, showHome, closePanel, showBuilding } from './panel.js';
 import { openShop, closeInside, renderActs, placeActs } from './shop.js';
@@ -51,11 +53,35 @@ const failText = (e, msg) => e?.code === 'daily_limit' ? '오늘 Claude와 지�
 // The bar is always there. A face (or the bar itself) opens it: the map picks a free spot (a tap on my island moves it),
 // the button says what it costs, and while Claude builds the bar is locked.
 
-/** The wants to show: the kinds with the most guests waiting, and more so the ones my island has none of. */
+/** The wants to show, three faces that stay where they are (a face that keeps moving cannot be read): only their counts change.
+ *  A face leaves its place when a shop for it has been built, or when nobody has waited for it for 10 s although my island
+ *  already serves it; the face most wanted then (more so one my island has none of) comes into that same place.
+ *  Nothing changes while the bar is open or a building goes up. */
+const WANT_SLOTS = 3; let slots = [];
 function wantsNow() {
-  const dm = sim.demand(), have = new Set(allPlots().filter(p => p.owner === me && p.b).map(servesOf));
-  const score = (k) => dm[k].waiting + (have.has(k) ? 0 : 4);
-  return [...NEED_KEYS].sort((a, b) => score(b) - score(a) || NEED_KEYS.indexOf(a) - NEED_KEYS.indexOf(b)).slice(0, 3).map(k => ({ need: k, waiting: dm[k].waiting }));
+  const dm = sim.demand(), have = new Set(allPlots().filter(p => p.owner === me && p.b).map(servesOf)), t = performance.now();
+  if (!S.buildMode && !S.building) {
+    slots = slots.map(sl => { if (!sl) return null; const w = dm[sl.need].waiting; if (w > 0) sl.zeroAt = 0; else sl.zeroAt ||= t;
+      const built = !sl.had && have.has(sl.need), idle = have.has(sl.need) && sl.zeroAt && t - sl.zeroAt > 10000;
+      return built || idle ? null : sl; });
+    const score = (k) => dm[k].waiting + (have.has(k) ? 0 : 4);
+    for (let i = 0; i < WANT_SLOTS; i++) { if (slots[i]) continue;
+      const k = NEED_KEYS.filter(k => !slots.some(sl => sl?.need === k) && (dm[k].waiting > 0 || !have.has(k))).sort((a, b) => score(b) - score(a) || NEED_KEYS.indexOf(a) - NEED_KEYS.indexOf(b))[0];
+      slots[i] = k ? { need: k, had: have.has(k), zeroAt: 0, at: t } : null; }
+  }
+  moreWants = NEED_KEYS.filter(k => !slots.some(sl => sl?.need === k) && dm[k].waiting > 0).map(k => ({ need: k, waiting: dm[k].waiting })).sort((a, b) => b.waiting - a.waiting);
+  return slots.filter(Boolean).map(sl => ({ need: sl.need, waiting: dm[sl.need].waiting, fresh: t - sl.at < 700 }));
+}
+/** The other kinds of guest waiting, behind the +N chip (they do not push into the three places). */
+let moreWants = [];
+/** The +N chip's list, above it: every other kind waiting, with its count; picking one opens the bar for it. */
+function moreList(anchor) {
+  document.getElementById('why')?.remove();
+  const box = el('div', { class: 'why wantlist', id: 'why', on: { pointerdown: (e) => e.stopPropagation() } }, ...moreWants.map(x => el('button', { class: 'wrow', on: { click: () => { box.remove(); pickWant(x.need); } } },
+    faceEl(x.need), el('b', {}, REQ[x.need].ko), el('span', { class: 'cnt' }, String(x.waiting)), el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`))));
+  document.body.append(box);
+  const r = anchor.getBoundingClientRect(), W = box.offsetWidth, H = box.offsetHeight; box.style.left = Math.max(8, Math.min(innerWidth - W - 8, r.left + r.width / 2 - W / 2)) + 'px'; box.style.top = Math.max(8, r.top - H - 10) + 'px';
+  const close = (e) => { if (e && box.contains(e.target)) return; box.remove(); removeEventListener('pointerdown', close, true); };   // (a press inside is not a press elsewhere) setTimeout(() => addEventListener('pointerdown', close, true), 0);
 }
 /** The free spot for a building of this size nearest my island's centre (null: none fits). */
 function autoSpot() {
@@ -64,21 +90,46 @@ function autoSpot() {
   return best;
 }
 const spotFits = (s) => s && !!placePlot(S.world, S.mySlot, s.x, s.z, PLOT[S.size], takenSet());
-const askShown = () => !!S.mySlot && !!S.myDoc && canWrite() && !S.watching && $('world').hidden && ($('panel').hidden || !!S.building);
+const askShown = () => !!S.mySlot && !!S.myDoc && canWrite() && !S.watching && $('world').hidden && ($('panel').hidden || S.buildMode) && !S.building;   // the faces; the bar only once a spot is picked
 const ideasOf = () => S.card?.need ? REQ[S.card.need].ex : SUGGEST[S.size];
 
 export function setBuildMode(on) {
-  S.buildMode = on && !!S.mySlot && !S.building; document.body.classList.toggle('buildmode', S.buildMode); S.hover = null;
+  S.buildMode = on && !!S.mySlot && !S.building; if (!on) S.choosing = false; document.body.classList.toggle('buildmode', S.buildMode); S.hover = null;
   if (S.buildMode) { if (!sizesOpen(levelOf(G().served)).includes(S.size)) S.size = 'S'; if (!spotFits(S.spot)) S.spot = autoSpot(); }
   else if (!S.building) { S.spot = null; S.card = null; }
   drawAsk(true);
 }
-/** Open the bar for this want (need null: anything I like). */
+/** A face. With the window closed: the land where a building fits lights up, to pick where (the window opens there with
+ *  this face chosen); a second tap lets go. In the window: build for that want (a second tap: anything I like). */
 function pickWant(need) {
   if (S.building) return;
-  S.card = { need }; const was = S.buildMode; setBuildMode(true); if (!was) scrollToSlot(S.mySlot);
-  $('line').placeholder = '예: ' + ideasOf()[0]; tutEvent('card');
+  if (!S.buildMode && !(S.choosing && S.card?.need === need) && noSupply($('wants'), UTIL.base[S.size], () => pickWant(need))) return;   // no power or water for one more: grow first, then carry on
+  if (!S.buildMode) { const again = S.choosing && S.card?.need === need; S.card = again ? null : { need }; S.choosing = !again; S.choiceAt = performance.now(); drawAsk(true); if (!again) { scrollToSlot(S.mySlot); tutEvent('card'); } return; }
+  S.card = S.card?.need === need ? null : { need };
+  $('line').placeholder = '예: ' + ideasOf()[0]; drawAsk(true); tutEvent('card');
   if (matchMedia('(pointer: fine)').matches) $('line').focus();
+}
+/** The one way to build: a spot on my island (null: the free one nearest the middle) — the window opens there. */
+export function openAt(spot) {
+  if (S.building || !S.mySlot) return;
+  if (noSupply($('pmt'), UTIL.base[S.size], () => openAt(spot))) return;   // no power or water for one more: grow first, then the window
+  if (!S.choosing) S.card = null; S.choosing = false; S.spot = spot ?? null; setBuildMode(true); if (!S.buildMode || !S.spot) return;   // a face picked before keeps
+  $('line').placeholder = '예: ' + ideasOf()[0]; tutEvent('card');
+  if (narrow()) { const n = PLOT[S.size]; scrollToPoint(...pr.P(S.spot.x + n / 2, S.spot.z + n / 2 + 2)); }   // a phone: the lot stays in sight above the window
+  else if (matchMedia('(pointer: fine)').matches) $('line').focus();
+}
+/** The spot 끼룩이 suggests on a first visit (the free one nearest the middle). */
+export const suggestSpot = () => (S.mySlot && S.world ? autoSpot() : null);
+const narrow = () => innerWidth <= 760;   // the same line as the CSS's max-width:760px
+/** The window stands over its lot on a PC (above it, or below when there is no room), following the camera; on a phone it
+ *  is a sheet at the bottom. Called every frame by the map. */
+export function placeAsk() {
+  const box = $('ask'), on = !box.hidden && S.buildMode && S.spot && !narrow(); box.classList.toggle('float', !!on); box.classList.toggle('card', !box.hidden && S.buildMode);   // one card: over the lot, or a sheet at the bottom
+  if (!on) { box.style.left = box.style.top = ''; return; }
+  const n = PLOT[S.size], [px, py] = pr.P(S.spot.x + n / 2, S.spot.z + n / 2), [sx, sy] = toScreen(px, py - n * 10), W = box.offsetWidth, H = box.offsetHeight;
+  const above = sy - H - 18 >= 64, top = above ? sy - H - 18 : Math.min(innerHeight - H - 8, sy + n * 20 + 18), left = Math.max(8, Math.min(innerWidth - W - 8, sx - W / 2));
+  box.style.left = Math.round(left) + 'px'; box.style.top = Math.round(top) + 'px'; box.classList.toggle('below', !above);
+  box.style.setProperty('--tail', Math.max(24, Math.min(W - 24, sx - left)) + 'px');
 }
 /** A tap on my island while the bar is open: the building goes there, if it fits. */
 export function setSpot(x, z, door) { S.spot = { x, z, door }; drawAsk(true); }
@@ -86,31 +137,44 @@ export function setSpot(x, z, door) { S.spot = { x, z, door }; drawAsk(true); }
 let askKey = '';
 /** Draw the wants and the bar for what is going on now (cheap to call often: it redraws only when something changed). */
 export function drawAsk(force) {
-  const box = $('ask'), on = askShown(); box.hidden = !on; if (!on) return;
+  const box = $('ask'), on = askShown(); box.hidden = !on; if (!on) { S.preview = null; return; }
   const w = G(), wants = wantsNow(), open = sizesOpen(levelOf(w.served)), busy = !!S.building;
-  const key = JSON.stringify([wants, S.card, S.buildMode, busy, w.permits, S.size, open.length, Object.keys(S.myDoc.plots).length]);
+  const need = UTIL.base[S.size], short = shortOf(need), pipe = S.buildMode ? pipeCost(S.spot?.door) : 0;
+  S.preview = S.buildMode && !busy ? need : null;   // the plant's lamps it would take blink, and the meter says 3→2
+  const key = JSON.stringify([wants, moreWants, S.card, S.buildMode, S.choosing, busy, short, pipe, Math.floor(w.coins) >= pipe, S.size, open.length, Object.keys(S.myDoc.plots).length, opened('util')]);
   if (!force && key === askKey) return; askKey = key;
-  box.classList.toggle('open', S.buildMode); box.classList.toggle('busy', busy);
-  const chip = (need, waiting) => { const r = need ? REQ[need] : null, on = S.buildMode && S.card?.need === need;
-    const b = el('button', { class: 'want' + (on ? ' on' : '') + (need ? '' : ' free'), 'data-need': need ?? '', on: { click: () => pickWant(need) } },
+  box.classList.toggle('open', S.buildMode); box.classList.toggle('busy', busy); box.classList.toggle('choosing', !!S.choosing);
+  const chip = (need, waiting, fresh) => { const r = need ? REQ[need] : null, on = S.card?.need === need;
+    const b = el('button', { class: 'want' + (on ? ' on' : '') + (need ? '' : ' free') + (fresh ? ' fresh' : ''), 'data-need': need ?? '', on: { click: () => pickWant(need) } },
       waiting ? el('span', { class: 'cnt' }, String(waiting)) : null, faceEl(need),
-      el('span', { class: 'wt' }, el('b', { class: 'lg' }, r ? r.ko : '마음대로'), el('b', { class: 'sh' }, r ? r.short : '마음대로'), el('small', {}, r ? `${r.sub} · +${REQ_BONUS}` : '보너스 없음')));
+      el('span', { class: 'wt' }, el('b', { class: 'lg' }, r ? r.ko : '마음대로'), el('b', { class: 'sh' }, r ? r.short : '마음대로')),
+      r ? el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`) : null);   // what building it pays; the kinds of shop are the bar's examples
     b.disabled = busy; return b; };
-  $('wants').replaceChildren(...wants.map(x => chip(x.need, x.waiting)), chip(null, 0)); wantsEdge();
+  // with the bar open, the last chip closes it (Esc does too; the key is shown where there is a keyboard)
+  const cancel = (S.buildMode || S.choosing) && !busy ? el('button', { class: 'want cancel', on: { click: () => cancelBuild() } }, iconEl('close', 22, ''), el('span', { class: 'wt' }, el('b', {}, '취소')), matchMedia('(pointer: fine)').matches ? el('kbd', {}, 'Esc') : null) : null;
+  // more kinds waiting than the three places: one chip with their faces and how many in all; a tap lists them
+  const total = moreWants.reduce((a, x) => a + x.waiting, 0), more = moreWants.length ? el('button', { class: 'want more', on: { click: (e) => moreList(e.currentTarget) } },
+    el('span', { class: 'faces' }, ...moreWants.slice(0, 3).map(x => faceEl(x.need))), el('span', { class: 'wt' }, el('b', {}, `+${total}`))) : null;
+  if (more) more.disabled = busy;
+  $('wants').replaceChildren(...wants.map(x => chip(x.need, x.waiting, x.fresh)), ...(more ? [more] : []), ...(cancel ? [cancel] : [])); wantsEdge();   // (no face picked: anything I like)
   $('bwho').replaceChildren(S.buildMode || busy ? faceEl(S.card?.need ?? null) : iconEl('hammer', 28, ''));
   const input = $('line'); input.disabled = busy; if (!busy && !S.buildMode) input.placeholder = '무엇을 지을까?';
-  $('bx').hidden = !S.buildMode;
+  $('bx').hidden = true;   // (closing is the 취소 chip over the bar)
   const go = $('bgo'); go.hidden = !S.buildMode && !busy; go.disabled = busy;
   const full = Object.keys(S.myDoc.plots).length >= maxPlots();
-  go.classList.toggle('off', busy || w.permits <= 0 || full);
-  go.replaceChildren(...(busy ? ['짓는 중'] : full ? ['자리 없음'] : w.permits <= 0 ? [iconEl('ticket', 22, ''), '0장'] : opened('permits') ? [iconEl('ticket', 22, ''), '1', el('span', { class: 'gw' }, '짓기')] : ['짓기']));   // the 🎫 is taught at the guide's end
+  go.classList.toggle('off', busy || full || short >= 0 || w.coins < pipe);
+  // one price on the button: the cable and pipe to the spot (what it uses in power and water the plant and the meter show)
+  go.replaceChildren(...(busy ? ['짓는 중'] : full ? ['자리 없음'] : [...(pipe ? [iconEl('coin', 22, ''), String(pipe)] : []), el('span', { class: 'gw' }, '짓기')]));
   const sz = $('bsize'); sz.hidden = !S.buildMode || open.length < 2;
-  if (!sz.hidden) sz.replaceChildren(...open.map(k => el('button', { class: k === S.size ? 'on' : '', on: { click: () => { S.size = k; S.spot = autoSpot(); $('line').placeholder = '예: ' + ideasOf()[0]; drawAsk(true); } } }, k)));
+  const pickSize = (k) => { S.size = k; if (!spotFits(S.spot)) S.spot = autoSpot(); $('line').placeholder = '예: ' + ideasOf()[0]; drawAsk(true); };
+  if (!sz.hidden) sz.replaceChildren(...open.map(k => el('button', { class: (k === S.size ? 'on' : '') + (shortOf(UTIL.base[k]) >= 0 ? ' short' : ''), on: { click: (e) => { if (!noSupply(e.currentTarget, UTIL.base[k], () => pickSize(k))) pickSize(k); } } }, k)));
   if (!busy) $('bsub').replaceChildren(...(S.buildMode ? ideasOf().map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t)) : []));
 }
 /** More faces than fit (a phone): the side that has more fades out, so it reads as something to slide; none when all fit. */
 function wantsEdge() { const w = $('wants'), end = w.scrollWidth - w.clientWidth; w.classList.toggle('more-r', end > 2 && w.scrollLeft < end - 2); w.classList.toggle('more-l', end > 2 && w.scrollLeft > 2); }
 const say = (t) => { const e = $('berr'); e.textContent = t; e.hidden = !t; };
+/** Close the bar without building. */
+export function cancelBuild() { $('line').value = ''; say(''); document.getElementById('why')?.remove(); S.choosing = false; setBuildMode(false); }
 
 /** Shrink a building's masses until they fit an n×n plot. */
 function fitToLot(input, n) {
@@ -124,12 +188,14 @@ function fitToLot(input, n) {
 /** The line in the bar becomes a building on the spot: stake it, let Claude build there, the bar locked meanwhile. */
 async function build() {
   if (S.building || !canWrite()) return;
-  if (!S.buildMode) return pickWant(S.card?.need ?? null);
+  if (!S.buildMode) return;
   const input = $('line'), go = $('bgo'); say('');
   if (Object.keys(S.myDoc.plots).length >= maxPlots()) return why(go, { icon: 'door', title: `섬에 ${maxPlots()}채가 다 찼어요`, btn: '땅 넓히기', run: () => showHome() });
-  if (G().permits <= 0) return noPermit(go);
+  if (noSupply(go, UTIL.base[S.size], build)) return;   // not enough power or water for one more building: grow the plant, then build
   if (!spotFits(S.spot)) S.spot = autoSpot();
   if (!S.spot) return say('이 크기가 들어갈 빈 땅이 없어요.');
+  const pipe = pipeCost(S.spot.door);
+  if (G().coins < pipe) return why(go, { icon: 'coin', title: `전선 · 수도관 값 동전 ${pipe}개`, gauge: [G().coins, pipe], note: '선착장에서 길을 따라 이어요' });
   const line = input.value.trim() || ideasOf()[0];
   if (bad(line)) return say('그 표현으로는 지을 수 없어요.');
   if (!sample) return say('이 화면에서는 Claude를 부를 수 없어요.');
@@ -162,44 +228,42 @@ async function build() {
     if (!b.input) throw { code: 'nothing' };
     fitToLot(b.input, n); const s = normalize(b.input);
     if (bad(s.name)) return done('그 이름으로는 세울 수 없어요.');
-    // the world may have moved on while Claude wrote: another tab took the island, the permit spent elsewhere, the island full, the spot taken
+    // the world may have moved on while Claude wrote: another tab took the island, the power or coins spent elsewhere, the island full, the spot taken
     if (!canWrite()) { S.building = null; stakeSite(null); logDrop(); return; }
-    if (G().permits <= 0) return done('허가증이 없어요.');
+    if (shortOf(UTIL.base[sz]) >= 0) return done('전기나 물이 모자라요. 접속점이나 정수장을 키워 주세요.');
+    const pipe2 = pipeCost(door); if (G().coins < pipe2) return done(`전선 · 수도관 값 동전 ${pipe2}개가 모자라요.`);
     if (Object.keys(S.myDoc.plots).length >= maxPlots()) return done(`섬에는 ${maxPlots()}채까지 지을 수 있어요.`);
     if (!placePlot(S.world, S.mySlot, x, z, n, takenSet())) return done('그 자리에 다른 건물이 섰어요. 다시 눌러 주세요.');
     const key = `${S.mySlot}_${x}_${z}`;
-    G().permits--;
+    G().coins -= pipe2;
     const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
     S.myDoc.plots = { ...S.myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, lay: LAYOUT, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
     const rev0 = S.building?.rev ?? 1; dustSite({ x, z, size: sz }, { finish: true }); S.building = null;
     // finished: the building lands with a squash, my line rises over its roof, the first boat leaves now, and the camera
     // stays a moment before going back to where it was
     S.landing = { key, t0: performance.now(), line, rev0 }; nextBoat.set(S.mySlot, 0);   // rev0: how much of it had filled in
+    // then it is dark until power reaches it: a light runs along the cable from the plant and its windows come on (shorter after the first)
+    // one thing after another: the scaffold comes down, then the light sets off, then the name and stars rise as it lights up,
+    // then 끼룩이 speaks, and last the 요청 해결 / 완공 words
+    const cdur = Object.keys(S.myDoc.plots).length <= 1 ? 1100 : 450, lit = 750 + cdur;
+    S.connect = { key, t0: performance.now() + 750, dur: cdur }; S.landing.nameAt = performance.now() + lit;
     // (only if nothing else has taken the camera since: a new zoom, or the guide showing the way)
     setTimeout(() => { if (!S.building && !S.watching && !S.current?.key && S.zoom === camWas.zoom && !tutOn()) box.scrollTo({ left: camWas.left, top: camWas.top, behavior: 'smooth' }); }, 2600);
     // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
     const role = roleOf(s.type, s.levels), answered = need && role.serves === need;
-    if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!'), 400); }
-    else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), 400);
+    if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!'), lit + 3400); }
+    else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), lit + 3400);
     logDone(seen, s, tutOn());
-    done(); tutEvent('built');
+    done(); setTimeout(() => tutEvent('built'), lit + 600);
     rebuild(); await save(true);
   } catch (e) { logFail(failText(e, '짓지 못했어요')); S.building = null; stakeSite(null); S.current?.kind === 'build' && (S.current = null); input.value = line; setBuildMode(true); say(failText(e, '짓지 못했어요. 다시 눌러 주세요.')); }
 }
 
-/** No 🎫: the guests still to serve, and what brings them sooner — my boat now, or the inside of a shop to fit out. */
-export function noPermit(anchor) {
-  const w = G(), boat = $('boat').classList.contains('callable'), shop = allPlots().find(p => p.owner === me && p.b && servesOf(p));
-  why(anchor, { icon: 'ticket', title: `손님 ${w.nextAt - w.served}명 더 받으면 🎫`, gauge: [w.served - w.prevAt, w.nextAt - w.prevAt],
-    ...(boat ? { btn: '배 부르기', run: callBoat } : shop ? { btn: '가게 손보기', run: () => openShop(shop.key) } : {}) });
-}
-
 export function initAsk() {
   const input = $('line');
-  input.addEventListener('focus', () => { if (!S.buildMode && !S.building) pickWant(S.card?.need ?? null); });
-  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') build(); if (e.key === 'Escape') { input.blur(); setBuildMode(false); } });
+  input.addEventListener('keydown', (e) => { if (e.key === 'Enter') build(); if (e.key === 'Escape') { input.blur(); cancelBuild(); } });
   $('bgo').onclick = build; $('wants').addEventListener('scroll', wantsEdge, { passive: true }); addEventListener('resize', wantsEdge);
-  $('bx').onclick = () => { input.value = ''; say(''); setBuildMode(false); };
+  $('bx').onclick = cancelBuild;
   setInterval(() => drawAsk(), 500);
 }
 
@@ -207,9 +271,9 @@ export function initAsk() {
 /** inShop: the form takes the place of the open shop's buttons; otherwise it opens in the panel. */
 export function startExtend(key, { inShop = false } = {}) {
   const p = allPlots().find(x => x.key === key); if (!p?.b || p.owner !== me || !canWrite()) return;
-  if (G().permits <= 0) return noPermit(document.activeElement?.closest?.('button') ?? $('who'));
+  if (noSupply(document.activeElement?.closest?.('button') ?? $('pmt'), UTIL.floor, () => startExtend(key, { inShop }))) return;   // a floor uses power and water too
   const n = normalize(p.b.input), ideas = EXT_IDEAS[servesOf(p)] ?? ['한 층 더 올리기', '루프탑 테라스', '2층 휴게실'];
-  const input = el('input', { type: 'text', maxlength: '60', placeholder: '예: ' + ideas[0] }), go = el('button', { class: 'gold' }, `${n.levels + 1}층 올리기 · 🎫1`), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
+  const input = el('input', { type: 'text', maxlength: '60', placeholder: '예: ' + ideas[0] }), go = el('button', { class: 'gold' }, `${n.levels + 1}층 올리기 · ⚡${UTIL.floor[0]} 💧${UTIL.floor[1]}`), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
   const body = [el('div', { class: 'row' }, input), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; run(); } } }, t))), err, log];
   if (inShop) {   // the cut-away stays open
     const w = S.watching; if (!w) return; w.extending = true;
@@ -231,20 +295,20 @@ export function startExtend(key, { inShop = false } = {}) {
       const rd = lineReader((st) => { steps.push(st); wv?.construct(Math.min(.9, .15 + steps.length * .1)); note(STEP_KO[st.step] ?? st.step, st.note || st.name || ''); });
       await sample(extendPrompt(line, p.b.input), { purpose: 'extend', modelTier: 'quick', cache: false, onText: ({ delta }) => rd.push(delta) }); rd.end();
       const next = applyExtension(p.b.input, steps); if (!next) throw { code: 'nothing' };
-      // the shop as it is now (it may have moved, or the permit gone elsewhere, while Claude wrote)
+      // the shop as it is now (it may have moved, or the power gone elsewhere, while Claude wrote)
       const p1 = allPlots().find(x => x.key === key), mp = S.myDoc.plots[key];
       if (!p1?.b || !mp || !canWrite()) throw { code: 'gone' };
-      if (G().permits <= 0) throw { code: 'no_permit' };
+      if (shortOf(UTIL.floor) >= 0) throw { code: 'no_supply' };
       // keep what was bought: each fixture (and its level) goes to the nearest of its kind on its floor; ones with no place are refunded
       const newFx = buildSection(normalize(next)).fixtures, r = remapFixtures(fixturesOf(p1), newFx, [...ownedOf(p1)], levelsOf(p1)), own = new Set(r.own), refund = refundOf(r.lost);
-      mp.b = { ...mp.b, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size; mp.lv = r.lv; mp.lay = LAYOUT;
+      mp.b = { ...mp.b, at0: mp.b.at0 ?? mp.b.at, input: next, at: now(), ext: [...(mp.b.ext ?? []), line] }; mp.own = [...own]; mp.fx = own.size; mp.lv = r.lv; mp.lay = LAYOUT;
       if (refund) { S.myDoc.wallet.coins += refund; note('정리', `자리가 바뀐 가구 값 ${refund}동전을 돌려받았어요`); }
-      wv?.construct(1); G().permits--; rebuild(); await save(true);
+      wv?.construct(1); rebuild(); await save(true);
       const nn = normalize(next);
       note('완공', `${nn.levels}층 · 새 가구 ${newFx.length - own.size}개`);
       celebrate('🏗️ 증축 완공!', `${nn.name || TYPE_KO[nn.type]} ${nn.levels}층 · 새 자리를 채워 보세요`);
       setTimeout(() => { closePanel(); if (S.watching) closeInside(); openShop(key); setTimeout(() => S.watching?.view?.setFloor(nn.levels - 1), 400); }, 900);   // back in the shop, on the new floor
-    } catch (e) { wv?.construct(null); err.textContent = e?.code === 'gone' ? '건물이 옮겨졌어요. 가게를 다시 열어 주세요.' : e?.code === 'no_permit' ? '허가증이 없어요.' : failText(e, '증축하지 못했어요. 다시 눌러 주세요.'); go.disabled = false; }
+    } catch (e) { wv?.construct(null); err.textContent = e?.code === 'gone' ? '건물이 옮겨졌어요. 가게를 다시 열어 주세요.' : e?.code === 'no_supply' ? '전기나 물이 모자라요.' : failText(e, '증축하지 못했어요. 다시 눌러 주세요.'); go.disabled = false; }
   }
   go.onclick = run; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 }

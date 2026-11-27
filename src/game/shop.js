@@ -7,10 +7,11 @@ import { roleOf } from '../v2/townsim.js';
 import { InsideView } from '../v2/insideview.js';
 import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, costOf, flowCaps, LV_MAX, upgradeCost } from '../v2/inside.js';
 import { iconEl } from '../ui/icons.js';
-import { BASE_COIN, HELPER_MAX, helperCost } from './rules.js';
+import { BASE_COIN, HELPER_MAX, helperCost, UTIL, fixUse } from './rules.js';
 import { $, el } from './ui.js';
 import { S, me, pr, map, earned, canWrite } from './state.js';
-import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, G, rebuild } from './model.js';
+import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, rebuild, shortOf } from './model.js';
+import { noSupply } from './utility.js';
 import { save } from './persist.js';
 import { applyZoom } from './camera.js';
 import { toast, why, callBoat, flyIcon } from './hud.js';
@@ -22,7 +23,7 @@ import { startMove } from './move.js';
 /** Phones: the cut-away takes the screen's width above a tray of actions at the bottom (side by side there is no room). */
 const narrow = () => innerWidth <= 760;   // the same line as the CSS's max-width:760px
 export function openShop(key) {
-  const p = allPlots().find(x => x.key === key); if (!p?.b) return;
+  const p = allPlots().find(x => x.key === key); if (!p?.b) return; S.choosing = false;
   if (S.watching) closeInside(); setBuildMode(false); closePanel();
   const box = $('mapbox'); S.camBefore = { zoom: S.zoom, left: box.scrollLeft, top: box.scrollTop };   // put the camera back where it was when the shop closes
   if (S.zoom !== 1) { S.zoom = 1; applyZoom(); }
@@ -49,10 +50,10 @@ function openInside(key) {   // the cut-away in place, over the zoomed map (open
     maxWidth: narrow() ? innerWidth - 16 : innerWidth - 380, tags: true, maxHeight: narrow() ? innerHeight - 270 : innerHeight - 70, maxZoom: 4, ...INSIDE,
     onThud: () => { const st = $('shopstage'); st.classList.remove('thud'); void st.offsetWidth; st.classList.add('thud'); },
     levels: levelsOf(p),
-    upgrade: (i, kind, cost, L) => { if (!mineP || S.myDoc.wallet.coins < cost) return false;
+    upgrade: (i, kind, cost, L) => { if (!mineP || S.myDoc.wallet.coins < cost) return false; { const a = fixUse(kind, L - 1), b = fixUse(kind, L); if (noSupply($('shopacts'), [b[0] - a[0], b[1] - a[1]])) return false; }   // power and water first
       S.myDoc.wallet.coins -= cost; levelsOf(p)[i] = L; S.dirty = true; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
     coins: mineP ? () => S.myDoc.wallet.coins : undefined,
-    buy: (i, kind, cost) => { if (S.myDoc.wallet.coins < cost) return false;
+    buy: (i, kind, cost) => { if (S.myDoc.wallet.coins < cost || noSupply($('shopacts'), fixUse(kind))) return false;   // power and water first
       setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); S.myDoc.wallet.coins -= cost;
       // the new piece means more guests, and guests fill the 🎫: a guest flies from it to the next-🎫 line under my island's name
       setTimeout(() => { const f = view.fx?.[i], r = view.top?.getBoundingClientRect(), tk = document.querySelector('#who small'); if (!f || !r || !tk?.offsetParent || +getComputedStyle(tk.closest('.hud')).opacity < .5) return;
@@ -88,17 +89,19 @@ function shopActions(w, p) {
   const gain = (b) => Math.min(b.gpm, sup) - Math.min(now0.gpm, sup);
   const popTxt = (b) => { const d = gain(b); return d > .05 ? `+${d.toFixed(1)}명/분` : b.price > now0.price ? `+${b.price - now0.price}동전` : ''; };
   const gainTxt = (b) => { const d = gain(b); return d > .05 ? `받는 손님 +${d.toFixed(1)}/분` : b.price > now0.price ? `한 명 +${b.price - now0.price}동전` : '배가 조금 빨리 와요'; };
+  // what a piece adds to the island's power and water, said after what it brings
+  const lvUse = (k, L) => { const a = fixUse(k, L), b = fixUse(k, L + 1); return [b[0] - a[0], b[1] - a[1]]; };
   // the next piece: the one that lifts income most
   const kinds = bestNext(fx, own, base, p.b.input.order, h, lv), up = Object.values(nextUp(fx, own, undefined, p.b.input.order));
   const i = up.find(j => kinds.includes(fx[j].kind)) ?? up.sort((a, b) => costOf(fx[a].kind) - costOf(fx[b].kind))[0];
-  if (i !== undefined) { const f = fx[i], c = costOf(f.kind), b = caps(new Set([...own, i])); out.push({ icon: 'chair', title: `${FIX_INFO[f.kind]?.[0] ?? f.kind} 들이기`, sub: gainTxt(b), cost: c, ok: coins >= c, hi: i, run: () => { if (w.view.buyIndex(i)) w.view.thud(i, popTxt(b), 'buy'); } }); }
+  if (i !== undefined) { const f = fx[i], c = costOf(f.kind), b = caps(new Set([...own, i])); out.push({ icon: 'chair', title: `${FIX_INFO[f.kind]?.[0] ?? f.kind} 들이기`, sub: gainTxt(b), use: fixUse(f.kind), cost: c, ok: coins >= c, hi: i, run: () => { if (w.view.buyIndex(i)) w.view.thud(i, popTxt(b), 'buy'); } }); }
   // the best level-up
   let best = null; for (const j of own) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const b = caps(own, { ...lv, [j]: L + 1 }), c = upgradeCost(fx[j].kind, L), v = (Math.max(0, gain(b)) + (b.price - now0.price) * .5 + .01) / c; if (!best || v > best.v) best = { j, L, c, v, b }; }
-  if (best) out.push({ icon: 'up', title: `${FIX_INFO[fx[best.j].kind]?.[0] ?? fx[best.j].kind} Lv${best.L + 1}`, sub: gainTxt(best.b), cost: best.c, ok: coins >= best.c, hi: best.j, run: () => { if (w.view.upgradeIndex(best.j)) w.view.thud(best.j, `Lv${best.L + 1}! ${popTxt(best.b)}`, 'up'); } });
+  if (best) out.push({ icon: 'up', title: `${FIX_INFO[fx[best.j].kind]?.[0] ?? fx[best.j].kind} Lv${best.L + 1}`, sub: gainTxt(best.b), use: lvUse(fx[best.j].kind, best.L), cost: best.c, ok: coins >= best.c, hi: best.j, run: () => { if (w.view.upgradeIndex(best.j)) w.view.thud(best.j, `Lv${best.L + 1}! ${popTxt(best.b)}`, 'up'); } });
   // a helper, when ordering is what holds guests up and the shop is full
   if (i === undefined && now0.order <= now0.seat && h < HELPER_MAX) { const c = helperCost(h); out.push({ icon: 'helper', title: '알바 뽑기', sub: gainTxt(caps(own, lv, h + 1)), cost: c, ok: coins >= c, run: () => { if (S.myDoc.wallet.coins < c) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); toast('알바가 왔어요!', 1200); } }); }
   // one more floor, when every piece is in
-  if (i === undefined) out.push({ icon: 'extend', title: '한 층 올리기', sub: '새 자리가 생겨요', cost: `🎫1`, ok: G().permits > 0, run: () => startExtend(p.key, { inShop: true }) });
+  if (i === undefined) out.push({ icon: 'extend', title: '한 층 올리기', sub: '새 자리가 생겨요', use: UTIL.floor, run: () => startExtend(p.key, { inShop: true }) });
   out.push({ icon: 'move', title: '옮기기', run: () => { const k = p.key; closeInside(); startMove(k); } });
   return out;
 }
@@ -106,16 +109,20 @@ export function renderActs(w, p) {
   if (w.extending) return;   // the extension form is showing
   // a price I cannot pay yet fills up as coins come in (in tenths, so the buttons are not rebuilt every coin)
   const coins = S.myDoc?.wallet?.coins ?? 0, fill = (a) => typeof a.cost === 'number' && !a.ok ? Math.min(.9, Math.floor(coins / a.cost * 10) / 10) : null;
-  const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok, fill(a)]));
+  const lacks = (a) => !!a.use && shortOf(a.use) >= 0;   // it needs more power or water than the island supplies
+  const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok, fill(a), lacks(a)]));
   if (key === w.actKey) return; w.actKey = key;
   const box = $('shopacts'), info = w.mine ? null : (() => { const n = normalize(p.b.input), st = roleOf(n.type, n.levels).serves ? starsInfo(p).stars : 0;   // someone else's shop: whose it is, its line, and nothing to buy
     return el('div', { class: 'actinfo' }, el('b', {}, n.name || TYPE_KO[n.type] || '건물'), el('small', {}, `${nameOf(p.owner)}의 가게 · ${n.levels}층`), st ? el('span', { class: 'stars' }, starText(st)) : null, el('q', {}, p.b.line)); })();
-  box.replaceChildren(...(info ? [info] : []), ...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
-      a.cost !== undefined ? el('span', { class: 'price' }, typeof a.cost === 'number' ? iconEl('coin', 18) : '', String(a.cost)) : null);
+  box.replaceChildren(...(info ? [info] : []), ...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok && !lacks(a) ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
+      a.cost !== undefined || a.use?.some(Boolean) ? el('span', { class: 'price' }, ...(a.cost !== undefined ? [typeof a.cost === 'number' ? iconEl('coin', 18) : '', String(a.cost)] : []),
+        ...(a.use?.[0] ? [el('span', { class: 'pu' }, iconEl('bolt', 16), String(a.use[0]))] : []), ...(a.use?.[1] ? [el('span', { class: 'pu' }, iconEl('drop', 16), String(a.use[1]))] : [])) : null);   // beside the price: what it uses
     const f = fill(a);
-    if (f !== null) {   // not enough coins: still pressable — it says how far, and calls the boat that brings them
+    if (lacks(a)) {   // the island's power or water first: the window says which, and upgrades it
+      b.classList.add('short'); b.style.setProperty('--fill', 0); b.onclick = (e) => { e.stopPropagation(); noSupply(b, a.use, () => { w.actKey = ''; a.run(); }); w.actKey = ''; };
+    } else if (f !== null) {   // not enough coins: still pressable — it says how far
       b.classList.add('short'); b.style.setProperty('--fill', f);
-      b.onclick = (e) => { e.stopPropagation(); why(b, { icon: 'coin', title: `동전 ${(a.cost - coins).toLocaleString('ko-KR')}개 더`, gauge: [coins, a.cost], ...($('boat').classList.contains('callable') ? { btn: '배 부르기', run: callBoat } : {}) }); };
+      b.onclick = (e) => { e.stopPropagation(); why(b, { icon: 'coin', title: `동전 ${(a.cost - coins).toLocaleString('ko-KR')}개 더`, gauge: [coins, a.cost] }); };   // (it fills as coins come in; no other button here)
     } else { b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; }; }
     if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
     return b; }), el('button', { class: 'act close', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, '✕ 닫기'));

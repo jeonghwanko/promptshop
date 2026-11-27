@@ -8,7 +8,7 @@ execSync(`curl -s localhost:5300/api/db/i/dev-me -o ${S}/qa26.json`);
 const put = (path, file) => execSync(`curl -s -X PUT localhost:5300/api/db/${path} --data-binary @${file}`);
 const del = (path) => execSync(`curl -s -X DELETE localhost:5300/api/db/${path}`);
 (await import('node:fs')).writeFileSync(S + '/rb.json', '{"name":"회귀","lat":-35,"lng":-58}');
-const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 4; doc.wallet.tutV = 3; delete doc.wallet.tutIn; doc.rev = 1;
+const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 4; doc.wallet.tutV = 3; delete doc.wallet.tutIn; doc.rev = 1; doc.wallet.ups = [8, 8];   // power and water to spare
 (await import('node:fs')).writeFileSync(S + '/rd.json', JSON.stringify(doc));
 del('i-qarg/qa-x'); put('boards/qarg', S + '/rb.json'); put('i-qarg/qa-x', S + '/rd.json');
 const port = 9370, chrome = spawn('google-chrome', ['--headless=new', '--password-store=basic', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=/tmp/cdp-rg-${Date.now()}`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
@@ -61,8 +61,9 @@ await sleep(4000); { const fs0 = await ev(`JSON.stringify(__isles.festState)`); 
 await ev(`document.getElementById('d-home').click()`); await sleep(500); check('home panel', await ev(`!document.getElementById('panel').hidden && document.querySelectorAll('#panel .stat').length === 3`)); await shot('home');
 await ev(`document.querySelector('#panel .xb').click()`); await sleep(300);
 check('wants over the bar', (await ev(`document.querySelectorAll('#wants .want').length`)) >= 2);
-await ev(`document.querySelector('#wants .want').click()`); await sleep(500); check('a face opens the bar', await ev(`__isles.S.buildMode && !!__isles.S.card && !document.getElementById('bgo').hidden`), await ev(`document.getElementById('bgo').textContent + ' ' + JSON.stringify(__isles.S.spot)`));
-await ev(`document.getElementById('bx').click()`); await sleep(300); check('the bar closes', !(await ev(`__isles.S.buildMode`)));
+await ev(`document.querySelector('#wants .want').click()`); await sleep(500); check('a face lights the land', await ev(`!!__isles.S.choosing && !__isles.S.buildMode && !!__isles.S.card`));
+await ev(`(async()=>{ (await import('/src/game/build.js')).openAt(); })()`); await sleep(500); check('a spot opens the window with that face', await ev(`__isles.S.buildMode && !!__isles.S.card && !document.getElementById('bar').closest('[hidden]') && getComputedStyle(document.getElementById('bar')).display !== 'none'`));
+await ev(`document.querySelector('#wants .want.cancel').click()`); await sleep(300); check('취소 closes it', !(await ev(`__isles.S.buildMode`)));
 await ev(`document.getElementById('d-world').click()`); await sleep(2000); check('world spots', (await ev(`document.querySelectorAll('#spots .spot, #spots .bubble').length`)) > 0); await shot('world');
 // a new archipelago: a bad name is refused before anything is saved
 await ev(`document.getElementById('wnew').click()`); await sleep(300); await click(700, 450); await sleep(500);
@@ -83,6 +84,15 @@ await sleep(3000);
 const fxSig = `JSON.stringify(Object.values(__isles.myDoc.plots).map(p => [p.own, p.lv]))`, f0 = await ev(fxSig);
 await ev(`__isles.myDoc.wallet.autoInvest = true`); await sleep(3600);
 check('auto furnish', (await ev(fxSig)) !== f0); await ev(`__isles.myDoc.wallet.autoInvest = false`);
+// power and water: the meter opens the window on the plant or tank, whose one button grows it
+await ev(`document.getElementById('pmt').click()`); await sleep(300);
+const ups0 = await ev(`__isles.myDoc.wallet.ups[0] + __isles.myDoc.wallet.ups[1]`); check('plant window', await ev(`!!document.querySelector('#why.plant')`));
+await ev(`document.querySelector('#why.plant .gold')?.click()`); await sleep(300);
+check('grow plant or tank', (await ev(`__isles.myDoc.wallet.ups[0] + __isles.myDoc.wallet.ups[1]`)) === ups0 + 1, `${ups0} → ${await ev(`__isles.myDoc.wallet.ups[0] + __isles.myDoc.wallet.ups[1]`)}`);
+// with no power to spare, pressing 짓기 opens the window on the plant with its one button (no Claude call)
+await ev(`__isles.myDoc.wallet.ups = [0, 0]`); await ev(`document.body.click()`); await sleep(300);
+await ev(`(async()=>{ (await import('/src/game/build.js')).openAt(); })()`); await sleep(500); await ev(`document.getElementById('bgo').click()`); await sleep(400);
+check('short of power opens the plant', await ev(`!!document.querySelector('#why.plant')`), await ev(`document.getElementById('why')?.textContent ?? 'no window'`));
 // construction site and celebration render without errors
 await ev(`__isles.site(11,10,'S',true)`); await sleep(600); await ev(`__isles.site(11,10,'S',false)`); await ev(`__isles.celebrate('테스트','')`); await sleep(800);
 check('no errors', errs.length === 0, errs.slice(0, 3).join(' || '));

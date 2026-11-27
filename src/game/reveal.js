@@ -8,7 +8,7 @@ import { tutOn, picking } from './guide.js';
 const PARTS = {
   bar: { at: 1, el: '#bar' },                         // a face pressed: the bar comes up for it
   coins: { at: 3, el: '#coinb' },                     // built: the first coins (one thing at that moment)
-  permits: { at: 5, el: '#pmt' }, level: { at: 5, el: '#who' },   // the guide's last step: the next 🎫 as a goal
+  util: { at: 3, el: '#pmt' }, level: { at: 5, el: '#who' },   // power and water left: as the first building is connected; the island's level at the end
   rewards: { at: 5 }, counts: { at: 5 }, free: { at: 5 }, boat: { at: 5, el: '#boat' },   // the +15 and waiting guests on the faces, 마음대로, the horn
   world: { at: 6, el: '#d-world' }, home: { at: 6, el: '#d-home' },   // after the guide: my island, the world,
   auto: { at: 6, el: '#d-auto' }, zoom: { at: 6, el: '.hud.tr .zoomb' },   // furniture by itself, the zoom buttons

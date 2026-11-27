@@ -1,10 +1,11 @@
 // The first visit: 끼룩이 walks a new owner through one whole loop, one step at a time,
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
-import { SLOTS, centerOf, neighbours } from '../v2/isles.js';
+import { SLOTS, centerOf, neighbours, PLOT } from '../v2/isles.js';
+import { suggestSpot } from './build.js';
 import { $, el } from './ui.js';
 import { mountThumbGull } from '../ui/gull/thumb.js';
 import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
-import { allPlots, nameOf } from './model.js';
+import { allPlots, nameOf, plantTiles } from './model.js';
 import { save, track } from './persist.js';
 import { INVITE_AT, levelOf } from './rules.js';
 import { toScreen, scrollToSlot, applyZoom, chooseZoom } from './camera.js';
@@ -16,12 +17,13 @@ import { emptyNeighbours, newBoard } from './invite.js';
 const WISH = { food: '배고프대! 어떤 밥집일까?', cafe: '커피 마시고 싶대! 어떤 카페일까?', shop: '살 게 있대! 어떤 가게일까?', fun: '놀 데가 없대! 어떤 놀거리일까?', rest: '쉴 곳이 필요하대! 어떤 숙소일까?' };
 const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람 얼굴을 하나 눌러 봐!', el: '#wants .want', spot: '#wants', on: 'card' },
-  { say: () => `${WISH[S.card?.need] ?? '어떤 가게일까?'}\n한 줄 써 봐. 골라도 돼!`, el: () => document.querySelector('#bsub button') ? '#bsub button' : '#wants .want', spot: () => document.querySelector('#bsub button') ? '#bar' : '#wants', on: 'line' },
+  // a face picked: first where (the glowing land, 끼룩이's pick lit), then the line in the window that opens there
+  { say: () => S.buildMode ? `${WISH[S.card?.need] ?? '어떤 가게일까?'}\n한 줄 써 봐. 골라도 돼!` : '어디에 지을까?\n빛나는 땅을 눌러 봐!', el: () => S.buildMode ? '#bsub button' : null, spot: () => S.buildMode ? '#bar' : null, map: () => S.buildMode ? null : 'lot', on: 'line' },
   { say: 'Claude가 짓는 중이야…\n뭐가 나올까? 끼룩!', on: 'built', mood: 'think' },
-  { say: '완공! 🎉\n저기 봐, 배가 손님을 싣고 와!', on: 'coin', boat: true },
+  { say: '불 들어왔다! 🎉\n전등 하나가 이 집으로 갔어.', map: 'plant', on: 'coin', boat: true },
   { say: '첫 손님이야!\n가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
-  // the last step hands over a goal: the next 🎫 (and the level and the 🎫 count open beside my island's name); it ends by itself
-  { say: () => { const w = S.myDoc?.wallet ?? {}; return `손님 ${Math.max(1, (w.nextAt ?? 6) - (w.served ?? 0))}명을 더 받으면 🎫 한 장!\n그걸로 또 지어 봐.`; }, near: '#who', wait: 9000 },
+  // the last step hands the island over (running out of lamps is taught when it happens); it ends by itself
+  { say: '이제 네 섬이야!\n손님이 원하는 걸 지어 봐.', wait: 7000 },
 ];
 // inside a shop for the first time: how to read the flow and what a fixture buys. No buttons here either: a step that only
 // explains moves on after `wait` ms, the one that asks for something moves on when it is done
@@ -29,11 +31,11 @@ const TUT_IN = [
   { say: '여기가 가게 안이야!\n손님이 들어와서 주문하고, 자리에 앉아서 계산해.', wait: 6000 },
   { say: () => S.watching?.view?.blocked?.size ? '빨간 김이 나는 곳이 막힌 곳이야.\n손님이 거기서 기다리고 있어!' : '지금은 막힌 곳이 없어.\n손님이 몰리면 막히는 곳에서 빨간 김이 나!', wait: 7000, at: 'slow' },
   { say: '반짝이는 버튼을 눌러\n가구를 들여 봐!', el: '#shopacts .act.buy', on: 'furnish' },
-  { say: '쿵! 가구가 들어왔어.\n손님이 늘면 🎫 눈금이 빨리 차!', wait: 5000 },
+  { say: '쿵! 가구가 들어왔어.\n기계는 전기 · 물을 조금 더 써!', wait: 5000 },
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
-const setStep = (field, n) => { if (!canWrite()) return; if (n > (S.myDoc.wallet[field] ?? 0) && n < 99) gull?.cheer(); S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n, v: 5 }); guide(); };
+const setStep = (field, n) => { if (!canWrite()) return; if (field === 'tut') S.stepAt = performance.now(); if (n > (S.myDoc.wallet[field] ?? 0) && n < 99) gull?.cheer(); S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n, v: 5 }); guide(); };
 const say = (v) => typeof v === 'function' ? v() : v;
 
 // before I have an island: choose one on the map. Invited: next to the friend who sent the link.
@@ -63,6 +65,14 @@ function laterInvite() {
   S.inviteGuide = true; guide(); clearTimeout(inviteT); inviteT = setTimeout(endInvite, 25000);
 }
 function endInvite() { clearTimeout(inviteT); if (!S.inviteGuide) return; S.inviteGuide = false; guide(); }
+// power or water running short (utility.js): 끼룩이 says a line by the plant or tank, then goes again
+let supT = 0;
+export function supplyTalk(text, k = 0) { S.supplyGuide = { text, k }; guide(); clearTimeout(supT); supT = setTimeout(() => { S.supplyGuide = null; guide(); }, 7000); }
+/** My power plant (0) or water tank (1) on the screen, for 끼룩이 to stand by. */
+// (both of them, whichever is asked: 끼룩이 then stands clear of the pair)
+function plantRect() { if (!S.mySlot) return null; const pts = plantTiles(S.mySlot).map(([x, z]) => { const [px, py] = pr.P(x + .5, z + .5); return toScreen(px, py); });
+  const l = Math.min(...pts.map(p => p[0])) - 26, r = Math.max(...pts.map(p => p[0])) + 26, t = Math.min(...pts.map(p => p[1])) - 80, b = Math.max(...pts.map(p => p[1])) + 8;
+  return r < 0 || b < 0 || l > innerWidth || t > innerHeight ? null : { left: l, top: t, right: r, bottom: b, width: r - l, height: b - t }; }
 
 let panned = -1, inAutoT = 0, inAutoK = -1, waitT = 0, waitK = -1;
 /** Show the current step. */
@@ -89,6 +99,7 @@ export function guide() {
     if (panned !== 'invite') { panned = 'invite'; const n = emptyNeighbours()[0]; if (n) setTimeout(() => { const z = chooseZoom(n); if (S.zoom > z) { S.zoom = z; applyZoom(); } scrollToSlot(n); }, 300); }
     return;
   }
+  if (S.supplyGuide && !tutOn()) { g.hidden = false; speak(S.supplyGuide.text); $('gbtns').replaceChildren(); return; }
   if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
   const st = TUT[tutStep()]; g.hidden = false; gull?.mood(st.mood); speak(say(st.say));
   $('gbtns').replaceChildren();   // no buttons: the step moves on when its thing is done (or, with nothing to do, after `wait`)
@@ -115,6 +126,7 @@ function guideArrow() {
   } else if (picking()) {   // the island to choose: its 'live here' button on the map, or the island itself
     speak(pickWords());
     focus = rectOf('#joinbtn:not([hidden])') ?? onMap((() => { const s = pickSpot(); if (!s) return null; const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx, cz)); return circle(x, y, 90); })()); dim = !!focus;
+  } else if (S.supplyGuide && !tutOn()) {   // (in its corner: standing by the plant it covered the land to build on)
   } else if (S.inviteGuide) {   // the free island next door
     const n = emptyNeighbours()[0]; if (n) { const [cx, cz] = centerOf(n), [x, y] = toScreen(...pr.P(cx + .5, cz + .5)); focus = onMap(circle(x, y, 90)); }
   } else if (tutOn()) {
@@ -122,11 +134,14 @@ function guideArrow() {
     if (spoken !== say(st.say) && !S.watching) guide();   // back from a shop: the step's own words (and its timer)
     if (st.el) glow(st.el);
     if (st.spot) focus = rectOf(st.spot);
-    if (st.map === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && S.lastTops[p.key]; if (tp) { const [x, y] = toScreen(tp[0], tp[1]); focus = onMap(circle(x, y + 30, 64)); } }
-    if (st.near) near = rectOf(st.near);
+    const mp = typeof st.map === 'function' ? st.map() : st.map;
+    if (mp === 'plant' && performance.now() - (S.stepAt ?? 0) < 2600) focus = plantRect();   // the plant, dimmed around for a moment (nothing to press)
+    if (mp === 'lot') { const sp = suggestSpot(); if (sp) { const n = PLOT[S.size], [x, y] = toScreen(...pr.P(sp.x + n / 2, sp.z + n / 2)); focus = onMap(circle(x, y, 46)); } }   // 끼룩이's pick among the glowing land
+    if (mp === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && S.lastTops[p.key]; if (tp) { const [x, y] = toScreen(tp[0], tp[1]); focus = onMap(circle(x, y + 30, 64)); } }
+    if (st.near) near = st.near.startsWith?.('plant') ? plantRect(+st.near.slice(5)) : rectOf(st.near);
     dim = !!focus && !S.building;
   }
-  placeSpot(dim ? focus : null); placeGuide(near ?? focus);
+  placeSpot(dim ? focus : null); placeGuide(near ?? (tutOn() && (TUT[tutStep()]?.map === 'plant' || (tutStep() === 1 && S.buildMode && innerWidth > 760)) ? null : focus));   // by the plant, or with the window over its lot: 끼룩이 stays in its corner (not over the lot)   // by the plant: 끼룩이 stays in its corner
   S.guideAt = focus ? [focus.left + focus.width / 2, focus.top + focus.height / 2] : null;   // what to press, for the checks
   // 끼룩이 holds a wing toward what it talks about — only when that is above its head
   { const b = document.querySelector('#guide .gbird')?.getBoundingClientRect(), t = near ?? focus, pt = t && [t.left + t.width / 2, t.top + t.height / 2]; gull?.point(pt && b && pt[1] < b.top + b.height * .2 ? pt : null); }

@@ -1,4 +1,4 @@
-// The HUD: coins and income, my level and permits, the boat horn, the dock buttons, the festival plate,
+// The HUD: coins and income, my level, power and water, the boat horn, the dock buttons, the festival plate,
 // and the short messages (toast, celebrate, a coin flying up to the coin plate).
 import { iconEl } from '../ui/icons.js';
 import { voxelEl } from '../ui/voxelui.js';
@@ -13,6 +13,7 @@ import { showHome, closePanel } from './panel.js';
 import { setBuildMode } from './build.js';
 import { closeInside } from './shop.js';
 import { applyReveal } from './reveal.js';
+import { drawMeter } from './utility.js';
 
 /** The pixel icon for each kind of guest. */
 export const NEED_ICON = { food: 'food', cafe: 'cafe', shop: 'bag', fun: 'heart', rest: 'bed' };
@@ -22,7 +23,9 @@ let toastT = 0;
 export function toast(text, ms) { const t = $('toast'); t.textContent = text; t.hidden = !text; clearTimeout(toastT); if (ms) toastT = setTimeout(() => { t.hidden = true; }, ms); }
 let celebT = 0;
 /** Words and an icon drop in at the top centre and fade: no plate, no dimming, nothing to press. */
+let heldCeleb = null;   // words that came while the build window was open: they wait for it to close (never over it)
 export function celebrate(title, sub) {
+  if (S.buildMode) { heldCeleb = [title, sub]; return; }
   document.querySelector('.celebrate')?.remove(); clearTimeout(celebT);
   const c = el('div', { class: 'celebrate', 'data-icon-size': '40' }, el('b', {}, title), sub ? el('span', {}, sub) : null); document.body.append(c); celebT = setTimeout(() => c.remove(), 2400);
 }
@@ -65,7 +68,7 @@ export function why(anchor, o) {
   document.body.append(w);
   const W = w.offsetWidth, H = w.offsetHeight, x = Math.max(8, Math.min(innerWidth - W - 8, r.left + r.width / 2 - W / 2)), above = r.top - H - 12 > 8;
   w.style.left = x + 'px'; w.style.top = (above ? r.top - H - 12 : r.bottom + 12) + 'px';
-  const close = () => { w.remove(); removeEventListener('pointerdown', close, true); };
+  const close = (e) => { if (e && w.contains(e.target)) return; w.remove(); removeEventListener('pointerdown', close, true); };   // (a press inside is not a press elsewhere)
   setTimeout(() => addEventListener('pointerdown', close, true), 0);
 }
 /** Call my boat now, if it can come (also the button in the why window). */
@@ -81,27 +84,25 @@ export function flyIcon(name, [x0, y0], target, size = 32) {
   f.animate([{ transform: `translate(${x0 - size / 2}px,${y0 - size / 2}px) scale(.7)` }, { transform: `translate(${(x0 + x1) / 2}px,${Math.min(y0, y1) - 80}px) scale(1.5) rotate(-12deg)`, offset: .45 }, { transform: `translate(${x1}px,${y1}px) scale(.8)` }], { duration: 750, easing: 'cubic-bezier(.4,0,.6,1)' })
     .finished.then(() => { f.remove(); target.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-4deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,1.6,.4,1)' }); });
 }
-/** A new 🎫 flies from my island's name down to the bar: that is where it is spent. */
-function flyTicket() { const r = $('who').getBoundingClientRect(); if (r.width && !$('ask').hidden) flyIcon('ticket', [r.left + 30, r.top + 30], $('pmt')); }
 export function markHome() { const b = $('d-home'); if (!b.querySelector('.badge')) b.append(el('span', { class: 'badge' }, '!')); }
 function dockState() { const auto = !!S.myDoc && !!S.myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !S.myDoc; }
 
-let shownCoins = null, shownPermits = null;
+let shownCoins = null;
 export function hud() {
   const { myDoc, mySlot } = S, coins = myDoc ? myDoc.wallet.coins : null;
   $('coinb').hidden = coins == null;
   if (coins !== shownCoins) { const cb = $('coinb'); cb.classList.remove('up', 'down'); if (shownCoins != null && coins != null) { void cb.offsetWidth; cb.classList.add(coins > shownCoins ? 'up' : 'down'); setTimeout(() => cb.classList.remove('down'), 400); }
     shownCoins = coins; $('wallet').textContent = coins == null ? '—' : coins.toLocaleString('ko-KR'); }
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
-  const per = earned.reduce((a, e) => a + e[1], 0); $('rate').textContent = myDoc && per ? `+${per}/분` : '';
-  if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), next = LEVELS[lv + 1], lp = next ? (w.served - LEVELS[lv].at) / (next.at - LEVELS[lv].at) : 1;
-    // the ring is the island's level; the line under the name says how many guests until the next 🎫; the 🎫 count sits by the coins
-    const got = shownPermits != null && w.permits > shownPermits; shownPermits = w.permits; if (got) setTimeout(() => flyTicket(), 50);
+  $('rate').textContent = '';   // (no income line: a number with no meaning to a new player)
+  if (mySlot && myDoc) { const w = G(), served = w.served ?? 0, lv = levelOf(served), next = LEVELS[lv + 1], lp = next ? (served - LEVELS[lv].at) / (next.at - LEVELS[lv].at) : 1;
+    // the ring is the island's level; the line under the name says how many guests until the next level (it opens a bigger size)
     $('who').replaceChildren(el('span', { class: 'lvr', style: `--p:${Math.max(.04, Math.min(1, lp)).toFixed(3)}` }, el('b', {}, String(lv + 1))),
-      el('span', { class: 'nm' }, (S.boardName || '한 줄 군도'), el('small', {}, '다음 ', iconEl('ticket', 14, ''), `까지 손님 ${Math.max(0, w.nextAt - w.served)}명`)));
-    $('who').title = next ? `${LEVELS[lv + 1].name}까지 손님 ${next.at - w.served}명` : LEVELS[lv].name;
-    const pm = $('pmt'); pm.replaceChildren(iconEl('ticket', 22, ''), String(w.permits)); pm.classList.toggle('none', w.permits <= 0); if (got) { pm.classList.remove('got'); void pm.offsetWidth; pm.classList.add('got'); }
-  } else { $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, S.boardName || '한 줄 군도', el('small', {}, '섬 고르기'))); $('pmt').replaceChildren(); }
+      el('span', { class: 'nm' }, (S.boardName || '한 줄 군도'), el('small', {}, next ? `${next.name}까지 손님 ${Math.max(0, next.at - served)}명` : LEVELS[lv].name)));
+    $('who').title = next ? `${next.name}까지 손님 ${next.at - served}명` : LEVELS[lv].name;
+  } else $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, S.boardName || '한 줄 군도', el('small', {}, '섬 고르기')));
+  drawMeter();   // power and water by the coins
+  if (heldCeleb && !S.buildMode) { const [t, s] = heldCeleb; heldCeleb = null; celebrate(t, s); }
   const B = $('boat');
   if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot && b.state !== 'out');
     const cd = Math.ceil(S.callReady - t / 1000), can = bp.shops && !docked && cd <= 0;
@@ -111,8 +112,8 @@ export function hud() {
     $('boatt').textContent = can ? '부르기!' : docked ? '도착!' : bp.shops ? `${Math.max(0, Math.ceil(nb))}초` : '';
   } else B.hidden = true;
   dockState();
-  // the parts the first session has opened; the 🎫 opens as one is spent, so it flies there from the bar's button
-  if (applyReveal().includes('permits')) { const r = $('bgo').getBoundingClientRect(); if (r.width) flyIcon('ticket', [r.left + r.width / 2, r.top + r.height / 2], $('pmt')); }
+  // the parts the first session has opened; power and water open at the guide's end, flying in from my buildings' side
+  if (applyReveal().includes('util')) flyIcon('bolt', [innerWidth / 2, innerHeight / 2], $('pmt'));
   const dm = sim.demand(); S.unmet = NEED_KEYS.filter(k => !dm[k].served && dm[k].waiting).map(k => [k, dm[k].waiting]);
 }
 
