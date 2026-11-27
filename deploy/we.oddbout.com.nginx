@@ -2,6 +2,10 @@
 # TLS: the VM's certbot has no nginx plugin. Issue with webroot (port 80 serves the challenge), like the VM's other sites:
 #   certbot certonly --webroot -w /var/www/letsencrypt -d we.oddbout.com
 # Renewal runs from certbot.timer; /etc/letsencrypt/renewal-hooks/deploy/reload-nginx.sh reloads nginx.
+# per address: API requests (a page makes a few a second at most) and open connections (one long poll per tab)
+limit_req_zone $binary_remote_addr zone=we_api:10m rate=30r/s;
+limit_conn_zone $binary_remote_addr zone=we_conn:10m;
+
 server {
   listen 80;
   listen [::]:80;
@@ -25,6 +29,17 @@ server {
   # the game is plain JS modules (the coastlines alone are 1 MB): compress them here, for this site only
   gzip on; gzip_proxied any; gzip_comp_level 6; gzip_min_length 1024; gzip_vary on;
   gzip_types text/javascript application/javascript text/css application/json image/svg+xml;
+  location /api/ {
+    limit_req zone=we_api burst=60 nodelay; limit_req_status 429;
+    limit_conn we_conn 30; limit_conn_status 429;
+    proxy_pass http://127.0.0.1:5310;
+    proxy_http_version 1.1;
+    proxy_set_header Host $host;
+    proxy_set_header X-Forwarded-Proto $scheme;
+    proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+    proxy_read_timeout 40s;        # long polls wait up to 25 s
+    proxy_buffering off;           # Claude's answer streams through as it is written
+  }
   location / {
     proxy_pass http://127.0.0.1:5310;
     proxy_http_version 1.1;

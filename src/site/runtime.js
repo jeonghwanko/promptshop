@@ -17,7 +17,8 @@
   const docRef = (col, id) => ({ id,
     get: async () => { const d = await call(`doc/${enc(col)}/${enc(id)}`); return { exists: d !== null, data: () => d }; },
     set: (data) => call(`doc/${enc(col)}/${enc(id)}`, { method: 'PUT', body: JSON.stringify(data) }),
-    update: (data) => call(`doc/${enc(col)}/${enc(id)}`, { method: 'PATCH', body: JSON.stringify(data) }),
+    /** opts.keepalive: the write outlives the page (leaving it), up to the browser's 64 KB */
+    update: (data, opts = {}) => call(`doc/${enc(col)}/${enc(id)}`, { method: 'PATCH', body: JSON.stringify(data), keepalive: !!opts.keepalive }),
     delete: () => call(`doc/${enc(col)}/${enc(id)}`, { method: 'DELETE' }) });
   const toDocs = (m) => [...m].map(([id, d]) => ({ id, data: () => d }));
   const collection = (col) => ({
@@ -38,17 +39,30 @@
       })();
       return () => { on = false; };
     } });
-  let meP = null; const me = () => (meP ??= call('me?board=' + enc(board)));
+  // who I am, asked as soon as the page starts (the game's modules are still loading), and asked again a few times:
+  // the game cannot start without it, so a single failed request must not leave an empty sea
+  const retry = async (f, n = 4) => { for (let i = 0; ; i++) { try { return await f(); } catch (e) { if (i >= n - 1 || e?.code === 'denied') throw e; await new Promise(r => setTimeout(r, 600 * 2 ** i)); } } };
+  const offline = () => { if (document.getElementById('offline')) return; const d = document.createElement('div'); d.id = 'offline'; d.className = 'offline';
+    d.innerHTML = '<b>연결이 끊겼어요</b><button>다시</button>'; d.querySelector('button').onclick = () => location.reload(); document.body.append(d); };
+  let meP = null; const me = () => (meP ??= retry(() => call('me?board=' + enc(board))).catch(e => { meP = null; offline(); throw e; }));
+  me().catch(() => {});
+  /** Fetch with a deadline that restarts with every piece that arrives: a stream that stops is ended, not waited on forever. */
+  const IDLE_MS = 45000;
   const NS = {
     db: { collection, doc: (p) => { const i = p.lastIndexOf('/'); return docRef(p.slice(0, i), p.slice(i + 1)); } },
     user: { id: async () => (await me()).uid, isOwner: async () => (await me()).owner, profiles: (ids) => call('profiles?ids=' + ids.map(enc).join(',')) },
     sample: async (input, opts = {}) => {
       const prompt = typeof input === 'string' ? input : input.map(m => m.content).join('\n\n');
-      const r = await fetch('/api/sample', { method: 'POST', headers: { 'x-isles': '1', 'content-type': 'application/json' }, body: JSON.stringify({ prompt, kind: opts.purpose ?? 'build' }), signal: opts.signal });
-      if (!r.ok) { const v = await r.json().catch(() => null); throw { code: r.status === 429 ? 'daily_limit' : r.status === 503 ? 'rate_limited' : 'unavailable', message: v?.error }; }
-      const rd = r.body.getReader(), dec = new TextDecoder(); let text = '';
-      for (;;) { const { value, done } = await rd.read(); if (done) break; const delta = dec.decode(value, { stream: true }); text += delta; opts.onText && opts.onText({ text, delta }); }
-      return { text, truncated: false };
+      const ctl = new AbortController(); opts.signal?.addEventListener('abort', () => ctl.abort());
+      let idle; const wake = () => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), IDLE_MS); }; wake();
+      try {
+        const r = await fetch('/api/sample', { method: 'POST', headers: { 'x-isles': '1', 'content-type': 'application/json' }, body: JSON.stringify({ prompt, kind: opts.purpose ?? 'build' }), signal: ctl.signal });
+        if (!r.ok) { const v = await r.json().catch(() => null); throw { code: r.status === 429 ? 'daily_limit' : r.status === 503 ? 'rate_limited' : 'unavailable', message: v?.error }; }
+        const rd = r.body.getReader(), dec = new TextDecoder(); let text = '';
+        for (;;) { const { value, done } = await rd.read(); if (done) break; wake(); const delta = dec.decode(value, { stream: true }); text += delta; opts.onText && opts.onText({ text, delta }); }
+        return { text, truncated: false };
+      } catch (e) { if (ctl.signal.aborted && !opts.signal?.aborted) throw { code: 'timeout', message: 'no answer' }; throw e; }
+      finally { clearTimeout(idle); }
     },
     site: {
       hosted: true,

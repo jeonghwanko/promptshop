@@ -7,8 +7,9 @@ The hosted game runs one Node server (`server/main.mjs`) behind nginx on the Ora
 | Players | Anonymous at first: the first visit makes an account with a generated name (for example "느긋한 수달") and an HttpOnly cookie. Linking a Google account comes later. |
 | Storage | SQLite in `DATA_DIR` (`isles.db`): one row per doc, every change numbered. Pages get changes by long poll (`/api/col/<col>?after=n&wait=1`, up to 25 s). |
 | Rules | `server/rules.mjs` checks every write. A player writes only their own island. Moving in needs the board's owner, an invite token for that board, or an open board. The first board (`main`) is a read-only showcase. Removal marks (`_mod`) belong to the board's owner. |
+| Limits | nginx: 30 API requests a second per address (burst 60) and 30 open connections per address; `worker_connections 2048` on the VM. Server: a doc is at most 128 KB after an update is merged in, islands carry only their known fields, boards are checked field by field (the world map reads them), five boards a player. |
 | Invites | `POST /api/invite` gives a member a token: 14 days, 9 friends. The link is `?board=<id>&from=<island>&k=<token>`. |
-| Claude | `server/claude.mjs`, the Anthropic API with `claude-haiku-5-5`. Each player has 5 builds or extensions a day; the one fix right after a build is free. The whole server allows 300 calls a day. |
+| Claude | `server/claude.mjs`, the Anthropic API with `claude-haiku-5-5` (or, until the API key arrives, the `claude` CLI with a subscription token: `SAMPLE=cli`, at most 2 at once). Each player has 5 builds or extensions a day; the one fix right after a build is free. Accounts are free, so one address also has at most 60 a day (`CLAUDE_PER_IP`). The whole server allows 300 calls a day; raise it to about 3000 (`CLAUDE_PER_DAY`) when the API key replaces the CLI. A call that fails before its first words is not counted and answers 503. |
 | Link previews | `isles.html` gets `og:` tags: "<board> · 빈 섬 N개" and the archipelago's picture, which a member's page uploads when they share the link. |
 
 ## Run it locally

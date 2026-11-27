@@ -4,7 +4,7 @@
 import { spawn } from 'node:child_process';
 import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'site-check-')), PORT = 5391;
-const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, 'server/main.mjs')], { env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, SAMPLE: 'echo', CLAUDE_PER_USER: '5', INVITE_USES: '3' }, stdio: ['ignore', 'pipe', 'inherit'] });
+const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, 'server/main.mjs')], { env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, SAMPLE: 'echo', CLAUDE_PER_USER: '5', CLAUDE_PER_IP: '8', INVITE_USES: '3' }, stdio: ['ignore', 'pipe', 'inherit'] });
 process.on('exit', () => { try { srv.kill(); } catch {} fs.rmSync(dir, { recursive: true, force: true }); });
 await new Promise(r => srv.stdout.once('data', r));
 const base = `http://127.0.0.1:${PORT}`;
@@ -56,6 +56,17 @@ check('board name only by its owner', (await B.patch('boards/' + board, { name: 
 // the funnel log: only my own
 check('own log', (await B.patch(`log/${board}~${meB.uid}`, { '1_arrive': { s: 0 } })).status === 200);
 check("not another's log", (await B.patch(`log/${board}~${meA.uid}`, { '1_arrive': { s: 0 } })).status === 403);
+// docs cannot grow without end, carry unknown fields, or break the world map
+const big = (n) => 'x'.repeat(n * 1024);
+check('a save answers short', (await B.patch(`i-${board}/${meB.uid}`, { wallet: { coins: 99 } })).text === '{"ok":true}');
+check('island: unknown field refused', (await B.patch(`i-${board}/${meB.uid}`, { evil: 1 })).status === 403);
+check('island: size counts the merged doc', (await B.patch(`i-${board}/${meB.uid}`, { plots: { a: big(100) } })).status === 200 && (await B.patch(`i-${board}/${meB.uid}`, { half: { a: big(40) } })).status === 403);
+await B.patch(`i-${board}/${meB.uid}`, { plots: {} });
+check('board: a summary that would break the map is refused', (await B.patch('boards/' + board, { users: 1 })).status === 403 && (await B.patch('boards/' + board, { n: 'x' })).status === 403);
+check('board: bad name refused', (await A.put('boards/bad' + board.slice(1), { name: '시발', lat: 37, lng: 127, owner: meA.uid, at: 1, n: 0, bld: 0, users: [] })).status === 403);
+check('board: bad place refused', (await A.put('boards/bad' + board.slice(1), { name: 'ok', lat: 999, lng: 127, owner: meA.uid, at: 1 })).status === 403);
+{ const P = player(), u = (await P.go('/api/me')).v.uid; let made = 0; for (let i = 0; i < 6; i++) if ((await P.put(`boards/m${i}${board}`, { name: '군도', lat: 1, lng: 1, owner: u, at: 1, n: 0, bld: 0, users: [] })).status === 200) made++;
+  check('five boards a player', made === 5, `${made} made`); }
 check('a write without the page header is refused', (await fetch(base + `/api/doc/i-${board}/x`, { method: 'PUT', body: '{}' })).status === 400);
 // the token lets in nine friends at most
 let used = 1; for (let s = 4; s <= 10; s++) { const P = player(), u = (await P.go('/api/me')).v.uid; if ((await P.put(`i-${board}/${u}`, island(s), { 'x-invite': tok })).status === 200) used++; }
@@ -73,6 +84,8 @@ check('five builds a day', ok === 5); check('the sixth waits for tomorrow', (awa
 check('the fix after a build is free', (await ask(D, 'revise')).status === 200);
 check('a fix without a build is not', (await ask(player(), 'revise')).status === 429);
 check('calls left', (await D.go('/api/me')).v.left === 0);
+// accounts are free, so a day's calls are counted by address too (8 here; D used 5 of them)
+{ const E = player(); let n = 0; for (let i = 0; i < 5; i++) if ((await ask(E, 'build')).status === 200) n++; check('calls per address', n === 3, `${n} more from the same address`); }
 // link previews: the board's name and free islands
 const pv = await C.go(`/?board=${board}`); check('link preview names the board', pv.text.includes('A의 군도 · 빈 섬'), (pv.text.match(/og:title" content="([^"]+)/) ?? [])[1]);
 const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');

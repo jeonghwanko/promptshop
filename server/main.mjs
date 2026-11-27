@@ -43,6 +43,9 @@ function session(req, res, { make = true } = {}) {
 }
 const nameOf = (uid) => store.sql.prepare(`SELECT name FROM users WHERE uid = ?`).get(uid)?.name ?? null;
 
+/** The visitor's address: nginx appends it last to X-Forwarded-For (anything before it came from the visitor and is not trusted). */
+const ipOf = (req) => (req.headers['x-forwarded-for'] ?? '').split(',').pop().trim() || req.socket.remoteAddress || '';
+
 // ---------- invites: a token for one board, 14 days, 9 friends ----------
 const INVITE_DAYS = 14, INVITE_USES = +(process.env.INVITE_USES ?? 9);
 function makeInvite(board, uid) {
@@ -65,17 +68,28 @@ const tooFast = (uid) => { const t = Date.now(), a = (writes.get(uid) ?? []).fil
 // changes wake the long polls that wait on that collection
 const waiting = new Map();
 store.onChange((col) => { const w = waiting.get(col); if (!w) return; waiting.delete(col); for (const fn of w) fn(); });
-const waitFor = (col, ms) => new Promise(ok => { const w = waiting.get(col) ?? new Set(); waiting.set(col, w); const done = () => { clearTimeout(t); w.delete(done); ok(); }; const t = setTimeout(done, ms); w.add(done); });
+const waitFor = (col, ms) => new Promise(ok => { const w = waiting.get(col) ?? new Set(); waiting.set(col, w); const done = () => { clearTimeout(t); w.delete(done); if (!w.size && waiting.get(col) === w) waiting.delete(col); ok(); }; const t = setTimeout(done, ms); w.add(done); });
 
 // ---------- the page: link previews for invites ----------
+/** Every module the game imports at start (static imports, read once per release): listed in the page as modulepreload,
+ *  so the browser fetches them together instead of one level of imports after another. */
+function startModules() {
+  const seen = new Set(), walk = (f) => { if (seen.has(f) || !fs.existsSync(f)) return; seen.add(f);
+    for (const m of fs.readFileSync(f, 'utf8').matchAll(/^(?:import|export)\b[^;]*?\bfrom\s*['"](\.[^'"]+)['"]/gm)) walk(path.resolve(path.dirname(f), m[1])); };
+  walk(path.join(root, 'src/game/main.js'));
+  return [...seen].map(f => '/' + path.relative(root, f).split(path.sep).join('/'));
+}
+let PRELOAD = null;
 function page(url) {
   let h = fs.readFileSync(path.join(root, 'isles.html'), 'utf8');
   const board = url.searchParams.get('board'), meta = board && /^[a-z0-9]{3,24}$/.test(board) ? store.get('boards', board) : null;
-  const taken = meta ? Object.keys(store.all('i-' + board)).filter(k => !k.startsWith('_')).length : 0;
+  const taken = meta ? store.count('i-' + board) : 0;
   const title = meta ? `${meta.name} · 빈 섬 ${10 - taken}개` : '한 줄 군도';
   const img = meta && fs.existsSync(path.join(DATA, 'og', board + '.png')) ? `${ORIGIN}/og/${board}.png` : `${ORIGIN}/og/default.png`;
   const tags = `<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="한 줄을 쓰면 Claude가 가게를 지어요. 옆 섬에 살면서 다리를 놓아요."><meta property="og:image" content="${esc(img)}"><meta property="og:url" content="${esc(ORIGIN + url.pathname + url.search)}"><meta name="twitter:card" content="summary_large_image">`;
   if (BUNDLE) h = h.replace('src="src/game/main.js"', 'src="/dist/main.js"');
+  PRELOAD ??= (BUNDLE ? ['/dist/main.js'] : startModules()).map(u => `<link rel="modulepreload" href="${u}">`).join('');
+  h = h.replace('<script type="module"', PRELOAD + '<script type="module"');
   return h.replace('<meta charset="utf-8">', `<meta charset="utf-8">${tags}<script src="/src/site/runtime.js"></script>`);
 }
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp' };
@@ -91,6 +105,7 @@ function serveFile(req, res, f, type) {
   res.writeHead(200, head); fs.createReadStream(f).pipe(res);
 }
 
+process.on('unhandledRejection', (e) => console.error('unhandled', e));
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'), p = url.pathname;
   try {
@@ -129,10 +144,10 @@ http.createServer(async (req, res) => {
       const data = op === 'delete' ? null : JSON.parse((await body(req)).toString() || 'null');
       if (op !== 'delete' && (typeof data !== 'object' || data === null || Array.isArray(data))) return json(res, { error: 'bad data' }, 400);
       const token = req.headers['x-invite'];
-      const why = allowWrite(op, col, id, data, { store, uid, invite: (b) => inviteOk(token, b), useInvite: (b) => store.sql.prepare(`UPDATE invites SET uses = uses + 1 WHERE token = ? AND board = ?`).run(token, b) });
+      const why = allowWrite(op, col, id, data, { store, uid, boardsOf: (u) => store.sql.prepare(`SELECT COUNT(*) AS n FROM docs WHERE col = 'boards' AND json_extract(data, '$.owner') = ?`).get(u).n, invite: (b) => inviteOk(token, b), useInvite: (b) => store.sql.prepare(`UPDATE invites SET uses = uses + 1 WHERE token = ? AND board = ?`).run(token, b) });
       if (why) return json(res, { error: why }, 403);
       if (op === 'set') store.set(col, id, data); else if (op === 'update') store.update(col, id, data); else store.remove(col, id);
-      return json(res, store.get(col, id));
+      return json(res, { ok: true });   // the page has what it wrote; sending the whole doc back cost a parse and a copy per save
     }
     if (p === '/api/invite' && req.method === 'POST') {
       const { board } = JSON.parse(await body(req, 2000)); if (!board || board === 'main' || !isMember(board, uid)) return json(res, { error: 'not a member' }, 403);
@@ -145,8 +160,8 @@ http.createServer(async (req, res) => {
     }
     if (p === '/api/sample' && req.method === 'POST') {
       const { prompt, kind } = JSON.parse((await body(req, 200 * 1024)).toString());
-      const no = admit(store, uid, kind); if (no) return json(res, { error: no.code }, no.status);
-      return stream(prompt, res, req);
+      const call = admit(store, uid, kind, ipOf(req)); if (call.no) return json(res, { error: call.no.code }, call.no.status);
+      return await stream(prompt, res, req, call.refund);
     }
     return json(res, { error: 'not found' }, 404);
   } catch (e) { console.error(e); if (!res.headersSent) json(res, { error: 'server' }, 500); else res.end(); }

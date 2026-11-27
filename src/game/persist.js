@@ -11,31 +11,44 @@ import { hooks, allPlots, rebuild } from './model.js';
 export const WRITER = Math.random().toString(36).slice(2, 10);
 /** Removed buildings of other owners (a board owner's demolish), kept in one doc of the board's collection. */
 const MOD = '_mod';
-let lease = { role: 'new', term: 0 }, settleAt = 0, lastMine = null;
+let lease = { role: 'new', term: 0 }, settleAt = 0, lastMine = null, lastSig = '', lastMyDoc = null;
 const myRef = () => db.doc(COL + '/' + me);
 /** What a save writes: the island, never the lease fields (so a save and a claim cannot undo each other); wb and hb say who wrote it and when. */
 const dataOf = (d) => ({ slot: d.slot, at: d.at, gap: d.gap, land: d.land ?? 0, plots: d.plots, half: d.half, wallet: d.wallet, rev: (d.rev ?? 0) + 1, wb: WRITER, hb: Date.now() });
 
-let lastSave = 0;
-/** Save my doc: at once with `force`, else at most every 5 s and only when something changed. Only the tab that holds the island saves. */
-export async function save(force) {
-  if (!db || !me || !S.myDoc || S.role !== 'live') return;
-  if (!force && (!S.dirty || now() - lastSave < 5000)) return;
+let lastSave = 0, saving = Promise.resolve(), fails = 0;
+/** Two saves in a row failed: a small mark on the coins, gone with the next save that lands. */
+const landed = (ok) => { fails = ok ? 0 : fails + 1; document.getElementById('coinb')?.classList.toggle('unsaved', fails >= 2); };
+/** Save my doc: at once with `force`, else at most every 5 s and only when something changed. Only the tab that holds the island saves.
+ *  Saves go one after another (two in flight could land out of order); each sends the island as it is when its turn comes. */
+export function save(force) {
+  if (!db || !me || !S.myDoc || S.role !== 'live') return saving;
+  if (!force && (!S.dirty || now() - lastSave < 5000)) return saving;
   S.dirty = false; lastSave = now();
-  const data = dataOf(S.myDoc); S.myDoc.rev = data.rev;
-  try { await myRef().update(data); } catch { S.dirty = true; }
+  return saving = saving.then(async () => {
+    if (!S.myDoc) return;
+    const data = dataOf(S.myDoc); S.myDoc.rev = data.rev;
+    try { await myRef().update(data); landed(true); }
+    catch (e) {
+      // the first write never reached the server (it was restarting): make the island now instead of losing every save after it
+      if (e?.message === 'no island yet') try { await myRef().set({ ...data, term: lease.term || 1, by: WRITER }); landed(true); return; } catch {}
+      S.dirty = true; landed(false);
+    }
+  });
 }
 /** My new island: written whole, held by this tab. */
 export async function createMine(doc) {
   if (S.docs.has(me)) return true;   // I have an island already (another tab made it)
   doc.rev = 1; S.myDoc = doc; S.role = 'live'; lease = { role: 'live', term: 1 }; lastSave = now();
   S.docs.set(me, doc); rebuild();
-  try { await myRef().set({ ...doc, term: 1, by: WRITER, wb: WRITER, hb: Date.now() }); }
-  catch (e) {   // refused (no invite, the island just taken): undo, and say why
-    if (e?.code !== 'denied') { S.dirty = true; return true; }
-    S.myDoc = null; S.role = 'new'; lease = { role: 'new', term: 0 }; S.docs.delete(me); rebuild(); return false;
+  for (let i = 0; ; i++) {
+    try { await myRef().set({ ...doc, term: 1, by: WRITER, wb: WRITER, hb: Date.now() }); return true; }
+    catch (e) {
+      if (e?.code === 'denied') { S.myDoc = null; S.role = 'new'; lease = { role: 'new', term: 0 }; S.docs.delete(me); rebuild(); return false; }   // refused (no invite, the island just taken): undo, and say why
+      if (i === 2) { S.dirty = true; return true; }   // still unreachable: play on; the next save makes the island (save above)
+      await new Promise(r => setTimeout(r, 800 * (i + 1)));
+    }
   }
-  return true;
 }
 /** Remove someone else's building (the board owner tidying up): a mark their own tab applies, so it never comes back.
  *  Marked by the building's own time (b.at), which stays when the building is moved. */
@@ -51,7 +64,13 @@ export function track(event, data = {}) {
   const ref = db.doc(`log/${BOARD}~${me}`), entry = { [`${Date.now()}_${event}`]: { ...data, s: Math.round((Date.now() - T0) / 1000) } };
   ref.update(entry).catch(() => ref.set(entry).catch(() => {}));
 }
-async function resolveNames() { if (!user) return; const ids = [...S.owners.values()].filter(u => !u.startsWith('seed')); if (!ids.length) return; const ps = await user.profiles(ids); for (const id of ids) S.names[id] = ps[id]?.name || '친구'; }
+/** Friends' names: asked when someone new is on the board, and once a minute for renames — not on every save of every friend. */
+let namesAt = 0;
+async function resolveNames() {
+  if (!user) return; const ids = [...S.owners.values()].filter(u => !u.startsWith('seed')); if (!ids.length) return;
+  if (ids.every(id => id in S.names) && Date.now() - namesAt < 60e3) return;
+  namesAt = Date.now(); try { const ps = await user.profiles(ids); for (const id of ids) S.names[id] = ps[id]?.name || '친구'; } catch { namesAt = 0; }
+}
 // keep this board's summary on the world map up to date (friends, buildings, who)
 let lastSummary = '';
 function saveSummary() {
@@ -100,7 +119,11 @@ export function initPersist({ onError, onRefund }) {
   // the holder says it is still there, so a new tab waits for its answer instead of taking over at once
   setInterval(() => { if (lease.role !== 'live' || now() - lastSave < HEARTBEAT_MS) return; if (S.dirty) save(true); else { lastSave = now(); myRef().update({ hb: Date.now() }).catch(() => {}); } }, 2000);
   // leaving: save what is left and let go, so the next page (a reload) plays at once
-  addEventListener('pagehide', () => { if (lease.role === 'live' && S.myDoc && db && me) myRef().update({ ...dataOf(S.myDoc), by: null }).catch(() => {}); });
+  addEventListener('pagehide', () => {   // keepalive: the request outlives the page (the browser allows 64 KB; past that, just let go)
+    if (lease.role !== 'live' || !S.myDoc || !db || !me) return;
+    const all = { ...dataOf(S.myDoc), by: null };
+    myRef().update(JSON.stringify(all).length < 60000 ? all : { by: null }, { keepalive: true }).catch(() => {});
+  });
   if (db && BOARD !== 'main') db.doc('boards/' + BOARD).get().then(d => { S.boardName = d.data()?.name ?? ''; }).catch(() => {});
   if (SHOWCASE) { S.docs = new Map(Object.entries(ISLES_SEED).map(([u, d]) => [u, migrateLayout(moveWithIsland(d))])); rebuild(); return; }   // look, nobody moves in
   if (!db) { S.role = 'live'; S.docs = new Map((BOARD === 'main' ? Object.entries(ISLES_SEED) : []).map(([u, d]) => [u, migrateLayout(moveWithIsland(d))])); rebuild(); return; }
@@ -115,6 +138,9 @@ export function initPersist({ onError, onRefund }) {
     }
     if (me && S.docs.has(me)) { lastMine = S.docs.get(me); onMine(lastMine, false, onRefund); applyRemovals(marks); }
     if (me && S.myDoc) S.docs.set(me, S.myDoc);
-    rebuild(); resolveNames();
+    // a friend's heartbeat or coins change nothing on the map: redraw only when an island, a building or a bridge changed
+    const sig = JSON.stringify([S.role, ...[...S.docs].map(([u, d]) => u === me ? [u, d.rev] : [u, d.slot, d.land, d.gap, d.plots, d.half])]);
+    if (sig !== lastSig || S.myDoc !== lastMyDoc) { lastSig = sig; lastMyDoc = S.myDoc; rebuild(); }   // a new copy of mine (taken over from another tab) always redraws
+    resolveNames();
   }, onError);
 }

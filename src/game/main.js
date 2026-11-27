@@ -90,6 +90,8 @@ window.__isles = {
   startMove, tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: cancelMove,
   openShop, close: closeInside, extend: startExtend, centerOf, neighbours, S, writer: WRITER, scrollToSlot, guide, inviteLink,
 };
+// the game is up: the plain title that covered the loading goes
+{ const b = document.getElementById('boot'); if (b) { b.style.opacity = '0'; setTimeout(() => b.remove(), 400); } }
 // ?world=1 opens the world map at once; ?open=<plot key> opens a building's inside at once (for checks)
 if (q.get('world')) setTimeout(openWorld, 600);
 if (q.get('open')) { const t = setInterval(() => { if (S.role === 'live') { clearInterval(t); openShop(q.get('open')); } }, 300); }

@@ -4,15 +4,31 @@
 //   i-<board>/_mod          removal marks: only the board's owner.
 //   boards/<id>             created once by its owner; members may update the summary fields only.
 //   log/<board>~<uid>       the funnel log: only its owner, update only.
-export const MAX_DOC = 512 * 1024, MAX_LOG = 64 * 1024;
+import { bad } from '../src/game/rules.js';
+// Sizes are of the doc as it will be stored (an update is merged first), so many small updates cannot grow a doc without end.
+export const MAX_DOC = 128 * 1024, MAX_LOG = 64 * 1024, MAX_BOARD = 2 * 1024, BOARDS_PER_PLAYER = 5;
 const SUMMARY = new Set(['n', 'bld', 'users']), BOARD_NEW = new Set(['name', 'lat', 'lng', 'owner', 'at', 'n', 'bld', 'users']);
+const ISLAND = new Set(['slot', 'at', 'gap', 'land', 'plots', 'half', 'wallet', 'rev', 'wb', 'hb', 'term', 'by', 'ack']);
+const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
+/** A board's fields, as the world map reads them: a bad one would break the map for everyone. */
+function boardBad(b) {
+  if (typeof b.name !== 'string' || !b.name.trim() || b.name.length > 24 || bad(b.name)) return 'bad board name';
+  if (!num(b.lat, -90, 90) || !num(b.lng, -180, 180)) return 'bad place';
+  if ('n' in b && !(Number.isInteger(b.n) && num(b.n, 0, 10))) return 'bad n';
+  if ('bld' in b && !(Number.isInteger(b.bld) && num(b.bld, 0, 1000))) return 'bad bld';
+  if ('users' in b && !(Array.isArray(b.users) && b.users.length <= 10 && b.users.every(u => typeof u === 'string' && u.length <= 40))) return 'bad users';
+  if ('open' in b && typeof b.open !== 'boolean') return 'bad open';
+  if (JSON.stringify(b).length > MAX_BOARD) return 'too big';
+  return null;
+}
 const boardOf = (col) => col === 'i' ? 'main' : col.startsWith('i-') ? col.slice(2) : null;
 export const readable = (col) => col === 'boards' || boardOf(col) !== null;
 
 /** null when allowed, else why not. op: 'set' | 'update' | 'delete'. ctx: { store, uid, invite(board) → bool, useInvite(board) }. */
 export function allowWrite(op, col, id, data, ctx) {
-  const { store, uid } = ctx, size = data == null ? 0 : JSON.stringify(data).length;
-  const board = boardOf(col);
+  const { store, uid } = ctx, board = boardOf(col);
+  const before = op === 'update' ? store.get(col, id) : null, after = op === 'update' ? { ...(before ?? {}), ...data } : data;
+  const size = after == null ? 0 : JSON.stringify(after).length;
   if (board !== null) {
     if (board === 'main') return 'the showcase is read-only';
     const meta = store.get('boards', board);
@@ -21,6 +37,7 @@ export function allowWrite(op, col, id, data, ctx) {
     if (id !== uid) return 'not your island';
     if (size > MAX_DOC) return 'too big';
     if (op === 'delete') return null;
+    if (!Object.keys(data ?? {}).every(k => ISLAND.has(k))) return 'unknown field';
     const cur = store.get(col, id);
     if (!cur) {   // moving in: a way in, and a free island
       if (op !== 'set') return 'no island yet';
@@ -35,10 +52,16 @@ export function allowWrite(op, col, id, data, ctx) {
   if (col === 'boards') {
     const cur = store.get('boards', id);
     if (!/^[a-z0-9]{3,24}$/.test(id) || id === 'main') return 'bad board id';
-    if (!cur) return op === 'set' && data?.owner === uid && Object.keys(data).every(k => BOARD_NEW.has(k)) && typeof data.name === 'string' && data.name.length <= 24 ? null : 'bad new board';
-    if (op === 'update' && Object.keys(data ?? {}).every(k => SUMMARY.has(k))) return store.get('i-' + id, uid) || cur.owner === uid ? null : 'not a member';
-    if (op === 'update' && cur.owner === uid && Object.keys(data ?? {}).every(k => SUMMARY.has(k) || k === 'name' || k === 'open')) return null;
-    return 'not allowed';
+    if (!cur) {
+      if (op !== 'set' || data?.owner !== uid || !Object.keys(data).every(k => BOARD_NEW.has(k))) return 'bad new board';
+      if (ctx.boardsOf(uid) >= BOARDS_PER_PLAYER) return 'too many boards';
+      return boardBad(data);
+    }
+    if (op !== 'update') return 'not allowed';
+    const keys = Object.keys(data ?? {});
+    if (keys.every(k => SUMMARY.has(k))) { if (!store.get('i-' + id, uid) && cur.owner !== uid) return 'not a member'; }
+    else if (!(cur.owner === uid && keys.every(k => SUMMARY.has(k) || k === 'name' || k === 'open'))) return 'not allowed';
+    return boardBad(after);
   }
   if (col === 'log') return id.endsWith('~' + uid) && op !== 'delete' && size <= MAX_LOG ? null : 'not your log';
   return 'not allowed';

@@ -296,3 +296,8 @@
 .grow2.wait { opacity:0; transform:translateY(6px) scale(.9); pointer-events:none; }
 .grow2 button.gold { padding:7px 18px; font:400 16px var(--f-disp); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -4px 0 #c98a12, 0 3px 0 rgba(20,30,40,.35); }
 @media (max-width:600px) { .gbub { max-width:calc(100vw - 130px); min-width:0; font-size:15px; } }
+  /* two saves in a row did not land: a small red dot on the coins until one does */
+  .coinb.unsaved::after { content:''; position:absolute; top:2px; right:4px; width:11px; height:11px; border-radius:50%; background:var(--hot); box-shadow:0 0 0 2px var(--ink); }
+  /* the server could not be reached at the start */
+  .offline { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:60; display:flex; align-items:center; gap:12px; padding:12px 14px 12px 18px; border-radius:18px; background:#e9c89a; color:var(--ink); font:400 18px var(--f-disp); box-shadow:inset 0 0 0 3px var(--ink), 0 6px 0 rgba(0,0,0,.3); }
+  .offline button { font:400 16px var(--f-disp); padding:6px 14px; border-radius:12px; border:0; background:var(--accent); color:#fff; box-shadow:inset 0 0 0 2px var(--ink), inset 0 -3px 0 rgba(0,0,0,.25); }

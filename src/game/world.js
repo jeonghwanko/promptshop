@@ -31,13 +31,15 @@ async function loadBoards() {
   try { meta = db ? (await db.collection('boards').get()).docs.map(d => ({ id: d.id, ...d.data() })) : []; } catch {}
   let main = meta.find(b => b.id === 'main'); if (!main) { main = { id: 'main' }; meta.unshift(main); }
   Object.assign(main, { name: main.name ?? '첫 군도', lat: main.lat ?? 37.5, lng: main.lng ?? 127 });
+  // a board nobody moved into is someone's unfinished start ("내 군도 세우기", then gone): only its owner and the page it is on see it
+  meta = meta.filter(b => b.id === 'main' || b.id === BOARD || b.owner === me || b.n !== 0);
   for (const b of meta) if (b.n === undefined) { const sh = boardShape(await boardEntries(b.id)); b.n = sh.joined.size; b.bld = sh.buildings; b.users = [...sh.owners.values()]; }
   const demo = +(new URLSearchParams(location.search).get('demo') ?? 0);   // ?demo=N adds N made-up boards (for checks)
   for (let i = 0; i < demo; i++) { const r = (k) => { const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); }, seoul = i % 3 !== 2;
     meta.push({ id: 'demo' + i, name: `예시 군도 ${i + 1}`, lat: seoul ? 35 + r(1) * 3.2 : 20 + r(1) * 40, lng: seoul ? 126.4 + r(2) * 3 : -120 + r(2) * 260, n: Math.floor(r(3) * 11), bld: Math.floor(r(4) * 40), demo: true }); }
   return meta;
 }
-const mineIn = (b) => (b.users ?? []).includes(me);
+const mineIn = (b) => Array.isArray(b.users) && b.users.includes(me);   // users is checked on the server now; old rows may still be odd
 function setView(cx, cy, k) {   // view centred on map point (cx, cy) in world units (0..360, 0..180) at k px per unit
   const vw = innerWidth, vh = innerHeight, kMin = Math.max(vw / 360, vh / 140);
   k = Math.max(kMin, Math.min(kMin * 48, k));
