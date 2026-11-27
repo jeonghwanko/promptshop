@@ -39,7 +39,7 @@ const failText = (e, msg) => e?.code === 'daily_limit' ? '오늘 Claude와 지�
 
 export const buildHint = () => `${S.card?.need ? REQ[S.card.need].icon + ' ' + REQ[S.card.need].sub : '✏️ 마음대로'} · ${S.size}`;
 export function setBuildMode(on) {
-  S.buildMode = on && !!S.mySlot; $('d-build').classList.toggle('on', S.buildMode); $('d-build').querySelector('.lb').textContent = S.buildMode ? '그만' : '짓기'; $('sizes').hidden = !S.buildMode; S.hover = null;
+  S.buildMode = on && !!S.mySlot; $('d-build').classList.toggle('on', S.buildMode); document.body.classList.toggle('buildmode', S.buildMode); $('d-build').querySelector('.lb').textContent = S.buildMode ? '그만' : '짓기'; $('sizes').hidden = !S.buildMode; S.hover = null;
   if (S.buildMode) { const open = sizesOpen(levelOf(G().served)); if (!open.includes(S.size)) S.size = 'S';
     $('sizes').replaceChildren(...Object.keys(PLOT).map(k => { const ok = open.includes(k); return el('button', { class: k === S.size ? 'on' : '', on: { click: () => { if (!ok) return toast(`${k} 크기는 ${LEVELS.find(l => l.size === k).name}부터 지을 수 있어요`, 1800); S.size = k; setBuildMode(true); } } }, ok ? k : `🔒 ${k}`); })); toast(buildHint()); scrollToSlot(S.mySlot); }
   else toast('');
@@ -64,8 +64,9 @@ export function openCards() {
       r ? el('span', { class: 'prize' }, iconEl('coin', 18, ''), `+${REQ_BONUS} · 손님 무리`) : el('span', { class: 'prize' }, '보너스 없음'));
     c.style.animationDelay = i * 90 + 'ms'; return c;
   };
-  box.replaceChildren(el('h2', {}, iconEl('ticket', 36, ''), `${w.permits} · 무엇을 지을까?`), el('div', { class: 'row3' }, ...picks.map(deal), deal(null, 2)),
-    el('button', { class: 'ghost', on: { click: () => { box.hidden = true; } } }, '나중에'));
+  // a hand of cards at the bottom: the island and its waiting guests stay in sight above; a tap beside the cards puts them away
+  box.replaceChildren(el('h2', {}, iconEl('ticket', 36, ''), `${w.permits} · 무엇을 지을까?`), el('div', { class: 'row3' }, ...picks.map(deal), deal(null, 2)));
+  box.onclick = (e) => { if (!e.target.closest('.rcard')) box.hidden = true; };
   box.hidden = false; tutEvent('cards');
 }
 

@@ -18,8 +18,19 @@ export function startZoom(slot) {
   const k = Math.min(innerWidth * .8 / w, (innerHeight - 160) * .85 / h);
   return Math.max(1, Math.min(3, Math.floor(k * Math.SQRT2)));   // the island is round: its outline is the square's corners pulled in by √2
 }
-/** Bring island s to the middle of the screen; smooth = false jumps (the first view, where there is nothing to glide from). */
-export function scrollToSlot(s, smooth = true) { const box = $('mapbox'), [cx, cz] = centerOf(s), [px0, py0] = pr.P(cx, cz), px = px0 * S.zoom, py = py0 * S.zoom; box.scrollTo({ left: map.offsetLeft + px - box.clientWidth / 2, top: map.offsetTop + py - 80 - box.clientHeight / 2, behavior: smooth ? 'smooth' : 'instant' }); }
+/** The part of the screen no UI covers: below the top HUD, above the dock, and left of (PC) or above (phone) an open panel.
+ *  The camera puts what it shows in the middle of this, so UI never has to dodge the map. */
+export function safeRect() {
+  let l = 0, t = 96, r = innerWidth, b = innerHeight - 124;
+  const p = $('panel'); if (p && !p.hidden) { const q = p.getBoundingClientRect(); if (q.width < innerWidth * .6) r = Math.min(r, q.left - 8); else b = Math.min(b, q.top - 8); }
+  return { l, t, r, b, cx: (l + r) / 2, cy: (t + b) / 2 };
+}
+/** Bring map point (px, py) (map canvas pixels at zoom 1) to the middle of the safe rect. */
+export function scrollToPoint(px0, py0, smooth = true) { const box = $('mapbox'), sr = safeRect(); box.scrollTo({ left: map.offsetLeft + px0 * S.zoom - sr.cx, top: map.offsetTop + py0 * S.zoom - sr.cy, behavior: smooth ? 'smooth' : 'instant' }); }
+/** Is map point (px, py) on screen inside the safe rect (with a margin)? */
+export function inSafe(px0, py0, m = 40) { const [x, y] = toScreen(px0, py0), sr = safeRect(); return x > sr.l + m && x < sr.r - m && y > sr.t + m && y < sr.b - m; }
+/** Bring island s to the middle of the safe rect; smooth = false jumps (the first view, where there is nothing to glide from). */
+export function scrollToSlot(s, smooth = true) { const [cx, cz] = centerOf(s); scrollToPoint(...pr.P(cx, cz), smooth); }
 /** A pointer event → a point on the map canvas. */
 export const mapXY = (e) => { const r = map.getBoundingClientRect(); return [(e.clientX - r.left) * map.width / r.width, (e.clientY - r.top) * map.height / r.height]; };
 /** A point on the map canvas → the screen. */

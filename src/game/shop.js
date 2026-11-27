@@ -19,6 +19,8 @@ import { closePanel } from './panel.js';
 import { setBuildMode, startExtend } from './build.js';
 import { startMove } from './move.js';
 
+/** Phones: the cut-away takes the screen's width above a tray of actions at the bottom (side by side there is no room). */
+const narrow = () => innerWidth < 760;
 export function openShop(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   if (S.watching) closeInside(); setBuildMode(false); closePanel();
@@ -30,7 +32,7 @@ export function openShop(key) {
   requestAnimationFrame(() => {
     // the origin does not move when scaling, so the building's base stays where it was on screen
     map.style.transformOrigin = `${px}px ${py}px`; map.style.transform = 'scale(2)';
-    const st = $('shopstage'); st.style.left = ((innerWidth - 270) / 2 + 6) + 'px'; st.style.top = (innerHeight / 2) + 'px';   // the cut-away takes the middle of the screen; the building behind it lifts away
+    const st = $('shopstage'); st.style.left = (narrow() ? innerWidth / 2 : (innerWidth - 270) / 2 + 6) + 'px'; st.style.top = (narrow() ? (innerHeight - 200) / 2 + 40 : innerHeight / 2) + 'px';   // the cut-away takes the middle of the screen; the building behind it lifts away
     $('shopwrap').style.setProperty('--sx', st.style.left); $('shopwrap').style.setProperty('--sy', st.style.top);
     S.zoomShop = { key, t: 0, dir: 1 };
     openInside(key);
@@ -42,7 +44,7 @@ function openInside(key) {   // the cut-away in place, over the zoomed map (open
   const myDoc = S.myDoc, mineP = p.owner === me && !!myDoc?.plots[key] && canWrite(), owned = ownedOf(p);
   const view = new InsideView(p.b.input, owned, {
     every: Infinity, seed: (p.x * 31 + p.z) % 97 + 1, price: shopRates(fixturesOf(p), owned, BASE_COIN[p.size] ?? 1).price,
-    maxWidth: innerWidth - 380, tags: true, maxHeight: innerHeight - 70, maxZoom: 4,
+    maxWidth: narrow() ? innerWidth - 16 : innerWidth - 380, tags: true, maxHeight: narrow() ? innerHeight - 270 : innerHeight - 70, maxZoom: 4,
     onThud: () => { const st = $('shopstage'); st.classList.remove('thud'); void st.offsetWidth; st.classList.add('thud'); },
     levels: levelsOf(p),
     upgrade: (i, kind, cost, L) => { if (!mineP || S.myDoc.wallet.coins < cost) return false;
@@ -71,6 +73,7 @@ export function closeInside() {
 }
 /** To the right of the cut-away, level with its middle; from the stage's own place and size, not its on-screen box (that one moves while the stage shakes). */
 export function placeActs() {
+  if (narrow()) { const a = $('shopacts'); a.style.left = a.style.top = ''; return; }   // the bottom tray (CSS)
   const s0 = $('shopstage'), a = $('shopacts'), cx = parseFloat(s0.style.left) || innerWidth / 2, cy = parseFloat(s0.style.top) || innerHeight / 2;
   a.style.left = Math.min(innerWidth - 240, cx + s0.offsetWidth / 2 + 16) + 'px'; a.style.top = Math.max(150, Math.min(innerHeight - 160, cy)) + 'px';
 }

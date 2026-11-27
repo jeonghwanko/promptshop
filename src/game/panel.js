@@ -1,6 +1,6 @@
 // The side panel: my island (permits, stats, land, neighbours), joining a slot, someone else's island,
 // a building's card; also widening my island, half bridges and demolishing.
-import { SLOTS, centerOf, neighbours, bridgeId, setLand, landSize, LAND_MAX, GAP } from '../v2/isles.js';
+import { SLOTS, PLOT, centerOf, neighbours, bridgeId, setLand, landSize, LAND_MAX, GAP } from '../v2/isles.js';
 import { normalize } from '../v2/spec.js';
 import { TYPE_KO } from '../v2/catalog.js';
 import { roleOf } from '../v2/townsim.js';
@@ -8,10 +8,10 @@ import { renderView } from '../v2/render.js';
 import { iconEl } from '../ui/icons.js';
 import { START_COINS, BRIDGE, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, LEVELS, levelOf } from './rules.js';
 import { $, el, xbtn } from './ui.js';
-import { S, db, me, site, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
+import { S, db, me, site, pr, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild } from './model.js';
 import { save, createMine, removeOthers, track } from './persist.js';
-import { scrollToSlot, startZoom, applyZoom } from './camera.js';
+import { scrollToSlot, startZoom, applyZoom, scrollToPoint, inSafe } from './camera.js';
 import { toast, celebrate } from './hud.js';
 import { guide } from './guide.js';
 import { openShop } from './shop.js';
@@ -21,8 +21,15 @@ import { inviteCard, newBoard } from './invite.js';
 
 const panel = () => $('panel');
 /** Fill the panel: the first child, when it is an h2, is the title on the dark strip with the close button. */
-export const show = (...kids) => { const p = panel(); p.hidden = false; const list = kids.flat().filter(Boolean), h = list[0]?.tagName === 'H2' ? list.shift() : el('h2', {});
-  p.replaceChildren(el('div', { class: 'ph' }, h, xbtn(closePanel)), ...list); p.scrollTop = 0; };
+export const show = (...kids) => { const p = panel(), opening = p.hidden; p.hidden = false; const list = kids.flat().filter(Boolean), h = list[0]?.tagName === 'H2' ? list.shift() : el('h2', {});
+  p.replaceChildren(el('div', { class: 'ph' }, h, xbtn(closePanel)), ...list); p.scrollTop = 0;
+  if (opening) requestAnimationFrame(keepInSight); };
+/** The panel just opened: if what it is about (a building, an island, mine) is now under it, move the camera once — not back on close. */
+function keepInSight() {
+  const c = S.current, pl = c?.key && allPlots().find(q => q.key === c.key), s = c?.slot ?? S.mySlot;
+  const at = pl ? pr.P(pl.x + PLOT[pl.size] / 2, pl.z + PLOT[pl.size] / 2) : s ? pr.P(...centerOf(s)) : null;
+  if (at && !inSafe(...at)) scrollToPoint(...at);
+}
 export function closePanel() { panel().hidden = true; S.current = null; S.joinShown = false; }
 export const panelOpen = () => !panel().hidden;
 

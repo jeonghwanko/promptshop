@@ -79,8 +79,9 @@ export function guide() {
 }
 
 // where the arrow points: an element on the page, or a spot on the map
+let atElPt = null;
 function guideArrow() {
-  const a = $('garrow');
+  const a = $('garrow'); atElPt = null;
   const atEl = (sel) => { const e = sel && document.querySelector(sel); if (!e || !e.offsetParent) return null; e.classList.add('glow'); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top - 4]; };
   let pt = null;
   if (inTutOn()) {
@@ -93,7 +94,7 @@ function guideArrow() {
     const s = pickSpot(); if (s) { const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx - 4, cz - 4)); pt = [x, y - 34]; }
   } else if (tutOn()) {
     const st = TUT[tutStep()], n = PLOT[S.size];
-    pt = atEl(st.el);
+    pt = atElPt = atEl(st.el);
     if (st.map === 'spot' && S.buildMode) {
       if (!S.tutSpot) { const [cx, cz] = centerOf(S.mySlot), taken = takenSet();
         for (let d = 1; d < 6 && !S.tutSpot; d++) for (const [dx, dz] of [[1, 1], [-n, 1], [1, -n], [-n, -n]]) { const door = placePlot(S.world, S.mySlot, cx + dx * d, cz + dz * d, n, taken); if (door) { S.tutSpot = { x: cx + dx * d, z: cz + dz * d, door }; break; } } }
@@ -102,6 +103,8 @@ function guideArrow() {
     if (st.map === 'invite') { const n = emptyNeighbours()[0]; if (n) { const [cx, cz] = centerOf(n), [x, y] = toScreen(...pr.P(cx + .5, cz + .5)); pt = [x, y - 16]; } }
     if (st.map === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && S.lastTops[p.key]; if (tp) { const [x, y] = toScreen(tp[0], tp[1]); pt = [x, y - 8]; } }
   }
+  // a spot on the map that UI now covers (a panel, the cards): no arrow pointing at the panel instead
+  if (pt && !inTutOn() && !(tutOn() && TUT[tutStep()].el && pt === atElPt)) { const hit = document.elementFromPoint(pt[0], Math.min(innerHeight - 1, pt[1] + 24)); if (hit && hit.id !== 'map' && !hit.closest('#mapbox')) pt = null; }
   // 끼룩이 holds a wing toward what the arrow points at — only when it is above its head: lower to the right the wing
   // would cover its own speech bubble, so there it just talks
   { const b = document.querySelector('#guide .gbird')?.getBoundingClientRect(); gull?.point(pt && b && pt[1] < b.top + b.height * .2 ? pt : null); }
@@ -112,8 +115,12 @@ function guideArrow() {
 export const tutGlowSpot = () => S.tutSpot && S.buildMode && tutOn() && TUT[tutStep()].map === 'spot' ? S.tutSpot : null;
 // ---------- 끼룩이 and its words: the line types itself out while the beak moves; a tap on the bubble shows it all ----------
 let gull = null, spoken = null, typing = null;
+let foldT = 0;
+/** Fold the bubble to just the gull (and the arrow) once the words have been read, on a step that waits for something done on the map.
+ *  A tap on the gull, or the next step, opens it again. */
+function fold(on) { clearTimeout(foldT); $('guide').classList.toggle('min', on); }
 function speak(text) {
-  if (text === spoken) return; spoken = text;
+  if (text === spoken) return; spoken = text; fold(false);
   const box = $('gtext'), btns = $('gbtns'); clearInterval(typing);
   box.textContent = text; btns.classList.add('wait');
   const bub = box.closest('.gbub'); bub.classList.remove('bump'); void bub.offsetWidth; bub.classList.add('bump');
@@ -125,12 +132,14 @@ function speak(text) {
       else { n.classList?.add('tw'); parts.push(n); }
     }
     let i = 0; gull?.talk(true);
-    const done = () => { clearInterval(typing); typing = null; for (const q of parts) q.classList.add('on'); gull?.talk(false); btns.classList.remove('wait'); };
+    const done = () => { clearInterval(typing); typing = null; for (const q of parts) q.classList.add('on'); gull?.talk(false); btns.classList.remove('wait');
+      if (!btns.querySelector('.gold')) { clearTimeout(foldT); foldT = setTimeout(() => { if (spoken === text) fold(true); }, 6000); } };
     typing = setInterval(() => { if (i >= parts.length) return done(); parts[i++].classList.add('on'); }, 34);
     bub.onclick = (e) => { if (typing && !e.target.closest('button')) done(); };
   }, 0);
 }
 export function initGuide() {
   gull = mountGuideGull(document.querySelector('#guide .gbird'));
+  document.querySelector('#guide .gbird').addEventListener('click', () => fold(false));
   setInterval(guideArrow, 120);
 }

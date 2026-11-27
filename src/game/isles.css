@@ -301,3 +301,41 @@
   /* the server could not be reached at the start */
   .offline { position:fixed; left:50%; top:50%; transform:translate(-50%,-50%); z-index:60; display:flex; align-items:center; gap:12px; padding:12px 14px 12px 18px; border-radius:18px; background:#e9c89a; color:var(--ink); font:400 18px var(--f-disp); box-shadow:inset 0 0 0 3px var(--ink), 0 6px 0 rgba(0,0,0,.3); }
   .offline button { font:400 16px var(--f-disp); padding:6px 14px; border-radius:12px; border:0; background:var(--accent); color:#fff; box-shadow:inset 0 0 0 2px var(--ink), inset 0 -3px 0 rgba(0,0,0,.25); }
+
+/* ---------- nothing covers what is happening (Fable 5.2 review, 2026-11-27) ----------
+   Where each kind of UI lives: corners = HUD and dock; PC right column / phone bottom = panel and actions; bottom-left = 끼룩이;
+   the middle of the screen = only what belongs to the map (the sign, the arrow). The camera centres things in what is left
+   (camera.js safeRect). */
+/* the panel stops above the 짓기 button on PC; on a phone it is a short sheet, and the invite card a single row */
+.panel { max-height:calc(100vh - 234px); }
+@media (max-width:760px) {
+  .panel { max-height:40vh; }
+  .invitecard { flex-direction:row; align-items:center; flex-wrap:wrap; } .invitecard .invpic { display:none; } .invitecard b { text-align:left; flex:1; }
+}
+/* inside a shop the dock is gone: 끼룩이 takes its place at the bottom on PC, and the empty top on a phone */
+body.inshop .guide { bottom:8px; }
+/* the cards and the world are their own moments: 끼룩이 and its arrow wait */
+body:has(.cards:not([hidden])) :is(.guide, .garrow), body:has(.world:not([hidden])) :is(.guide, .garrow) { display:none; }
+/* 끼룩이 folds to just itself once a waiting step has been read; a tap on it opens the words again */
+.guide.min .gbub { display:none; } .guide.min .gbird { pointer-events:auto; cursor:pointer; }
+/* the request cards: a hand at the bottom, the island and its waiting guests in sight above */
+.cards { justify-content:flex-end; padding-bottom:20px; background:linear-gradient(to top, rgba(15,25,35,.78), rgba(15,25,35,0) 60%); }
+.cards .rcard { min-height:0; width:184px; } .cards .row3 { flex-wrap:nowrap; }
+/* phones: the gull smaller, the shop's actions as a tray at the bottom, a lighter dock while choosing a spot */
+@media (max-width:760px) {
+  body.inshop .guide { top:56px; bottom:auto; }
+  .shopacts { left:8px !important; right:8px; top:auto !important; bottom:10px; transform:none; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
+  .shopacts .act { min-width:0; padding:6px 8px 6px 6px; gap:6px; font-size:14px; } .shopacts .act small { font-size:11px; } .shopacts .act .pxi { width:26px; height:26px; }
+  .shopacts .act.close { position:fixed; top:12px; left:12px; }
+  .shopacts:has(.extcard) { display:flex; }
+  .floortabs { left:4px; }
+  .cards .rcard { width:31vw; padding:12px 6px 10px; gap:4px; } .cards .rcard small { display:none; } .cards .rcard .big { width:48px; height:48px; } .cards .rcard b { font-size:15px; }
+  .cards h2 { font-size:22px; }
+}
+@media (max-width:600px) { .gbird { zoom:.6; } .gbub { margin-bottom:12px; padding:12px 14px 10px; } }
+@media (max-width:440px) {
+  body.buildmode :is(.dock .dl, #boat) { display:none; }
+  .world .wtop .plate, #wnew { white-space:nowrap; } #wcount { display:none; }
+}
+/* a toast while 끼룩이 talks goes to the top, not under its bubble */
+body:has(.guide:not([hidden]):not(.min)) .toast { top:112px; bottom:auto; }

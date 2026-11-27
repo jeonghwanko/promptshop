@@ -60,7 +60,7 @@ await sleep(4000); { const fs0 = await ev(`JSON.stringify(__isles.festState)`); 
 // panel, cards, world
 await ev(`document.getElementById('d-home').click()`); await sleep(500); check('home panel', await ev(`!document.getElementById('panel').hidden && document.querySelectorAll('#panel .stat').length === 3`)); await shot('home');
 await ev(`document.querySelector('#panel .xb').click()`); await sleep(300);
-await ev(`document.getElementById('d-build').click()`); await sleep(800); check('request cards', (await ev(`document.querySelectorAll('#cards .rcard').length`)) >= 2); await ev(`document.querySelector('#cards .ghost').click()`); await sleep(300);
+await ev(`document.getElementById('d-build').click()`); await sleep(800); check('request cards', (await ev(`document.querySelectorAll('#cards .rcard').length`)) >= 2); await ev(`document.getElementById('cards').click()`); await sleep(300);
 await ev(`document.getElementById('d-world').click()`); await sleep(2000); check('world spots', (await ev(`document.querySelectorAll('#spots .spot, #spots .bubble').length`)) > 0); await shot('world');
 // a new archipelago: a bad name is refused before anything is saved
 await ev(`document.getElementById('wnew').click()`); await sleep(300); await click(700, 450); await sleep(500);
