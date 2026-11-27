@@ -40,7 +40,14 @@ Do this only when the owner asks for it.
 5. **nginx.** The VM's certbot has no nginx plugin, so issue the certificate by webroot first: serve only the port-80 block with the `acme-challenge` location, run `certbot certonly --webroot -w /var/www/letsencrypt -d we.oddbout.com`, then copy the full `deploy/we.oddbout.com.nginx` to `/etc/nginx/sites-available/`, link it, and run `nginx -t && nginx -s reload`.
 6. **Check.** Run `node scripts/check-site-play.mjs https://we.oddbout.com`. It uses real Claude calls: two players, one build.
 
-An update is a new release folder, a new `current` link and `systemctl restart we-oddbout`. `DATA_DIR` stays where it is.
+An update is a new release folder, a new `current` link and `systemctl restart we-oddbout`. `DATA_DIR` stays where it is. `scripts/release.sh` does all of it for the committed HEAD and prints the way back.
+
+## Speed
+
+- **Compression.** nginx gzips JS, CSS and JSON for this site (`deploy/we.oddbout.com.nginx`).
+- **Revisits.** The server sends an ETag with every file, so a returning browser gets 304s instead of the files again.
+- **The world map.** The coastlines (`src/v2/world-data.js`, about 1 MB) load the first time the world opens, not with the game.
+- **Bundle (optional).** When `dist/main.js` exists, the page loads it instead of the separate modules. `scripts/release.sh` ships `dist/` when it is there. There is no build script yet: making one needs esbuild, which this machine's permissions have not allowed.
 
 ## Not done yet
 

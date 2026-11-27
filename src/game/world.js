@@ -2,7 +2,6 @@
 import { $, el, xbtn } from './ui.js';
 import { iconEl } from '../ui/icons.js';
 import { voxelEl } from '../ui/voxelui.js';
-import { drawLand, countryAt, placeLabel } from '../v2/geo.js';
 import { SLOTS, neighbours, bridgeId, PLOT, makeIsles, drawIsles, centerOf } from '../v2/isles.js';
 import { moveWithIsland } from './migrate.js';
 import { ISLES_SEED } from '../../examples/isles-seed.js';
@@ -55,7 +54,7 @@ function drawWorld() {
   const g = c.getContext('2d'); g.fillStyle = '#3d7fa6'; g.fillRect(0, 0, W, H);
   g.fillStyle = '#4a8db3'; for (let y = 0; y < H; y += 6) for (let x = (y / 6) % 2 ? 3 : 0; x < W; x += 12) g.fillRect(x, y, 2, 1);
   // the world repeats sideways: draw it three times, one world-width apart
-  for (const shift of [-360, 0, 360]) drawLand(g, (lng, lat) => [(vw / 2 + ((lng + 180) - wv.cx + shift) * wv.k) / PIX, (vh / 2 + ((90 - lat) - wv.cy) * wv.k) / PIX], W, H);
+  for (const shift of [-360, 0, 360]) geo.drawLand(g, (lng, lat) => [(vw / 2 + ((lng + 180) - wv.cx + shift) * wv.k) / PIX, (vh / 2 + ((90 - lat) - wv.cy) * wv.k) / PIX], W, H);
   window.__drawMs = performance.now() - t0;
   drawSpots();
 }
@@ -82,7 +81,7 @@ function drawSpots() {
       continue;
     }
     const n = c.list.length, mine = c.list.some(mineIn), here = c.list.some(b => b.id === BOARD), [lat, lng] = wv.toLL(c.x, c.y);
-    const where = wv.k < wv.kMin * 4 ? (countryAt(lat, lng)?.ko ?? '바다') : (placeLabel(lat, lng).city?.ko ?? countryAt(lat, lng)?.ko ?? '바다');
+    const where = wv.k < wv.kMin * 4 ? (geo.countryAt(lat, lng)?.ko ?? '바다') : (geo.placeLabel(lat, lng).city?.ko ?? geo.countryAt(lat, lng)?.ko ?? '바다');
     const size = Math.round(34 + Math.min(30, Math.log2(n) * 6));
     const btn = el('button', { class: 'bubble' + (mine ? ' mine' : '') + (here ? ' here' : ''), on: { click: (e) => { e.stopPropagation(); openCluster(c); } } },
       voxelEl('isles', 3), el('b', {}, n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n)), el('span', { class: 'where' }, where));
@@ -119,10 +118,13 @@ async function showBoard(b) {
     for (let sl = 1; sl <= SLOTS; sl++) { const [cx, cz] = centerOf(sl), [px, py] = pr.P(cx, cz), x = px * k, y = py * k, me0 = sl === mySlotThere;
       if (me0) { tg.strokeStyle = '#ffcf3f'; tg.lineWidth = 3; tg.beginPath(); tg.ellipse(x, y, 34, 18, 0, 0, 7); tg.stroke(); }
       tg.font = '400 13px Jua, sans-serif'; tg.lineWidth = 3; tg.strokeStyle = '#2e241a'; const lab = me0 ? '내 섬' : sh.joined.has(sl) ? String(sl) : ''; if (!lab) continue; tg.strokeText(lab, x, y + 5); tg.fillStyle = me0 ? '#ffe08a' : '#fff'; tg.fillText(lab, x, y + 5); } }
-  card.replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, b.name), xbtn(() => { card.hidden = true; })), el('div', { class: 'note' }, placeLabel(b.lat, b.lng).text), el('div', { class: 'nb' }, el('span', {}, `친구 ${sh.joined.size || b.n || 0}/10`), el('span', {}, `건물 ${sh.buildings || b.bld || 0}`), sh.mine ? el('span', { class: 'ok' }, '내 섬') : null), th,
+  card.replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, b.name), xbtn(() => { card.hidden = true; })), el('div', { class: 'note' }, geo.placeLabel(b.lat, b.lng).text), el('div', { class: 'nb' }, el('span', {}, `친구 ${sh.joined.size || b.n || 0}/10`), el('span', {}, `건물 ${sh.buildings || b.bld || 0}`), sh.mine ? el('span', { class: 'ok' }, '내 섬') : null), th,
     el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기로 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 군도예요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '섬 고르기' : '구경하기')));
 }
+// the coastlines (about 1 MB) load the first time the world opens, not with the game
+let geo = null;
 export async function openWorld() {
+  geo ??= await import('../v2/geo.js');
   setBuildMode(false); $('world').hidden = false; $('wcard').hidden = true; placing = null;
   wboards = await loadBoards();
   const here = wboards.find(b => b.id === BOARD) ?? wboards[0];
@@ -161,6 +163,6 @@ function placeAt(x, y) {
   };
   $('wcard').hidden = false;
   $('wcard').replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, '새 군도'), xbtn(() => { placing = null; $('wcard').hidden = true; drawSpots(); })),
-    el('div', { class: 'note' }, placeLabel(lat, lng).text), el('div', { class: 'nb' }, el('span', {}, '섬 10개'), el('span', {}, '친구 10명까지')), el('div', { class: 'row' }, input, el('button', { class: 'gold', on: { click: make } }, '세우기')), err);
+    el('div', { class: 'note' }, geo.placeLabel(lat, lng).text), el('div', { class: 'nb' }, el('span', {}, '섬 10개'), el('span', {}, '친구 10명까지')), el('div', { class: 'row' }, input, el('button', { class: 'gold', on: { click: make } }, '세우기')), err);
   input.focus(); input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') make(); });
 }

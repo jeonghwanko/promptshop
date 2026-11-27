@@ -29,11 +29,14 @@ const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('base64
 const ADJ = ['느긋한', '용감한', '졸린', '반짝이는', '수줍은', '씩씩한', '배고픈', '다정한', '엉뚱한', '부지런한', '신난', '조용한'];
 const ANIMAL = ['수달', '갈매기', '거북이', '고래', '해달', '펭귄', '물개', '게', '문어', '돌고래', '복어', '불가사리'];
 const pick = (a) => a[crypto.randomInt(a.length)];
-function session(req, res) {
+// The page only hands out a signed cookie; the player's row is made on their first API call, so link-preview bots
+// (which fetch the page and run nothing) leave no players behind. The cookie comes with the page, before any API call,
+// so parallel first calls share one id.
+function session(req, res, { make = true } = {}) {
   const c = /(?:^|;\s*)sid=([\w-]+)\.([\w-]+)/.exec(req.headers.cookie ?? '');
-  if (c && sign(c[1]) === c[2] && store.sql.prepare(`SELECT 1 FROM users WHERE uid = ?`).get(c[1])) return c[1];
-  const uid = crypto.randomBytes(12).toString('base64url').replace(/[-_]/g, 'x');
-  store.sql.prepare(`INSERT INTO users (uid, name, at) VALUES (?, ?, ?)`).run(uid, `${pick(ADJ)} ${pick(ANIMAL)}`, Date.now());
+  const uid = c && sign(c[1]) === c[2] ? c[1] : crypto.randomBytes(12).toString('base64url').replace(/[-_]/g, 'x');
+  if (make) store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at) VALUES (?, ?, ?)`).run(uid, `${pick(ADJ)} ${pick(ANIMAL)}`, Date.now());
+  if (c && uid === c[1]) return uid;
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   res.setHeader('set-cookie', `sid=${uid}.${sign(uid)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${400 * 86400}${secure}`);
   return uid;
@@ -56,6 +59,7 @@ const body = (req, max = 600 * 1024) => new Promise((ok, no) => { const parts = 
 const isMember = (board, uid) => !!store.get(board === 'main' ? 'i' : 'i-' + board, uid) || store.get('boards', board)?.owner === uid;
 const esc = (s) => String(s).replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' })[c]);
 const writes = new Map();   // uid → [times] in the last minute
+setInterval(() => { const t = Date.now() - 60e3; for (const [k, a] of writes) if (a[a.length - 1] < t) writes.delete(k); }, 60e3).unref();   // forget players who stopped writing
 const tooFast = (uid) => { const t = Date.now(), a = (writes.get(uid) ?? []).filter(x => x > t - 60e3); a.push(t); writes.set(uid, a); return a.length > 150; };
 
 // changes wake the long polls that wait on that collection
@@ -71,22 +75,32 @@ function page(url) {
   const title = meta ? `${meta.name} · 빈 섬 ${10 - taken}개` : '한 줄 군도';
   const img = meta && fs.existsSync(path.join(DATA, 'og', board + '.png')) ? `${ORIGIN}/og/${board}.png` : `${ORIGIN}/og/default.png`;
   const tags = `<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="한 줄을 쓰면 Claude가 가게를 지어요. 옆 섬에 살면서 다리를 놓아요."><meta property="og:image" content="${esc(img)}"><meta property="og:url" content="${esc(ORIGIN + url.pathname + url.search)}"><meta name="twitter:card" content="summary_large_image">`;
+  if (BUNDLE) h = h.replace('src="src/game/main.js"', 'src="/dist/main.js"');
   return h.replace('<meta charset="utf-8">', `<meta charset="utf-8">${tags}<script src="/src/site/runtime.js"></script>`);
 }
 const TYPES = { '.html': 'text/html; charset=utf-8', '.js': 'text/javascript; charset=utf-8', '.css': 'text/css; charset=utf-8', '.json': 'application/json', '.png': 'image/png', '.webp': 'image/webp' };
-const PUBLIC = [/^\/src\/.+\.(js|css|png|webp|json)$/, /^\/examples\/isles-seed\.js$/];
+const PUBLIC = [/^\/src\/.+\.(js|css|png|webp|json)$/, /^\/examples\/isles-seed\.js$/, /^\/dist\/[\w.-]+\.js$/];
+// scripts/build-site.mjs bundles the game into dist/ (one minified file and a chunk for the world map); without it the page loads the modules as they are
+const BUNDLE = fs.existsSync(path.join(root, 'dist', 'main.js'));
+/** A file with an ETag, so a returning player's browser asks "changed?" and gets 304 instead of the whole file again. */
+function serveFile(req, res, f, type) {
+  const st = fs.statSync(f), tag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
+  const head = { 'content-type': type, 'cache-control': 'no-cache', etag: tag };
+  if (req.headers['if-none-match'] === tag) { res.writeHead(304, head); return res.end(); }
+  res.writeHead(200, head); fs.createReadStream(f).pipe(res);
+}
 
 http.createServer(async (req, res) => {
   const url = new URL(req.url, 'http://x'), p = url.pathname;
   try {
-    if (p === '/' || p === '/isles.html') { session(req, res); res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-cache' }); return res.end(page(url)); }
+    if (p === '/' || p === '/isles.html') { session(req, res, { make: false }); res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-cache' }); return res.end(page(url)); }
     if (p.startsWith('/og/')) {
       const f = path.join(DATA, 'og', path.basename(p)); if (!/^\/og\/[a-z0-9]{3,24}\.png$/.test(p) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); }
       res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=300' }); return fs.createReadStream(f).pipe(res);
     }
     if (PUBLIC.some(r => r.test(p))) {
       const f = path.join(root, p); if (!f.startsWith(root + path.sep) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); }
-      res.writeHead(200, { 'content-type': TYPES[path.extname(f)] ?? 'application/octet-stream', 'cache-control': 'no-cache' }); return fs.createReadStream(f).pipe(res);
+      return serveFile(req, res, f, TYPES[path.extname(f)] ?? 'application/octet-stream');
     }
     if (!p.startsWith('/api/')) { res.writeHead(404); return res.end('not found'); }
 
