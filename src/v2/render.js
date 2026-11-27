@@ -125,7 +125,8 @@ export function renderView(input, view = 'ext', opt = {}) {
   if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor, look: opt.look }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else scene.add(buildExterior(spec));
   const crisp = opt.crisp ?? CRISP;
   if (crisp && opt.cel) toCel(scene);   // cel bands dull the walls here, so they are off unless asked for
-  const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU * res, { l: 10 * res, r: 56 * res, b: 26 * res, t: 10 * res });   // room on the right and below for the shadow
+  const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU * res, view === 'section' ? { l: 8 * res, r: 18 * res, b: 12 * res, t: 8 * res } : { l: 10 * res, r: 56 * res, b: 26 * res, t: 10 * res });
+  // a building keeps room on the right and below for its shadow; a cut-away (a low floor plate) needs little, and every pixel saved is a bigger room on a phone
   const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.28 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   // one upper floor alone: the shadow falls under that floor, not on the ground far below it

@@ -4,6 +4,7 @@
 import * as THREE from 'three';
 import { surface, mat, glow, shade, tex, texMat } from './materials.js';
 import { TYPES } from './catalog.js';
+import { QUEUE_FRONT, QUEUE_GAP } from './inside.js';
 
 // ---------- zones: what makes each zone recognisable ----------
 // pattern: back (along the back wall), left (along the left wall), rows (grid), center, corner, front, cells (rooms in a row)
@@ -242,7 +243,7 @@ export function buildSection(b, { owned, floor, layout = LAYOUT, look = {} } = {
       const before = cur.children.length, idx = placed.length;
       F0.draw(x, z, oo);
       placed.push({ kind, zone: r.zone, floor: floorName, fi: floorIdx, x, z, y: floorIdx * GAP });
-      if (kind === 'counter') for (let k = 0; k < 4; k++) box(.22, .015, .14, mat(k ? '#e9c46a' : '#f4d35e'), x, 0, z + .55 + k * .32);   // where the line stands
+      if (kind === 'counter') for (let k = 0; k < 4; k++) box(.22, .015, .14, mat(k ? '#e9c46a' : '#f4d35e'), x, 0, z + QUEUE_FRONT + k * QUEUE_GAP);   // where the line stands
       const parts = cur.children.slice(before), fg = new THREE.Group(); fg.userData.fixture = true; for (const m of parts) { cur.remove(m); fg.add(m); }
       const rot = oo?.rot === 90, gw = rot ? fd : (kind === 'counter' ? (oo?.len ?? fw) : fw), gd = rot ? fw : fd; groups.push({ fg, fi: floorIdx, idx, w: gw, d: gd, zone: r.zone });
       // the height of its body (the top of the parts that cover a quarter of its footprint or more: a table top, not the cup on it), for people it hides
@@ -286,6 +287,8 @@ export function buildSection(b, { owned, floor, layout = LAYOUT, look = {} } = {
 let FIX = {};
 function fixtures(box, cyl, ball) {
   const wood = mat('#a8703e'), dark = mat('#4a3a2a'), steel = mat('#b8bcc2'), white = mat('#f4f1ea');
+  const memo = new Map(), M = (c) => { if (!memo.has(c)) memo.set(c, mat(c)); return memo.get(c); };   // one material per colour for the many small parts (a ghost clones its own)
+  const glass = mat('#9fc3d0', { emissive: 0x203040 }), tyre = M('#1a1a1a');
   // a chair on four legs; (bx, bz) points from the seat to its back (away from the table)
   const chair = (x, z, c = '#8a6a4a', bx = 0, bz = 0) => { const m = mat(c), l = mat(shade(c, .7));
     box(.22, .04, .22, m, x, .3, z); for (const [a, b] of [[-.09, -.09], [.09, -.09], [-.09, .09], [.09, .09]]) box(.03, .3, .03, l, x + a, 0, z + b);
@@ -295,7 +298,9 @@ function fixtures(box, cyl, ball) {
   const plate = (x, y, z, food = '#e3a448') => { cyl(.075, .06, .012, white, x, y, z, 12); ball(.035, mat(food), x, y + .025, z); };
   const cup = (x, y, z) => { cyl(.035, .03, .08, white, x, y, z, 8); cyl(.03, .03, .005, mat('#6b3a1e'), x, y + .074, z, 8); };
   return {
-    rug: { size: [1.6, 1.1], draw: (x, z, o) => box(1.6, .02, 1.1, mat(o.color ?? '#a8453a'), x, .02, z) },
+    rug: { size: [1.6, 1.1], draw: (x, z, o) => { const c = o.color ?? '#a8453a';
+      box(1.6, .02, 1.1, M(c), x, .02, z); box(1.36, .022, .86, M(shade(c, 1.25)), x, .02, z); box(1.12, .024, .62, M(c), x, .02, z); box(.5, .026, .26, M('#e3b448'), x, .02, z);   // border, field, medallion
+      for (const a of [-.82, .82]) box(.04, .01, 1.0, M('#efe6d4'), x + a, .02, z); } },   // fringes
     sofa: { size: [1.1, .5], draw: (x, z, o) => { const c = o.color ?? '#5b8a6a', d = mat(shade(c, .75)), m = mat(c), l = mat(shade(c, 1.12));
       box(1.1, .16, .45, d, x, .04, z); for (const a of [-.48, .48]) box(.04, .04, .04, dark, x + a, 0, z + .17);   // base and feet
       box(.12, .36, .45, m, x - .49, .04, z); box(.12, .36, .45, m, x + .49, .04, z);   // arms
@@ -347,53 +352,115 @@ function fixtures(box, cyl, ball) {
       box(1.2, 1.1, .03, mat('#6b4f36'), x, 0, z - .135); box(.04, 1.1, .3, wd, x - .58, 0, z); box(.04, 1.1, .3, wd, x + .58, 0, z); box(1.2, .03, .3, wd, x, 1.07, z);   // back, sides, top
       [.02, .38, .74].forEach((h, r) => { box(1.12, .03, .28, wd, x, h, z); let px = x - .54;
         for (let k = 0; px < x + .46; k++) { const w = .07 + ((k * 5 + r) % 3) * .04, hh = .16 + ((k * 3 + r) % 4) * .035; box(w - .012, hh, .2, mat(C[(k + r * 2) % 6]), px + w / 2, h + .03, z + .01); px += w; } }); } },   // boards full of goods of different sizes
-    stall: { size: [.9, .6], draw: (x, z) => { box(.9, .5, .5, wood, x, 0, z); for (let k = 0; k < 3; k++) ball(.1, mat(['#e2432f', '#e3b448', '#5b8a6a'][k]), x - .25 + k * .25, .58, z); box(.9, .05, .5, mat('#e2432f'), x, 1.0, z); } },
-    crates: { size: [.7, .7], draw: (x, z) => { box(.5, .4, .5, surface('wall', 'wood_boards', '#b8894e', .5, .4), x, 0, z); box(.4, .35, .4, surface('wall', 'wood_boards', '#c99a5e', .4, .35), x + .05, .4, z); } },
-    rolldoor: { size: [1.0, .1], draw: (x, z) => box(1.0, 1.0, .04, mat('#b8bcc4'), x, 0, z - .02) },
-    curtain: { size: [.8, .6], draw: (x, z) => { box(.7, .9, .02, mat('#c06080'), x, 0, z + .3); box(.3, .02, .3, mat('#d8b07a'), x, .02, z); } },
+    stall: { size: [.9, .6], draw: (x, z) => { box(.9, .5, .5, wood, x, 0, z); box(.92, .03, .52, M('#7a4c28'), x, .5, z);
+      [['#e2432f', -.28], ['#e3b448', 0], ['#5b8a6a', .28]].forEach(([c, a]) => { box(.24, .08, .32, M('#b08a5a'), x + a, .53, z); for (let k = 0; k < 4; k++) ball(.05, M(c), x + a - .06 + (k % 2) * .12, .65, z - .08 + Math.floor(k / 2) * .16); });   // baskets of produce
+      for (const [a, b] of [[-.43, -.23], [.43, -.23], [-.43, .23], [.43, .23]]) box(.03, .55, .03, wood, x + a, .5, z + b);
+      for (let k = 0; k < 6; k++) box(.155, .04, .6, M(k % 2 ? '#ffffff' : '#e2432f'), x - .39 + k * .155, 1.03, z + .03); box(.12, .08, .005, white, x + .3, .3, z + .252); } },   // awning, price card
+    crates: { size: [.7, .7], draw: (x, z) => { box(.62, .08, .62, M('#9a7448'), x, 0, z); for (const a of [-.22, 0, .22]) box(.1, .02, .62, M('#b08a5a'), x + a, .08, z);   // a pallet
+      box(.5, .4, .5, surface('wall', 'wood_boards', '#b8894e', .5, .4), x, .1, z); box(.4, .35, .4, surface('wall', 'wood_boards', '#c99a5e', .4, .35), x + .05, .5, z);
+      box(.18, .1, .005, M('#3a2a1c'), x, .25, z + .253); box(.14, .08, .005, M('#c2402e'), x + .05, .62, z + .203); } },   // stencil marks
+    rolldoor: { size: [1.0, .1], draw: (x, z) => { box(1.1, 1.12, .06, M('#7a8088'), x, 0, z - .05);
+      for (let k = 0; k < 10; k++) box(1.0, .095, .04, M(k % 2 ? '#c0c6ce' : '#a9b0b9'), x, k * .1, z - .02);   // slats
+      for (let k = 0; k < 6; k++) box(1.0 / 6, .05, .045, M(k % 2 ? '#2e2e2e' : '#f4d35e'), x - .5 + (k + .5) / 6, 0, z - .015); box(.16, .03, .03, M('#55585e'), x, .12, z + .01); } },   // hazard strip, handle
+    curtain: { size: [.8, .6], draw: (x, z) => { box(.3, .02, .3, M('#d8b07a'), x, .02, z); box(.3, .6, .02, glass, x, .25, z - .28);   // a mat and a mirror
+      for (let k = 0; k < 6; k++) box(.118, .9, .03, M(k % 2 ? '#c06080' : '#a84f6e'), x - .295 + k * .118, 0, z + .3 + (k % 2) * .015);   // folds
+      box(.76, .03, .04, steel, x, .92, z + .3); } },
     bed: { size: [.7, 1.0], draw: (x, z, o) => { const c = o.color ?? '#8a2b3a';
       box(.7, .14, 1.04, wood, x, 0, z + .1); box(.64, .16, .98, white, x, .14, z + .1);   // frame and mattress
       box(.66, .06, .62, mat(c), x, .3, z + .3); box(.66, .07, .08, mat(shade(c, 1.25)), x, .3, z);   // the blanket and its fold
       box(.26, .09, .18, white, x - .15, .3, z - .27); box(.26, .09, .18, white, x + .15, .3, z - .27);   // two pillows
       box(.7, .55, .06, wood, x, 0, z - .42); box(.6, .04, .07, mat('#c99a5e'), x, .55, z - .42); } },
-    flat: { size: [1.8, 1.2], draw: (x, z) => { box(.65, .3, 1.0, white, x - .45, 0, z + .1); box(.65, .06, .6, mat('#5b8a6a'), x - .45, .3, z + .3); box(.7, .3, .35, mat('#c06040'), x + .45, 0, z + .4); box(.4, .04, .4, wood, x + .45, .42, z - .2); } },
-    wardrobe: { size: [.5, .4], draw: (x, z) => box(.5, 1.2, .4, wood, x, 0, z) },
+    flat: { size: [1.8, 1.2], draw: (x, z) => { box(.65, .3, 1.0, white, x - .45, 0, z + .1); box(.65, .06, .6, M('#5b8a6a'), x - .45, .3, z + .3); box(.26, .08, .16, white, x - .45, .3, z - .3);   // bed, blanket, pillow
+      box(.7, .3, .35, M('#c06040'), x + .45, 0, z + .4); box(.7, .22, .08, M('#a84f36'), x + .45, .3, z + .55);   // a sofa with its back
+      box(.6, .01, .45, M('#e3b448'), x + .45, .01, z - .2); box(.4, .04, .4, wood, x + .45, .42, z - .2); box(.04, .42, .04, dark, x + .45, 0, z - .2); cup(x + .5, .46, z - .2);   // rug, table, cup
+      cyl(.02, .02, .7, steel, x + .1, 0, z - .45, 4); cyl(.07, .1, .12, M('#f4e2b8'), x + .1, .7, z - .45, 10); } },   // a reading lamp
+    wardrobe: { size: [.5, .4], draw: (x, z) => { box(.5, 1.2, .4, wood, x, .04, z); box(.54, .05, .44, M('#7a4c28'), x, 1.24, z); box(.01, 1.1, .005, M('#5a3a24'), x, .1, z + .201);
+      for (const a of [-.04, .04]) box(.02, .15, .02, M('#e3c48a'), x + a, .6, z + .21); for (const a of [-.2, .2]) box(.04, .04, .04, dark, x + a, 0, z + .15); } },
     desk: { size: [.8, .7], draw: (x, z) => { box(.8, .04, .45, mat('#e4e8ea'), x, .5, z); box(.04, .5, .4, mat('#9aa0a6'), x - .36, 0, z); box(.04, .5, .4, mat('#9aa0a6'), x + .36, 0, z);
       box(.06, .1, .04, mat('#2e2e2e'), x, .54, z - .13); box(.34, .22, .03, mat('#2e2e2e'), x, .62, z - .13); box(.3, .17, .01, glow('#8fc8e8'), x, .645, z - .113);   // a monitor
       box(.24, .015, .08, mat('#3a3d42'), x - .02, .54, z + .06); box(.04, .015, .06, mat('#3a3d42'), x + .16, .54, z + .07);   // keyboard and mouse
       cyl(.03, .03, .07, mat('#e2432f'), x + .3, .54, z - .05, 8); chair(x, z + .35, '#3b4150', 0, 1); } },
     desk1: { size: [.5, .5], draw: (x, z) => { box(.45, .04, .3, wood, x, .42, z); box(.04, .42, .04, dark, x - .18, 0, z); box(.04, .42, .04, dark, x + .18, 0, z); box(.16, .025, .12, mat('#2e86ab'), x - .06, .46, z); chair(x, z + .25, '#2e5d8a', 0, 1); } },
-    couch: { size: [.5, 1.0], draw: (x, z) => box(.5, .45, 1.0, mat('#9fc3d0'), x, 0, z) },
-    lowtable: { size: [.9, .6], draw: (x, z) => { box(.9, .08, .6, mat('#6b4026'), x, .2, z); for (const [a, b] of [[-.35, -.2], [.35, -.2], [-.35, .2], [.35, .2]]) box(.06, .2, .06, mat('#4a3020'), x + a, 0, z + b); } },
-    bench: { size: [.9, .3], draw: (x, z) => { box(.9, .05, .3, wood, x, .3, z); box(.06, .3, .26, dark, x - .38, 0, z); box(.06, .3, .26, dark, x + .38, 0, z); } },
-    board: { size: [1.4, .1], draw: (x, z) => { box(1.4, .7, .04, mat('#2f4a3a'), x, .55, z - .02); box(1.44, .04, .06, wood, x, .53, z); } },
-    kiosk: { size: [.6, .6], draw: (x, z) => { box(.6, .9, .6, mat('#e3b448'), x, 0, z); } },
-    seats: { size: [1.2, .4], draw: (x, z, o) => { for (let k = 0; k < 4; k++) { box(.24, .06, .26, mat(o.color ?? '#8a2b3a'), x - .45 + k * .3, .3, z); box(.24, .3, .05, mat(shade(o.color ?? '#8a2b3a', .8)), x - .45 + k * .3, .3, z + .12); } box(1.2, .3, .04, dark, x, 0, z); } },
-    stage: { size: [2.0, .9], draw: (x, z) => { box(2.0, .3, .9, mat('#6b4026'), x, 0, z); box(2.0, 1.1, .05, mat('#8a2b3a'), x, .3, z - .42); } },
-    treadmill: { size: [.5, .9], draw: (x, z) => { box(.45, .12, .85, mat('#2e2e2e'), x, 0, z); box(.45, .06, .1, mat('#5b5b5b'), x, .75, z - .38); box(.04, .75, .04, mat('#5b5b5b'), x - .2, 0, z - .38); box(.04, .75, .04, mat('#5b5b5b'), x + .2, 0, z - .38); } },
-    weights: { size: [1.0, .4], draw: (x, z) => { box(1.0, .5, .3, mat('#4a4a4a'), x, 0, z); for (let k = 0; k < 4; k++) cyl(.08, .08, .1, mat('#2b2b2b'), x - .35 + k * .23, .5, z, 8); } },
-    locker: { size: [1.2, .35], draw: (x, z) => { for (let k = 0; k < 4; k++) box(.28, 1.1, .35, mat(k % 2 ? '#5b7a9a' : '#4f6e8e'), x - .45 + k * .3, 0, z); } },
-    pool: { size: [2.4, 1.6], draw: (x, z) => { box(2.4, .05, 1.6, mat('#e8eef2'), x, 0, z); box(2.2, .06, 1.4, mat('#4fb3d9', { emissive: 0x0a3040 }), x, .01, z); } },
-    lane: { size: [.5, 2.0], draw: (x, z) => { box(.45, .03, 2.0, mat('#e8c088'), x, .01, z); for (let k = 0; k < 3; k++) cyl(.04, .05, .18, white, x - .1 + k * .1, .04, z - .85, 6); } },
-    platform: { size: [2.0, .5], draw: (x, z) => { box(2.4, .3, .5, mat('#9aa0a6'), x, 0, z); box(2.4, .02, .06, mat('#e3b448'), x, .3, z - .2); } },
-    machine: { size: [.8, .7], draw: (x, z) => { box(.8, .8, .6, mat('#6f7f8f'), x, 0, z); box(.3, .2, .02, glow('#7fdfa0'), x, .5, z + .31); cyl(.12, .12, .2, mat('#e3b448'), x + .25, .8, z, 8); } },
-    conveyor: { size: [2.0, .4], draw: (x, z) => { box(2.0, .4, .35, mat('#3a3d42'), x, 0, z); for (let k = 0; k < 4; k++) box(.2, .14, .2, mat('#c99a5e'), x - .7 + k * .45, .4, z); } },
-    car: { size: [.6, 1.0], draw: (x, z, o) => { box(.55, .25, .95, mat(o.color ?? '#2e86ab'), x, .05, z); box(.5, .2, .5, mat(shade(o.color ?? '#2e86ab', .8)), x, .3, z); } },
-    firetruck: { size: [.7, 1.4], draw: (x, z) => { box(.65, .5, 1.35, mat('#c23b2b'), x, .05, z); box(.5, .08, 1.0, mat('#d8d8d8'), x, .55, z + .1); } },
-    pedestal: { size: [.5, .5], draw: (x, z, o) => { box(.4, .6, .4, white, x, 0, z); ball(.14, mat(o.color ?? '#c9a24a'), x, .75, z); } },
-    frame: { size: [.8, .1], draw: (x, z, o) => box(.6, .45, .03, mat(o.color ?? '#8064a2'), x, .65, z - .03) },
-    tv: { size: [1.0, .3], draw: (x, z) => { box(.9, .3, .3, wood, x, 0, z); box(.8, .45, .04, mat('#1d1f2a'), x, .35, z); } },
-    altar: { size: [1.2, .5], draw: (x, z) => { box(1.2, .6, .5, mat('#e8dcc4'), x, 0, z); cyl(.03, .03, .4, mat('#c9a24a'), x, .6, z, 4); box(.3, .04, .04, mat('#c9a24a'), x, .88, z); } },
-    pew: { size: [1.2, .4], draw: (x, z) => { box(1.2, .05, .3, wood, x, .3, z); box(1.2, .35, .05, wood, x, .3, z + .14); box(1.2, .3, .04, dark, x, 0, z); } },
-    prayer: { size: [.5, .8], draw: (x, z) => box(.45, .02, .75, mat('#8a2b3a'), x, .01, z) },
-    balls: { size: [.6, .6], draw: (x, z) => { ball(.12, mat('#e2432f'), x - .2, .12, z); ball(.12, mat('#2e86ab'), x + .1, .12, z + .15); ball(.12, mat('#e3b448'), x + .2, .12, z - .15); } },
-    court: { size: [2.2, 1.6], draw: (x, z) => { box(2.2, .02, 1.6, mat('#c98a4b'), x, .01, z); box(2.0, .025, .03, white, x, .01, z); box(.03, .025, 1.4, white, x, .01, z); } },
+    couch: { size: [.5, 1.0], draw: (x, z) => { const c = '#9fc3d0';
+      box(.5, .16, 1.0, M(shade(c, .75)), x, .04, z); box(.38, .1, .86, M(shade(c, 1.1)), x + .05, .2, z); box(.12, .38, 1.0, M(c), x - .19, .2, z);   // base, seat, back
+      for (const b of [-.46, .46]) box(.5, .32, .08, M(c), x, .04, z + b); box(.06, .16, .18, M('#e8c35a'), x - .1, .3, z - .25); } },   // arms and a cushion
+    lowtable: { size: [.9, .6], draw: (x, z) => { box(.9, .08, .6, M('#6b4026'), x, .2, z); for (const [a, b] of [[-.35, -.2], [.35, -.2], [-.35, .2], [.35, .2]]) box(.06, .2, .06, M('#4a3020'), x + a, 0, z + b);
+      ball(.06, M('#5b8a6a'), x - .15, .34, z); box(.06, .02, .02, M('#5b8a6a'), x - .08, .35, z); cyl(.03, .025, .04, white, x + .05, .28, z + .1, 8); cyl(.03, .025, .04, white, x + .18, .28, z - .08, 8);   // a teapot and cups
+      for (const b of [-.45, .45]) box(.34, .05, .3, M('#c2402e'), x, 0, z + b); } },   // floor cushions
+    bench: { size: [.9, .3], draw: (x, z) => { for (const b of [-.1, 0, .1]) box(.9, .03, .08, wood, x, .3, z + b); box(.06, .3, .26, dark, x - .38, 0, z); box(.06, .3, .26, dark, x + .38, 0, z); box(.7, .03, .03, dark, x, .12, z); } },
+    board: { size: [1.4, .1], draw: (x, z) => { box(1.4, .7, .04, M('#2f4a3a'), x, .55, z - .02); box(1.44, .04, .06, wood, x, .53, z); box(1.44, .04, .06, wood, x, 1.25, z - .01);
+      for (const a of [-.7, .7]) box(.04, .76, .06, wood, x + a, .53, z - .01);
+      [[.5, .55], [.8, .4], [.3, .7], [.6, .5]].forEach(([w, a], k) => box(w, .02, .005, M('#e8eef2'), x - .62 + w / 2 + (k % 2) * .1, .7 + k * .13 + (a - .5) * 0, z + .002));   // chalk lines
+      box(.1, .02, .03, white, x + .45, .57, z + .03); } },
+    kiosk: { size: [.6, .6], draw: (x, z) => { box(.6, .9, .6, M('#e3b448'), x, 0, z); box(.4, .3, .005, M('#26292e'), x, .45, z + .302); box(.5, .04, .12, white, x, .42, z + .34);   // booth, window, ledge
+      for (let k = 0; k < 5; k++) box(.12, .04, .72, M(k % 2 ? '#ffffff' : '#e2432f'), x - .24 + k * .12, .9, z + .05);   // a striped awning
+      box(.44, .14, .04, M('#2e5d8a'), x, .94, z - .2); box(.3, .05, .005, M('#ffd25a'), x, .98, z - .178); } },
+    seats: { size: [1.2, .4], draw: (x, z, o) => { const c = o.color ?? '#8a2b3a';
+      for (let k = 0; k < 4; k++) { box(.24, .06, .26, M(c), x - .45 + k * .3, .3, z); box(.24, .3, .05, M(shade(c, .8)), x - .45 + k * .3, .3, z + .12); box(.24, .03, .06, M(shade(c, .6)), x - .45 + k * .3, .6, z + .12); }   // cushion, back, its cap
+      for (let k = 0; k < 5; k++) box(.04, .14, .26, dark, x - .6 + k * .3, .3, z); box(1.2, .3, .04, dark, x, 0, z); } },   // armrests between
+    stage: { size: [2.0, .9], draw: (x, z) => { box(2.0, .3, .9, M('#6b4026'), x, 0, z); box(2.0, .04, .02, M('#c9a24a'), x, .26, z + .45); box(2.0, 1.1, .05, M('#8a2b3a'), x, .3, z - .42);
+      for (const a of [-.88, .88]) for (let k = 0; k < 3; k++) box(.08, 1.3, .1, M(k % 2 ? '#a82b3a' : '#8a1f2e'), x + a + (a < 0 ? k : -k) * .08, .3, z - .32);   // curtains drawn back
+      cyl(.012, .012, .5, dark, x + .3, .3, z + .1, 4); ball(.035, M('#2e2e2e'), x + .3, .82, z + .1); box(.4, .15, .2, M('#5a3a24'), x - .5, 0, z + .55); } },   // a mic, steps
+    treadmill: { size: [.5, .9], draw: (x, z) => { box(.45, .12, .85, M('#2e2e2e'), x, 0, z); box(.36, .012, .72, M('#1a1a1a'), x, .12, z + .04); for (const a of [-.2, .2]) box(.04, .04, .72, M('#5b5b5b'), x + a, .12, z + .04);
+      box(.45, .06, .1, M('#5b5b5b'), x, .75, z - .38); box(.2, .05, .005, glow('#7fdfa0'), x, .755, z - .328); box(.04, .75, .04, M('#5b5b5b'), x - .2, 0, z - .38); box(.04, .75, .04, M('#5b5b5b'), x + .2, 0, z - .38);
+      for (const a of [-.2, .2]) box(.03, .03, .25, M('#c2402e'), x + a, .7, z - .25); } },   // handles
+    weights: { size: [1.0, .4], draw: (x, z) => { box(1.0, .5, .3, M('#4a4a4a'), x, 0, z); box(1.0, .03, .32, M('#2e2e2e'), x, .5, z);
+      for (let k = 0; k < 5; k++) { const px = x - .4 + k * .2, s = .07 + k * .006; for (const b of [-.07, .07]) box(.04, s, s, M('#2b2b2b'), px, .53, z + b); box(.015, .015, .14, steel, px, .53 + s / 2 - .008, z); }   // dumbbells, light to heavy
+      for (const [a, c] of [[-.38, '#c2402e'], [-.2, '#2e5d8a']]) box(.03, .24, .24, M(c), x + a, .12, z + .165); } },   // plates leaning on the front
+    locker: { size: [1.2, .35], draw: (x, z) => { for (let k = 0; k < 4; k++) { const xk = x - .45 + k * .3; box(.28, 1.1, .35, M(k % 2 ? '#5b7a9a' : '#4f6e8e'), xk, 0, z);
+      for (const h of [.95, .91, .87]) box(.16, .012, .005, M('#2e3e52'), xk, h, z + .176); box(.02, .07, .02, steel, xk + .09, .55, z + .18); box(.06, .04, .005, white, xk, 1.01, z + .176); } } },   // vents, handle, number
+    pool: { size: [2.4, 1.6], draw: (x, z) => { box(2.4, .05, 1.6, M('#e8eef2'), x, 0, z); box(2.24, .055, 1.44, M('#bfe0ea'), x, .005, z); box(2.2, .06, 1.4, mat('#4fb3d9', { emissive: 0x0a3040 }), x, .01, z);   // deck, tiled rim, water
+      for (let k = 1; k <= 3; k++) for (let j = 0; j < 11; j++) box(.2, .02, .025, M((j + k) % 2 ? '#e2432f' : '#f4d35e'), x - 1.0 + j * .2, .07, z - .7 + k * .35);   // lane ropes
+      for (const a of [-.12, .12]) { cyl(.015, .015, .35, steel, x + .95 + a * 0, .05, z + .55 + a, 4); } box(.02, .02, .26, steel, x + .95, .38, z + .55); } },   // a ladder
+    lane: { size: [.5, 2.0], draw: (x, z) => { box(.45, .03, 2.0, M('#e8c088'), x, .01, z); for (const a of [-.245, .245]) box(.04, .02, 2.0, M('#4a3a2a'), x + a, 0, z);   // the lane and its gutters
+      for (let k = 0; k < 3; k++) box(.03, .005, .06, M('#8a5a30'), x - .08 + k * .08, .04, z + .4);   // aiming arrows
+      for (const [a, b] of [[0, 0], [-.05, -.08], [.05, -.08], [-.1, -.16], [0, -.16], [.1, -.16]]) cyl(.022, .03, .14, white, x + a, .04, z - .78 + b, 6);   // pins
+      ball(.065, M('#2e5d8a'), x + .05, .105, z + .8); } },
+    platform: { size: [2.0, .5], draw: (x, z) => { box(2.4, .3, .5, M('#9aa0a6'), x, 0, z); box(2.4, .02, .06, M('#e3b448'), x, .3, z - .2); box(2.4, .005, .1, M('#d8c070'), x, .3, z - .1);   // edge line, tactile strip
+      for (const a of [.4, .6]) box(2.4, .03, .04, steel, x, 0, z + a); for (let k = 0; k < 8; k++) box(.08, .02, .4, M('#6b4f36'), x - 1.05 + k * .3, 0, z + .5);   // rails and sleepers
+      cyl(.02, .02, .7, steel, x + .8, .3, z + .1, 4); box(.5, .14, .03, M('#2e5d8a'), x + .8, .95, z + .1); box(.36, .04, .005, white, x + .8, 1.0, z + .117); } },   // a sign
+    machine: { size: [.8, .7], draw: (x, z) => { box(.8, .8, .6, M('#6f7f8f'), x, 0, z); box(.3, .2, .02, glow('#7fdfa0'), x, .5, z + .31); cyl(.12, .12, .2, M('#e3b448'), x + .25, .8, z, 8);
+      for (const [a, c] of [[-.2, '#c2402e'], [-.12, '#5fb04a']]) box(.05, .05, .03, M(c), x + a, .35, z + .31);   // buttons
+      for (let k = 0; k < 8; k++) box(.1, .06, .005, M(k % 2 ? '#2e2e2e' : '#f4d35e'), x - .35 + k * .1, .02, z + .302);   // hazard stripes
+      cyl(.05, .05, .5, M('#9aa0a6'), x - .3, .8, z - .15, 8); } },   // a pipe
+    conveyor: { size: [2.0, .4], draw: (x, z) => { box(2.0, .08, .35, M('#2b2d31'), x, .32, z); for (const b of [-.18, .18]) box(2.0, .06, .03, M('#e3b448'), x, .36, z + b);   // belt and rails
+      for (let k = 0; k < 10; k++) box(.02, .005, .33, M('#55585e'), x - .9 + k * .2, .4, z);
+      for (const [a, b] of [[-.9, -.15], [.9, -.15], [-.9, .15], [.9, .15], [0, -.15], [0, .15]]) box(.05, .32, .05, M('#55585e'), x + a, 0, z + b);   // legs
+      for (let k = 0; k < 4; k++) { box(.2, .14, .2, M('#c99a5e'), x - .7 + k * .45, .405, z); box(.2, .02, .04, M('#e8d4a8'), x - .7 + k * .45, .545, z); } } },   // boxes with tape
+    car: { size: [.6, 1.0], draw: (x, z, o) => { const c = o.color ?? '#2e86ab';
+      box(.55, .25, .95, M(c), x, .07, z); box(.5, .2, .5, M(shade(c, .85)), x, .32, z - .03); box(.46, .15, .02, glass, x, .34, z + .23); box(.46, .13, .02, glass, x, .35, z - .29);   // body, cabin, windows
+      for (const [a, b] of [[-.27, -.3], [.27, -.3], [-.27, .3], [.27, .3]]) box(.06, .16, .16, tyre, x + a, 0, z + b);
+      for (const a of [-.18, .18]) { box(.08, .05, .01, glow('#fff2c0'), x + a, .2, z + .476); box(.08, .05, .01, glow('#e2432f'), x + a, .2, z - .476); } } },
+    firetruck: { size: [.7, 1.4], draw: (x, z) => { box(.65, .5, 1.35, M('#c23b2b'), x, .08, z); box(.66, .05, 1.36, M('#f4f1ea'), x, .25, z);   // body and its stripe
+      box(.55, .16, .02, glass, x, .36, z + .676); for (const [a, b] of [[-.3, -.45], [.3, -.45], [-.3, .45], [.3, .45]]) box(.08, .2, .2, tyre, x + a, 0, z + b);
+      box(.12, .05, .08, glow('#ff5040'), x - .1, .58, z + .55); box(.12, .05, .08, glow('#5aa0ff'), x + .1, .58, z + .55);   // lights
+      for (const a of [-.18, .18]) box(.04, .04, 1.0, M('#d8d8d8'), x + a, .6, z - .1); for (let k = 0; k < 8; k++) box(.36, .02, .03, M('#d8d8d8'), x, .61, z - .55 + k * .13); } },   // a ladder
+    pedestal: { size: [.5, .5], draw: (x, z, o) => { box(.46, .06, .46, M('#d8d4cc'), x, 0, z); box(.4, .54, .4, white, x, .06, z); box(.44, .04, .44, M('#d8d4cc'), x, .6, z); box(.16, .06, .005, M('#c9a24a'), x, .4, z + .201);
+      cyl(.05, .07, .08, M('#4a3a2a'), x, .64, z, 8); ball(.14, M(o.color ?? '#c9a24a'), x, .84, z); } },
+    frame: { size: [.8, .1], draw: (x, z, o) => { box(.68, .53, .03, M('#c9a24a'), x, .61, z - .035); box(.6, .45, .01, M(o.color ?? '#8064a2'), x, .65, z - .015);
+      box(.6, .14, .005, M('#5b8a6a'), x, .65, z - .008); box(.08, .08, .005, M('#ffd25a'), x + .15, .92, z - .008); box(.2, .04, .06, M('#2e2e2e'), x, 1.18, z - .02); } },   // a hill, a sun, a picture light
+    tv: { size: [1.0, .3], draw: (x, z) => { box(.9, .3, .3, wood, x, 0, z); box(.005, .26, .005, M('#5a3a24'), x, .02, z + .151); box(.2, .04, .1, M('#2e2e2e'), x, .3, z);
+      box(.8, .45, .04, M('#1d1f2a'), x, .35, z); box(.74, .39, .005, glow('#5aa0d8'), x, .38, z + .021); box(.3, .12, .005, glow('#8fe0a0'), x - .15, .4, z + .024); box(.5, .05, .06, M('#2e2e2e'), x, .3, z + .1); } },   // stand, screen with a picture, soundbar
+    altar: { size: [1.2, .5], draw: (x, z) => { box(1.2, .6, .5, M('#e8dcc4'), x, 0, z); box(1.22, .02, .52, white, x, .6, z); box(.4, .4, .005, M('#8a2b3a'), x, .2, z + .252);   // cloth
+      cyl(.03, .03, .4, M('#c9a24a'), x, .6, z, 4); box(.3, .04, .04, M('#c9a24a'), x, .88, z);
+      for (const a of [-.42, .42]) { cyl(.025, .025, .16, white, x + a, .62, z, 6); ball(.02, glow('#ffd27a'), x + a, .8, z); }   // candles
+      cyl(.04, .03, .1, M('#2e5d8a'), x + .25, .62, z - .1, 8); ball(.06, M('#e2557a'), x + .25, .76, z - .1); } },   // flowers
+    pew: { size: [1.2, .4], draw: (x, z) => { box(1.2, .05, .3, wood, x, .3, z); box(1.1, .02, .26, M('#8a2b3a'), x, .35, z); box(1.2, .35, .05, wood, x, .3, z + .14); box(1.2, .3, .04, dark, x, 0, z);
+      for (const a of [-.6, .6]) box(.05, .7, .38, M('#7a4c28'), x + a, 0, z + .02); box(1.1, .04, .08, M('#7a4c28'), x, .5, z + .2); } },   // ends and a book ledge
+    prayer: { size: [.5, .8], draw: (x, z) => { box(.45, .02, .75, M('#8a2b3a'), x, .01, z); box(.37, .022, .6, M('#b0414a'), x, .01, z + .03); box(.2, .024, .16, M('#c9a24a'), x, .01, z - .22);   // field and its arch
+      for (const b of [-.39, .39]) box(.4, .01, .03, M('#efe6d4'), x, .01, z + b); } },
+    balls: { size: [.6, .6], draw: (x, z) => { [[-.2, 0, '#e2432f'], [.1, .15, '#2e86ab'], [.2, -.15, '#e3b448'], [-.05, -.2, '#5fb04a'], [-.22, .2, '#8064a2'], [.25, .18, '#f08a3a'], [0, .02, '#e2557a']]
+      .forEach(([a, b, c], k) => ball(.1 + (k % 3) * .015, M(c), x + a, .11 + (k === 6 ? .14 : 0), z + b)); } },
+    court: { size: [2.2, 1.6], draw: (x, z) => { const c = M('#c98a4b'); box(2.2, .02, 1.6, c, x, .01, z);
+      for (const b of [-.75, .75]) box(2.1, .025, .03, white, x, .01, z + b); for (const a of [-1.05, 0, 1.05]) box(.03, .025, 1.5, white, x + a, .01, z);   // lines
+      cyl(.26, .26, .026, white, x, .01, z, 20); cyl(.235, .235, .027, c, x, .01, z, 20);   // the centre circle
+      for (const s of [-1, 1]) { cyl(.025, .025, 1.0, steel, x + s * 1.12, 0, z, 4); box(.03, .25, .35, white, x + s * 1.08, .95, z); cyl(.08, .08, .015, M('#f08a3a'), x + s * .99, .98, z, 10); } } },   // hoops
     ring: { size: [2.0, 2.0], draw: (x, z) => { box(1.9, .35, 1.9, mat('#2e5d8a'), x, 0, z); box(1.7, .02, 1.7, mat('#e8eef2'), x, .35, z);
       for (const [a, b] of [[-1, -1], [1, -1], [-1, 1], [1, 1]]) box(.1, .7, .1, mat(a * b > 0 ? '#d6332a' : '#2e86ab'), x + a * .88, .35, z + b * .88);
       for (const h of [.6, .85]) { box(1.76, .03, .03, white, x, h, z + .88); box(1.76, .03, .03, white, x, h, z - .88); box(.03, .03, 1.76, white, x + .88, h, z); box(.03, .03, 1.76, white, x - .88, h, z); } } },
     diamond: { size: [2.2, 2.2], draw: (x, z) => { const d = box(1.6, .03, 1.6, mat('#c98a4b'), x, .01, z); d.rotation.y = Math.PI / 4; const g = box(1.0, .035, 1.0, mat('#5f9e4f'), x, .01, z); g.rotation.y = Math.PI / 4;
       for (const [a, b] of [[0, .78], [.78, 0], [0, -.78], [-.78, 0]]) box(.12, .05, .12, white, x + a, .02, z + b); } },
-    lamp: { size: [.3, .3], draw: (x, z) => { cyl(.02, .02, 1.2, steel, x + .4, 0, z, 4); ball(.12, glow('#fff2c0'), x + .4, 1.2, z); } },
+    lamp: { size: [.3, .3], draw: (x, z) => { cyl(.08, .1, .03, dark, x + .4, 0, z, 10); cyl(.02, .02, 1.1, steel, x + .4, 0, z, 4); cyl(.1, .16, .18, M('#f4e2b8'), x + .4, 1.05, z, 12); ball(.07, glow('#fff2c0'), x + .4, 1.08, z); } },
   };
 }
 export const FIXTURE_NAMES = ['ring', 'diamond', 'rug', 'sofa', 'plant', 'counter', 'stool', 'table4', 'table2', 'stove', 'fridge', 'prep', 'toilet', 'sink', 'gondola', 'shelf', 'stall', 'crates', 'rolldoor', 'curtain', 'bed', 'flat', 'wardrobe', 'desk', 'desk1', 'couch', 'lowtable', 'bench', 'board', 'kiosk', 'seats', 'stage', 'treadmill', 'weights', 'locker', 'pool', 'lane', 'platform', 'machine', 'conveyor', 'car', 'firetruck', 'pedestal', 'frame', 'tv', 'altar', 'pew', 'prayer', 'balls', 'court', 'lamp'];

@@ -127,6 +127,8 @@ export function bestNext(fixtures, owned, baseCoin = 3, order, helpers = 0, lv =
 }
 
 const SPEED = 1.5, LIFT = 2.4, PRICE = 4;
+/** Where a counter's line stands: the first spot in front of it, then one every QUEUE_GAP (wide enough that the figures don't overlap). */
+export const QUEUE_FRONT = .55, QUEUE_GAP = .4;
 
 export class InsideSim {
   /** plan/fixtures from buildSection; owned: Set of fixture indices */
@@ -206,7 +208,7 @@ export class InsideSim {
           this.toCounter(p); break;
         }
         case 'browse': if ((p.wait -= dt) <= 0) this.toCounter(p); break;
-        case 'queue': { const c = p.counter, k = c.q.indexOf(p.id); if (k >= 0) { const tz = c.z + .55 + k * .32; if (Math.abs(p.z - tz) > .02 || Math.abs(p.x - c.x) > .02) p.moves.push({ f: c.fi, x: c.x, z: tz }); } p.mood = k > 2 ? 'wait' : ''; break; }
+        case 'queue': { const c = p.counter, k = c.q.indexOf(p.id); if (k >= 0) { const t = this.queueSpot(c, k); if (Math.abs(p.z - t.z) > .02 || Math.abs(p.x - t.x) > .02) p.moves.push({ f: c.fi, x: t.x, z: t.z }); } p.mood = k > 2 ? 'wait' : ''; break; }
         case 'standing': if (this.findSeat(p)) { p.mood = ''; break; } if ((p.wait -= dt) <= 0) { this.stats.lostSeat++; this.events.push({ kind: 'lost', f: p.f, x: p.x, z: p.z, why: '자리 없음' }); this.leave(p, 'angry'); } break;
         case 'toSeat':
           // no counter: the order is taken at the table and waits for the kitchen
@@ -226,12 +228,19 @@ export class InsideSim {
     }
     this.people = this.people.filter(p => p.state !== 'gone');
   }
+  /** The k-th place in a counter's line: straight out from the counter, then along the front wall toward the middle when it reaches it. */
+  queueSpot(c, k) {
+    const D = this.plan.D, W = this.plan.W, zMax = D ? D / 2 - .3 : Infinity, z = c.z + QUEUE_FRONT + k * QUEUE_GAP;
+    if (z <= zMax) return { x: c.x, z };
+    const n = Math.ceil((z - zMax) / QUEUE_GAP), dir = c.x > 0 ? -1 : 1, x = c.x + dir * n * QUEUE_GAP;
+    return { x: W ? Math.max(-W / 2 + .3, Math.min(W / 2 - .3, x)) : x, z: Math.max(c.z + QUEUE_FRONT, zMax) };
+  }
   pay(n, f, x, z, tip) { this.stats.coins += n; this.events.push({ kind: 'coin', f, x, z, n, tip }); }
   toCounter(p) {
     if (!this.counters.length) return this.afterCounter(p);
     const c = this.counters.reduce((a, b) => (b.q.length + (b.busy ? 1 : 0) < a.q.length + (a.busy ? 1 : 0) ? b : a));
     if (c.q.length >= 7) { this.stats.lostLine++; this.events.push({ kind: 'lost', f: 0, x: p.x, z: p.z, why: '줄이 길어' }); return this.leave(p, 'angry'); }
-    c.q.push(p.id); p.counter = c; p.state = 'queue'; this.route(p, c.fi, c.x, c.z + .55 + (c.q.length - 1) * .32);
+    c.q.push(p.id); p.counter = c; p.state = 'queue'; const t = this.queueSpot(c, c.q.length - 1); this.route(p, c.fi, t.x, t.z);
   }
   walk(p, dt) {
     const m = p.moves[0];

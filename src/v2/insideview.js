@@ -61,7 +61,7 @@ export class InsideView {
     // bought fixtures as screen boxes, to hide the part of a person they stand in front of
     this.occ = []; v.fixtures.forEach((f, i) => { if (!owned(this.owned, i) || !(f.h > .25) || !f.body) return;
       this.occ.push({ fi: f.fi, stand: f.kind === 'counter', x0: f.x + f.body[0], x1: f.x + f.body[1], z0: f.z + f.body[2], z1: f.z + f.body[3], y: f.y + f.h }); });
-    const W = v.canvas.width / R, H = v.canvas.height / R, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 4) / 4);   // whole steps when there is room, quarter steps for tall buildings
+    const W = v.canvas.width / R, H = v.canvas.height / R, fit = Math.min(this.maxZoom ?? 3, this.maxWidth / W, this.maxHeight / H), z = Math.max(1, fit >= 2 ? Math.floor(fit) : Math.floor(fit * 8) / 8);   // whole steps when there is room, eighths on a phone or for tall buildings
     // the zoom and the box are fixed at the first drawing: changing floor or buying must not resize the view (it jumps and shakes)
     const zz = this.lockZ ?? (this.lockZ = z); this.zoom = zz; this.top.width = v.canvas.width; this.top.height = v.canvas.height;
     { const z = zz;
@@ -214,7 +214,7 @@ export class InsideView {
       const tag = (x, y, text, ok, big) => { g.font = 'bold 7px system-ui'; const w = Math.ceil(g.measureText(text).width) + 9, bx = Math.round(x - w / 2), by = Math.round(y - 10 - (big ? Math.abs(Math.sin(performance.now() / 200)) * 2 : 0));
         g.fillStyle = '#2b1e15'; g.fillRect(bx - 1, by - 1, w + 2, 10); g.fillStyle = ok ? '#f2c12e' : '#b8ad98'; g.fillRect(bx, by, w, 8);
         g.fillStyle = ok ? '#c48a1a' : '#8f8573'; g.fillRect(bx, by + 7, w, 1); g.fillStyle = '#2b1e15'; g.fillRect(Math.round(x), by + 8, 1, 2);
-        g.fillStyle = '#c48a1a'; g.fillRect(bx + 2, by + 2, 3, 4); tg.font = 'bold 7px system-ui, "Noto Sans KR", sans-serif'; tg.fillStyle = '#2b1e15'; tg.textAlign = 'left'; tg.fillText(text, bx + 7, by + 6.6); };
+        if (this.R >= 2) dots(g, bx + 1.5, by + 1, COIN, { o: '#c48a1a', y: '#ffd25a' }, null); else { g.fillStyle = '#c48a1a'; g.fillRect(bx + 2, by + 2, 3, 4); } tg.font = 'bold 7px system-ui, "Noto Sans KR", sans-serif'; tg.fillStyle = '#2b1e15'; tg.textAlign = 'left'; tg.fillText(text, bx + 7, by + 6.6); };
       const few = new Set([...can].filter(i => this.onFloor(this.fx[i].y)).sort((a, b) => costOf(this.fx[a].kind) - costOf(this.fx[b].kind)).slice(0, 2)); if (this.hot >= 0) few.add(this.hot); if (this.flash >= 0 && can.has(this.flash)) few.add(this.flash);
       this.fx.forEach((f, i) => { if (!few.has(i) || !this.onFloor(f.y)) return; const [x, y] = P(f.x, f.y + .9, f.z); tag(x, y, String(costOf(f.kind)), this.coins() >= costOf(f.kind), this.suggest?.has(f.kind)); });
       if (this.sel >= 0 && this.owned.has(this.sel) && this.onFloor(this.fx[this.sel].y)) { const f = this.fx[this.sel], L = this.levels[this.sel] ?? 1; const [x, y] = P(f.x, f.y + 1.1, f.z);
@@ -321,8 +321,30 @@ function personHD(g, x, y, p, staff) {
   g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(x - 5, y - .5, 10, 1.5); g.fillRect(x - 4, y - 1, 8, .5);
   g.fillStyle = INK; for (const [a, b, w, h, , ink] of parts) if (ink) g.fillRect(x + (a - 1) * f, y + (b - 1) * f, (w + 2) * f, (h + 2) * f);
   for (const [a, b, w, h, c] of parts) { g.fillStyle = c; g.fillRect(x + a * f, y + b * f, w * f, h * f); }
-  if (!staff && p.mood && p.mood !== 'ok') bubble(g, Math.round(x), Math.round(y + (H - 3) * f), p.mood);
+  if (!staff && p.mood && p.mood !== 'ok') bubbleHD(g, x, y + (H - 2) * f, p.mood);
 }
+/** A small picture on the half-pixel grid: rows of characters, pal maps a character to a colour ('.' is empty); ink outlines it. */
+function dots(g, x, y, rows, pal, ink = INK) {
+  const f = .5, on = (r, c) => r >= 0 && r < rows.length && c >= 0 && c < rows[r].length && rows[r][c] !== '.';
+  if (ink) { g.fillStyle = ink; rows.forEach((row, r) => { for (let c = 0; c < row.length; c++) if (on(r, c)) for (const [dr, dc] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) if (!on(r + dr, c + dc)) g.fillRect(x + (c + dc) * f, y + (r + dr) * f, f, f); }); }
+  rows.forEach((row, r) => { for (let c = 0; c < row.length; c++) { const k = row[c]; if (k !== '.') { g.fillStyle = pal[k]; g.fillRect(x + c * f, y + r * f, f, f); } } });
+}
+const HEART = ['.##...##.', '#w##.####', '#########', '#########', '.#######.', '..#####..', '...###...', '....#....'];
+const BUBBLE = ['.#############.', ...Array(8).fill('###############'), '.#############.', '....##.........', '....#..........'];
+const MOOD_MARK = {
+  wait: [[3, 4, 'a'], [7, 4, 'a'], [11, 4, 'a']].flatMap(([c, r, k]) => [[c, r, k], [c + 1, r, k], [c, r + 1, k], [c + 1, r + 1, k]]),
+  'seat?': [[5, 1], [5, 2], [5, 3], [5, 4], [5, 5], [5, 6], [5, 7], [6, 4], [7, 4], [8, 4], [9, 4], [9, 5], [9, 6], [9, 7], [6, 5], [7, 5], [8, 5]].map(([c, r]) => [c, r, 'b']),
+  angry: [0, 1, 2, 3, 4, 5].flatMap(k => [[5 + k, 2 + k, 'c'], [6 + k, 2 + k, 'c'], [10 - k, 2 + k, 'c'], [11 - k, 2 + k, 'c']]),
+};
+/** The mood over a guest's head on the half-pixel grid, its tail at (x, y). */
+function bubbleHD(g, x, y, mood) {
+  x = Math.round(x * 2) / 2; y = Math.round(y * 2) / 2;
+  if (mood === 'heart') return dots(g, x - 2, y - 4, HEART, { '#': '#e2557a', w: '#ffd0dc' });
+  const rows = BUBBLE.map(r => r.replace(/#/g, 'o').split('')), mark = MOOD_MARK[mood] ?? [];
+  for (const [c, r, k] of mark) if (rows[r]?.[c] === 'o') rows[r][c] = k;
+  dots(g, x - 2.25, y - 6, rows.map(r => r.join('')), { o: '#ffffff', a: '#8b9a9c', b: '#8a6a4a', c: '#c2402e' });
+}
+const COIN = ['.oooo.', 'oyyyyo', 'oyyoyo', 'oyyoyo', 'oyyyyo', '.oooo.'];
 function bubble(g, x, y, mood) {
   if (mood === 'heart') { g.fillStyle = '#e2557a'; for (const [a, b] of [[-2, 0], [-1, -1], [1, -1], [2, 0], [-2, 1], [-1, 1], [0, 1], [1, 1], [2, 1], [-1, 2], [0, 2], [1, 2], [0, 3], [0, 0], [-1, 0], [1, 0]]) g.fillRect(x + a, y - 4 + b, 1, 1); return; }
   g.fillStyle = '#ffffff'; g.fillRect(x - 4, y - 8, 9, 8); g.fillRect(x - 1, y, 2, 2);
