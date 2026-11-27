@@ -33,7 +33,7 @@ Do this only when the owner asks for it.
 1. **DNS.** Point `we.oddbout.com` at the VM.
 2. **Files.** On the VM:
    1. Put a clean checkout at `/opt/we-oddbout/releases/<sha>`.
-   2. Run `npm ci` in `server/`.
+   2. Run `npm ci` in `server/`. The VM has no system node or npm: build the release here (`git archive` + `npm ci --omit=dev` in `server/`), copy the tarball, and put a Node 22.13+ binary at `/opt/we-oddbout/bin/node` (the unit runs that one).
    3. Link `/opt/we-oddbout/current` to that release.
 3. **Secrets.** Create `/opt/we-oddbout/env` with `ANTHROPIC_API_KEY=...` and `chmod 600`. `SESSION_SECRET` is optional: the server makes one in `DATA_DIR` the first time.
 4. **Service.** Copy `deploy/we-oddbout.service` to `/etc/systemd/system/`, then run `systemctl enable --now we-oddbout`.

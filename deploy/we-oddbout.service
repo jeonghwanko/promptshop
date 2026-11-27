@@ -7,10 +7,10 @@ After=network.target
 Type=simple
 User=ubuntu
 WorkingDirectory=/opt/we-oddbout/current
-# ANTHROPIC_API_KEY lives here (chmod 600), never in the repo
+# Node 22.13+ lives at /opt/we-oddbout/bin/node (the VM has no system node). ANTHROPIC_API_KEY lives here (chmod 600), never in the repo
 EnvironmentFile=/opt/we-oddbout/env
 Environment=PORT=5310 DATA_DIR=/opt/we-oddbout/data SAMPLE=api SITE_ORIGIN=https://we.oddbout.com CLAUDE_PER_USER=5 CLAUDE_PER_DAY=300
-ExecStart=/usr/bin/node --disable-warning=ExperimentalWarning server/main.mjs
+ExecStart=/opt/we-oddbout/bin/node --disable-warning=ExperimentalWarning server/main.mjs
 Restart=always
 RestartSec=3
 
