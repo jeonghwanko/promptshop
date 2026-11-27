@@ -298,7 +298,9 @@ body:has(.world:not([hidden])) :is(.guide, .garrow) { display:none; }
   .shopacts .act { min-width:0; padding:6px 8px 6px 6px; gap:6px; font-size:14px; } .shopacts .act small { font-size:11px; } .shopacts .act .pxi { width:26px; height:26px; }
   .shopacts .act.close { position:fixed; top:12px; left:12px; }
   .shopacts:has(.extcard) { display:flex; }
-  .floortabs { left:4px; }
+  /* floor buttons: a row above the cut-away (1F on the left), in the open sea there, not over the room's left side */
+  .floortabs { left:50%; top:-10px; transform:translate(-50%, -100%); flex-direction:row-reverse; border-radius:14px; max-width:calc(100vw - 24px); overflow-x:auto; }
+  .ftab { width:44px; height:40px; flex:none; font-size:16px; } .ftab + .ftab { border-top:0; border-right:1px solid rgba(251,241,220,.2); }
 }
 @media (max-width:600px) { .gbird { zoom:.6; } .gbub { margin-bottom:12px; padding:12px 14px 10px; } }
 @media (max-width:440px) {
