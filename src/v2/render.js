@@ -4,6 +4,7 @@ import { buildExterior } from './exterior.js';
 import { buildSection } from './interior.js';
 import { normalize } from './spec.js';
 import { iconPixels } from './icons.js';
+import { setTexel } from './materials.js';
 
 const PPU = 40 / Math.SQRT2;
 
@@ -125,7 +126,7 @@ export function renderView(input, view = 'ext', opt = {}) {
   const scene = new THREE.Scene(), iso = isoCamera(100, 400), cam = iso.cam;
   addLights(scene, true, res > 1 ? 4096 : 2048);   // finer pixels need a finer shadow map, or the shadows go blocky
   let labels = [], fixtures = [], plan = null, signSpot = null;
-  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor, look: opt.look }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else { const root = buildExterior(spec); scene.add(root); signSpot = root.userData.sign ?? null; }
+  if (view === 'section') { const sec = buildSection(spec, { owned: opt.owned, floor: opt.floor, look: opt.look }); scene.add(sec.group); labels = sec.labels; fixtures = sec.fixtures; plan = sec.plan; } else { setTexel(res < 1 ? 2.4 : 1); const root = buildExterior(spec); setTexel(1); scene.add(root); signSpot = root.userData.sign ?? null; }
   const crisp = opt.crisp ?? CRISP;
   if (crisp && opt.cel) toCel(scene);   // cel bands dull the walls here, so they are off unless asked for
   const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU * res, view === 'section' ? { l: 8 * res, r: 18 * res, b: 12 * res, t: 8 * res } : { l: 10 * res, r: 56 * res, b: 26 * res, t: 10 * res });

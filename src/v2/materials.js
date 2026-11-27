@@ -72,10 +72,14 @@ export const ROOF_MATERIALS = Object.keys(ROOF);
 
 const cache = new Map();
 /** A material for `kind` ('wall'|'roof'), sized for a surface of `w` × `h` tiles. */
+// Texel size: a pattern's pixels should land near one screen pixel each. Textures are drawn ~40 texels per tile, right for a cut-away at
+// twice the map's pixels; the map's half-size render (14 px per tile) would sample them 2.8:1 into speckle, so it draws them bigger.
+let TEXEL = 1;
+export const setTexel = (k) => { TEXEL = k; };
 export function surface(kind, name, color, w = 1, h = 1) {
   const lib = kind === 'roof' ? ROOF : WALL;
   const m = lib[name] ?? (kind === 'roof' ? ROOF.roof_tiles : WALL.plaster);
   const key = kind + name + color;
   if (!cache.has(key)) cache.set(key, m.draw(liftDark(color)));
-  return texMat(cache.get(key), Math.max(1, w / m.tile[0]), Math.max(1, h / m.tile[1]));
+  return texMat(cache.get(key), Math.max(1, w / (m.tile[0] * TEXEL)), Math.max(1, h / (m.tile[1] * TEXEL)));
 }

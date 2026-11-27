@@ -2,6 +2,7 @@
 import * as THREE from 'three';
 import { buildExterior } from './exterior.js';
 import { normalize } from './spec.js';
+import { setTexel } from './materials.js';
 
 const PPU = 40 / Math.SQRT2;
 
@@ -40,7 +41,9 @@ export class Stage2 {
   show(input, key) {
     this.clear();
     const groups = new Map();
+    setTexel(2.4);   // half-size picture: patterns drawn bigger (materials.js)
     const root = buildExterior(normalize(input), (k) => { if (!groups.has(k)) groups.set(k, new THREE.Group()); return groups.get(k); });
+    setTexel(1);
     for (const g of groups.values()) root.add(g);
     this.scene.add(root);
     const target = key === 'all' ? root : groups.get(key);
