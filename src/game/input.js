@@ -1,6 +1,6 @@
 // Pointer and keys on the map: drag to pan, hover a spot in build or move mode, tap a building to open it,
 // press and hold one of mine to move it, tap a spot to move where the next building goes, tap another island to see it.
-import { SLOTS, PLOT, placePlot, slotAt, centerOf } from '../v2/isles.js';
+import { SLOTS, PLOT, placePlot, slotAt } from '../v2/isles.js';
 import { $ } from './ui.js';
 import { S, me, pr, map } from './state.js';
 import { allPlots, takenSet, tilesOf } from './model.js';
@@ -11,12 +11,12 @@ import { setBuildMode, setSpot } from './build.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { showIsland, closePanel, panelOpen, halfBridge } from './panel.js';
 import { picking, guide } from './guide.js';
-import { toScreen, scrollToSlot } from './camera.js';
+import { toScreen, scrollToSlot, tagXY } from './camera.js';
 import { openShop } from './shop.js';
 
-/** The island whose name tag is under a map point (tags sit over each island's top corner, often over water). */
+/** The island whose name tag is under a map point (tags sit in the water past each island's front shore). */
 function labelAt(sx, sy) {
-  for (let s = 1; s <= SLOTS; s++) { const [cx, cz] = centerOf(s), [lx, ly] = pr.P(cx - 4, cz - 4); if (Math.abs(sx - lx) < 60 && sy > ly - 34 && sy < ly - 6) return s; }
+  for (let s = 1; s <= SLOTS; s++) { if (S.owners.get(s) === me) continue; const [lx, ly] = tagXY(s); if (Math.abs(sx - lx) < 60 && sy > ly - 34 && sy < ly - 6) return s; }
   return 0;
 }
 /** A tap where nothing can be built: the spots on my island where this size fits blink for a moment (no words). */

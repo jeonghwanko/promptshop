@@ -10,7 +10,7 @@ import { START_STOCK } from './rules.js';
 import { S, me, pr, map, g, sim, pops, boats, splash, FROM } from './state.js';
 import { allPlots, starsInfo, servesOf, nameOf } from './model.js';
 import { site, drawSite, drawFestBoat, drawBoat } from './mapfx.js';
-import { mapXY, toScreen } from './camera.js';
+import { mapXY, toScreen, tagXY } from './camera.js';
 import { NEED_ICON } from './hud.js';
 import { picking, pickSpot } from './guide.js';
 import { placeLog } from './buildlog.js';
@@ -125,18 +125,19 @@ export function drawMap(dt) {
   { const sb = building ?? site.done ?? site.pending; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
       items.push({ d: sb.x + sb.z - .01, draw: () => drawSite(g, pr, 'back', building) }, { d: sb.x + sb.z + n + .02, draw: () => drawSite(g, pr, 'front', building) }); } else site.parts.length = 0; }
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
-  // island labels: owner names; empty islands invite a friend (mine known) or ask to be chosen (no island yet: the
+  // island labels under each island's front shore (never over a roof): owner names; empty islands invite a friend (mine known) or ask to be chosen (no island yet: the
   // ones next to the friend who sent the link glow, else every free one does, softly)
   g.textAlign = 'center';
   const pulse = (Math.sin(performance.now() / 260) + 1) / 2, near = FROM && S.owners.has(FROM) ? neighbours(FROM) : null;
   const quietFree = !!mySlot && !myDoc?.wallet?.invGuide;   // empty islands say nothing until 끼룩이 first suggests calling a friend
   for (let s = 1; s <= SLOTS && !zoomShop; s++) {
-    const [cx, cz] = centerOf(s), [lx, ly] = pr.P(cx - 4, cz - 4), uid = S.owners.get(s);
+    const [cx, cz] = centerOf(s), [lx, ly] = tagXY(s), uid = S.owners.get(s);
     if (!uid && quietFree) continue;
-    const label = uid === me ? '내 섬' : uid ? nameOf(uid) : `${s} · 빈 섬`, choose = !uid && !mySlot && S.scrolled && (!near || near.includes(s));
+    if (uid && uid === me) continue;   // the camera lives on my island: no tag over my own roofs
+    const label = uid ? nameOf(uid) : `${s} · 빈 섬`, choose = !uid && !mySlot && S.scrolled && (!near || near.includes(s));
     g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(label).width + 14;
-    g.fillStyle = uid === me ? '#e3a72f' : uid ? 'rgba(46,36,26,.85)' : choose ? `rgba(255,${205 + 30 * pulse | 0},${110 + 60 * pulse | 0},${near ? .95 : .55 + .35 * pulse})` : 'rgba(255,255,255,.75)'; g.beginPath(); g.roundRect(lx - w / 2, ly - 30, w, 20, 8); g.fill();
-    g.fillStyle = uid && uid !== me ? '#fff7e6' : '#2e241a'; g.fillText(label, lx, ly - 15);
+    g.fillStyle = uid ? 'rgba(46,36,26,.85)' : choose ? `rgba(255,${205 + 30 * pulse | 0},${110 + 60 * pulse | 0},${near ? .95 : .55 + .35 * pulse})` : 'rgba(255,255,255,.75)'; g.beginPath(); g.roundRect(lx - w / 2, ly - 30, w, 20, 8); g.fill();
+    g.fillStyle = uid ? '#fff7e6' : '#2e241a'; g.fillText(label, lx, ly - 15);
     if (!uid && mySlot) {   // tap it: the invite card
       const [mx, my] = pr.P(cx + .5, cz + .5); g.font = '400 13px "Jua", "Noto Sans KR", sans-serif'; const t = '+ 친구 초대', tw = g.measureText(t).width + 18;
       g.fillStyle = 'rgba(46,36,26,.78)'; g.beginPath(); g.roundRect(mx - tw / 2, my - 15, tw, 22, 11); g.fill(); g.fillStyle = '#fff7e6'; g.fillText(t, mx, my + 1);

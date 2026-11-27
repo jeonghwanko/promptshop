@@ -48,6 +48,8 @@ export function scrollToPoint(px0, py0, smooth = true) { const box = $('mapbox')
 /** Is map point (px, py) on screen inside the safe rect (with a margin)? */
 export function inSafe(px0, py0, m = 40) { const [x, y] = toScreen(px0, py0), sr = safeRect(); return x > sr.l + m && x < sr.r - m && y > sr.t + m && y < sr.b - m; }
 /** Bring island s to the middle of the safe rect; smooth = false jumps (the first view, where there is nothing to glide from). */
+/** Where an island's name tag sits: just past its front (bottom) shore, so it never covers a roof. Map pixels. */
+export function tagXY(slot) { const [cx, cz] = centerOf(slot), r = (Math.sqrt(landSize(slot) / Math.PI) + 1.2) / Math.SQRT2, [x, y] = pr.P(cx + r, cz + r); return [x, y + 34]; }
 export function scrollToSlot(s, smooth = true) { const [cx, cz] = centerOf(s); scrollToPoint(...pr.P(cx, cz), smooth); }
 /** A pointer event → a point on the map canvas. */
 export const mapXY = (e) => { const r = map.getBoundingClientRect(); return [(e.clientX - r.left) * map.width / r.width, (e.clientY - r.top) * map.height / r.height]; };
