@@ -329,7 +329,7 @@ body:has(.cards:not([hidden])) :is(.guide, .garrow), body:has(.world:not([hidden
   .shopacts .act.close { position:fixed; top:12px; left:12px; }
   .shopacts:has(.extcard) { display:flex; }
   .floortabs { left:4px; }
-  .cards .rcard { width:31vw; padding:12px 6px 10px; gap:4px; } .cards .rcard small { display:none; } .cards .rcard .big { width:48px; height:48px; } .cards .rcard b { font-size:15px; }
+  .cards { padding-left:8px; padding-right:8px; } .cards .row3 { gap:6px; width:100%; } .cards .rcard { width:auto; flex:1 1 0; min-width:0; padding:12px 6px 10px; gap:4px; } .cards .rcard small { display:none; } .cards .rcard .big { width:48px; height:48px; } .cards .rcard b { font-size:15px; }
   .cards h2 { font-size:22px; }
 }
 @media (max-width:600px) { .gbird { zoom:.6; } .gbub { margin-bottom:12px; padding:12px 14px 10px; } }

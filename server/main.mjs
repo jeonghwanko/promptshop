@@ -44,7 +44,18 @@ function session(req, res, { make = true } = {}) {
 const nameOf = (uid) => store.sql.prepare(`SELECT name FROM users WHERE uid = ?`).get(uid)?.name ?? null;
 
 /** The visitor's address: nginx appends it last to X-Forwarded-For (anything before it came from the visitor and is not trusted). */
-const ipOf = (req) => (req.headers['x-forwarded-for'] ?? '').split(',').pop().trim() || req.socket.remoteAddress || '';
+const ipOf = (req) => netOf((req.headers['x-forwarded-for'] ?? '').split(',').pop().trim() || req.socket.remoteAddress || '');
+/** One IPv6 /64 is one household (its owner can pick any address in it): limits count it as one address. */
+function netOf(ip) {
+  if (ip.startsWith('::ffff:')) return ip.slice(7);
+  if (!ip.includes(':')) return ip;
+  const [head, tail = ''] = ip.split('::'), h = head ? head.split(':') : [], t = tail ? tail.split(':') : [];
+  const full = [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
+  return full.slice(0, 4).map(x => (x || '0').toLowerCase()).join(':') + '::/64';
+}
+// new boards per address per day: a fresh cookie is free, so the five-a-player limit alone does not stop a flood
+const BOARDS_PER_ADDRESS = 10, madeBoards = new Map();   // "address day" → count
+setInterval(() => { const d = new Date().toISOString().slice(0, 10); for (const k of madeBoards.keys()) if (!k.endsWith(d)) madeBoards.delete(k); }, 3600e3).unref();
 
 // ---------- invites: a token for one board, 14 days, 9 friends ----------
 const INVITE_DAYS = 14, INVITE_USES = +(process.env.INVITE_USES ?? 9);
@@ -144,7 +155,11 @@ http.createServer(async (req, res) => {
       const data = op === 'delete' ? null : JSON.parse((await body(req)).toString() || 'null');
       if (op !== 'delete' && (typeof data !== 'object' || data === null || Array.isArray(data))) return json(res, { error: 'bad data' }, 400);
       const token = req.headers['x-invite'];
-      const why = allowWrite(op, col, id, data, { store, uid, boardsOf: (u) => store.sql.prepare(`SELECT COUNT(*) AS n FROM docs WHERE col = 'boards' AND json_extract(data, '$.owner') = ?`).get(u).n, invite: (b) => inviteOk(token, b), useInvite: (b) => store.sql.prepare(`UPDATE invites SET uses = uses + 1 WHERE token = ? AND board = ?`).run(token, b) });
+            const mk = `${ipOf(req)} ${new Date().toISOString().slice(0, 10)}`;
+      const why = allowWrite(op, col, id, data, { store, uid,
+        boardsOf: (u) => store.sql.prepare(`SELECT COUNT(*) AS n FROM docs WHERE col = 'boards' AND json_extract(data, '$.owner') = ? AND json_extract(data, '$.n') > 0`).get(u).n,   // ones nobody moved into do not count against their maker
+        mayMakeBoard: () => { const n = madeBoards.get(mk) ?? 0; if (n >= BOARDS_PER_ADDRESS) return false; madeBoards.set(mk, n + 1); return true; },
+        invite: (b) => inviteOk(token, b), useInvite: (b) => store.sql.prepare(`UPDATE invites SET uses = uses + 1 WHERE token = ? AND board = ?`).run(token, b) });
       if (why) return json(res, { error: why }, 403);
       if (op === 'set') store.set(col, id, data); else if (op === 'update') store.update(col, id, data); else store.remove(col, id);
       return json(res, { ok: true });   // the page has what it wrote; sending the whole doc back cost a parse and a copy per save

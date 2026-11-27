@@ -7,8 +7,9 @@
   // an invite token from the link, kept for this board while the tab lives (it lets me move in)
   try { if (q.get('k')) sessionStorage.setItem('invite:' + board, q.get('k')); } catch {}
   const invite = () => { try { return sessionStorage.getItem('invite:' + board) || q.get('k') || ''; } catch { return q.get('k') || ''; } };
+  // every request has a deadline (a long poll waits up to 25 s on the server): one that hangs must not hold the saves queued behind it
   const call = async (path, opts = {}) => {
-    const r = await fetch('/api/' + path, { ...opts, headers: { 'x-isles': '1', 'x-invite': invite(), ...(opts.body && !(opts.body instanceof Blob) ? { 'content-type': 'application/json' } : {}), ...(opts.headers ?? {}) } });
+    const r = await fetch('/api/' + path, { signal: AbortSignal.timeout(path.includes('wait=1') ? 40000 : 20000), ...opts, headers: { 'x-isles': '1', 'x-invite': invite(), ...(opts.body && !(opts.body instanceof Blob) ? { 'content-type': 'application/json' } : {}), ...(opts.headers ?? {}) } });
     const v = await r.json().catch(() => null);
     if (!r.ok) throw { code: r.status === 429 ? (v?.error === 'daily_limit' ? 'daily_limit' : 'rate_limited') : r.status === 403 ? 'denied' : 'unavailable', message: v?.error ?? String(r.status) };
     return v;
@@ -57,7 +58,7 @@
       let idle; const wake = () => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), IDLE_MS); }; wake();
       try {
         const r = await fetch('/api/sample', { method: 'POST', headers: { 'x-isles': '1', 'content-type': 'application/json' }, body: JSON.stringify({ prompt, kind: opts.purpose ?? 'build' }), signal: ctl.signal });
-        if (!r.ok) { const v = await r.json().catch(() => null); throw { code: r.status === 429 ? 'daily_limit' : r.status === 503 ? 'rate_limited' : 'unavailable', message: v?.error }; }
+        if (!r.ok) { const v = await r.json().catch(() => null); throw { code: r.status === 429 ? (v?.error === 'rate_limited' ? 'rate_limited' : 'daily_limit') : r.status === 503 ? 'rate_limited' : 'unavailable', message: v?.error }; }
         const rd = r.body.getReader(), dec = new TextDecoder(); let text = '';
         for (;;) { const { value, done } = await rd.read(); if (done) break; wake(); const delta = dec.decode(value, { stream: true }); text += delta; opts.onText && opts.onText({ text, delta }); }
         return { text, truncated: false };

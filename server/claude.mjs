@@ -7,7 +7,7 @@ import { spawn } from 'node:child_process';
 import os from 'node:os';
 
 // PER_IP: accounts are free (a cookie), so a day's calls are also counted by address — enough for ten friends on one Wi-Fi
-export const PER_USER = +(process.env.CLAUDE_PER_USER ?? 5), PER_IP = +(process.env.CLAUDE_PER_IP ?? 60), PER_DAY = +(process.env.CLAUDE_PER_DAY ?? 300), MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-5-5';
+export const PER_USER = +(process.env.CLAUDE_PER_USER ?? 5), PER_IP = +(process.env.CLAUDE_PER_IP ?? 60), PER_IP_HOUR = +(process.env.CLAUDE_PER_IP_HOUR ?? 20), PER_DAY = +(process.env.CLAUDE_PER_DAY ?? 300), MODEL = process.env.CLAUDE_MODEL ?? 'claude-haiku-5-5';
 const SYSTEM = 'You write building specs for a game. Follow the instructions in the message exactly and output only what they ask for.';
 const MAX_PROMPT = 60000;
 export const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);   // the day turns at midnight in Korea
@@ -25,6 +25,8 @@ export function admit(store, uid, kind, ip = '') {
     const mine = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise'`).get(uid, day).n;
     if (mine >= PER_USER) return no(429, 'daily_limit');
     if (ip && sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE ip = ? AND day = ? AND kind != 'revise'`).get(ip, day).n >= PER_IP) return no(429, 'daily_limit');
+    // and at most PER_IP_HOUR in an hour, so a few addresses cannot spend the whole day's budget before the day has started
+    if (ip && sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE ip = ? AND at > ? AND kind != 'revise'`).get(ip, Date.now() - 3600e3).n >= PER_IP_HOUR) return no(429, 'rate_limited');
     const all = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE day = ?`).get(day).n;
     if (all >= PER_DAY) return no(503, 'busy');
   }
@@ -43,12 +45,14 @@ export async function stream(prompt, res, req, refund = () => {}) {
   if (typeof prompt !== 'string' || !prompt || prompt.length > MAX_PROMPT) { refund(); res.writeHead(400); return res.end('bad prompt'); }
   const mode = process.env.SAMPLE ?? 'api';
   // the 200 waits for the first words: a call that fails before them is refunded and answered 503, so the page knows
-  let started = false;
+  // only a failure on our side is refunded: a visitor who hangs up before the first words still pays, or hanging up
+  // just before them would make every call free
+  let started = false, gone = false; res.on('close', () => { if (!res.writableEnded) gone = true; });
   const put = (t) => { if (!started) { started = true; res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' }); } res.write(t); };
-  const finish = () => { if (started) return res.end(); refund(); if (!res.headersSent && !res.destroyed) { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'claude_failed' })); } };
+  const finish = () => { if (started) return res.end(); if (!gone) refund(); if (!res.headersSent && !res.destroyed) { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ error: 'claude_failed' })); } };
   if (mode === 'echo') { put('{"step":"building","type":"cafe","name":"시험 카페"}\n'); return res.end(); }
   if (mode === 'cli') {
-    await cliSlot(res); if (res.destroyed) { cliFree(); refund(); return res.end(); }
+    await cliSlot(res); if (res.destroyed) { cliFree(); refund(); return res.end(); }   // left while waiting in line: nothing was spent
     const cli = spawn(process.env.CLAUDE_BIN ?? 'claude', ['-p', '--model', 'haiku', '--output-format', 'stream-json', '--include-partial-messages', '--verbose', '--tools', '', '--no-session-persistence', '--system-prompt', SYSTEM], { stdio: ['pipe', 'pipe', 'pipe'], cwd: os.tmpdir() });
     cli.stdin.on('error', () => {});   // the CLI may exit before reading it all (a bad token): that must not take the server down
     cli.stdin.end(prompt); let buf = '';

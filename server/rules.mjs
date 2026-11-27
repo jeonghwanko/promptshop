@@ -9,6 +9,8 @@ import { bad } from '../src/game/rules.js';
 export const MAX_DOC = 128 * 1024, MAX_LOG = 64 * 1024, MAX_BOARD = 2 * 1024, BOARDS_PER_PLAYER = 5;
 const SUMMARY = new Set(['n', 'bld', 'users']), BOARD_NEW = new Set(['name', 'lat', 'lng', 'owner', 'at', 'n', 'bld', 'users']);
 const ISLAND = new Set(['slot', 'at', 'gap', 'land', 'plots', 'half', 'wallet', 'rev', 'wb', 'hb', 'term', 'by', 'ack']);
+/** A new board carries its summary from the start, so the world map never has to read its islands to count them. */
+const SUMMARY_ALL = (b) => 'n' in b && 'bld' in b && 'users' in b;
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
 /** A board's fields, as the world map reads them: a bad one would break the map for everyone. */
 function boardBad(b) {
@@ -29,20 +31,22 @@ export function allowWrite(op, col, id, data, ctx) {
   const { store, uid } = ctx, board = boardOf(col);
   const before = op === 'update' ? store.get(col, id) : null, after = op === 'update' ? { ...(before ?? {}), ...data } : data;
   const size = after == null ? 0 : JSON.stringify(after).length;
+  // over a limit, an update that does not make the doc bigger still goes through (a heartbeat, the lease, a save that removed things)
+  const tooBig = (max) => size > max && !(op === 'update' && before && size <= JSON.stringify(before).length);
   if (board !== null) {
     if (board === 'main') return 'the showcase is read-only';
     const meta = store.get('boards', board);
     if (!meta) return 'no such board';
-    if (id === '_mod') return meta.owner === uid && op !== 'delete' && size <= MAX_LOG ? null : 'only the board owner removes buildings';
+    if (id === '_mod') return meta.owner === uid && op !== 'delete' && !tooBig(MAX_LOG) ? null : 'only the board owner removes buildings';
     if (id !== uid) return 'not your island';
-    if (size > MAX_DOC) return 'too big';
+    if (tooBig(MAX_DOC)) return 'too big';
     if (op === 'delete') return null;
     if (!Object.keys(data ?? {}).every(k => ISLAND.has(k))) return 'unknown field';
     const cur = store.get(col, id);
     if (!cur) {   // moving in: a way in, and a free island
       if (op !== 'set') return 'no island yet';
       if (meta.owner !== uid && !meta.open && !ctx.invite(board)) return 'invite needed';
-      const slot = data?.slot; if (!(slot >= 1 && slot <= 10)) return 'bad island';
+      const slot = data?.slot; if (!(Number.isInteger(slot) && slot >= 1 && slot <= 10)) return 'bad island';
       for (const [other, d] of Object.entries(store.all(col))) if (other !== uid && other !== '_mod' && d?.slot === slot) return 'island taken';
       if (meta.owner !== uid && !meta.open) ctx.useInvite(board);
     } else if (op === 'set' && data?.slot !== cur.slot) return 'cannot move to another island';
@@ -53,8 +57,9 @@ export function allowWrite(op, col, id, data, ctx) {
     const cur = store.get('boards', id);
     if (!/^[a-z0-9]{3,24}$/.test(id) || id === 'main') return 'bad board id';
     if (!cur) {
-      if (op !== 'set' || data?.owner !== uid || !Object.keys(data).every(k => BOARD_NEW.has(k))) return 'bad new board';
+      if (op !== 'set' || data?.owner !== uid || !Object.keys(data).every(k => BOARD_NEW.has(k)) || !SUMMARY_ALL(data)) return 'bad new board';
       if (ctx.boardsOf(uid) >= BOARDS_PER_PLAYER) return 'too many boards';
+      if (!ctx.mayMakeBoard()) return 'too many boards today';
       return boardBad(data);
     }
     if (op !== 'update') return 'not allowed';
@@ -63,6 +68,10 @@ export function allowWrite(op, col, id, data, ctx) {
     else if (!(cur.owner === uid && keys.every(k => SUMMARY.has(k) || k === 'name' || k === 'open'))) return 'not allowed';
     return boardBad(after);
   }
-  if (col === 'log') return id.endsWith('~' + uid) && op !== 'delete' && size <= MAX_LOG ? null : 'not your log';
+  if (col === 'log') {
+    const m = /^([a-z0-9]{3,24})~(.+)$/.exec(id);
+    if (!m || m[2] !== uid || op === 'delete' || tooBig(MAX_LOG)) return 'not your log';
+    return m[1] === 'main' || store.get('boards', m[1]) ? null : 'no such board';
+  }
   return 'not allowed';
 }

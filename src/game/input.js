@@ -57,5 +57,5 @@ export function initInput() {
     if (s && s !== S.mySlot) return showIsland(s);
     if (panelOpen() && S.current?.kind !== 'build') closePanel();
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.buildMode) setBuildMode(false); if (e.key === 'Escape' && S.moving) cancelMove(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('cards').hidden) { $('cards').hidden = true; return; } if (e.key === 'Escape' && S.buildMode) setBuildMode(false); if (e.key === 'Escape' && S.moving) cancelMove(); });
 }

@@ -32,8 +32,8 @@ async function loadBoards() {
   let main = meta.find(b => b.id === 'main'); if (!main) { main = { id: 'main' }; meta.unshift(main); }
   Object.assign(main, { name: main.name ?? '첫 군도', lat: main.lat ?? 37.5, lng: main.lng ?? 127 });
   // a board nobody moved into is someone's unfinished start ("내 군도 세우기", then gone): only its owner and the page it is on see it
-  meta = meta.filter(b => b.id === 'main' || b.id === BOARD || b.owner === me || b.n !== 0);
-  for (const b of meta) if (b.n === undefined) { const sh = boardShape(await boardEntries(b.id)); b.n = sh.joined.size; b.bld = sh.buildings; b.users = [...sh.owners.values()]; }
+  meta = meta.filter(b => b.id === 'main' || b.id === BOARD || b.owner === me || (b.n ?? 0) > 0);
+  for (const b of meta) if (b.n === undefined && b.id === 'main') { const sh = boardShape(await boardEntries(b.id)); b.n = sh.joined.size; b.bld = sh.buildings; b.users = [...sh.owners.values()]; }
   const demo = +(new URLSearchParams(location.search).get('demo') ?? 0);   // ?demo=N adds N made-up boards (for checks)
   for (let i = 0; i < demo; i++) { const r = (k) => { const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); }, seoul = i % 3 !== 2;
     meta.push({ id: 'demo' + i, name: `예시 군도 ${i + 1}`, lat: seoul ? 35 + r(1) * 3.2 : 20 + r(1) * 40, lng: seoul ? 126.4 + r(2) * 3 : -120 + r(2) * 260, n: Math.floor(r(3) * 11), bld: Math.floor(r(4) * 40), demo: true }); }
@@ -160,7 +160,9 @@ function placeAt(x, y) {
   const input = el('input', { type: 'text', maxlength: '12', placeholder: '군도 이름 (예: 붕어빵 연합)' }), err = el('div', { class: 'err' });
   const make = async () => {
     const name = input.value.trim(); if (!name) { err.textContent = '이름을 써 주세요'; return; } if (bad(name)) { err.textContent = '그 이름은 쓸 수 없어요'; return; }
-    const id = 'b' + Date.now().toString(36); await db.doc('boards/' + id).set({ name, lat, lng, owner: me, at: Date.now(), n: 0, bld: 0, users: [] });
+    const id = 'b' + Date.now().toString(36);
+    try { await db.doc('boards/' + id).set({ name, lat, lng, owner: me, at: Date.now(), n: 0, bld: 0, users: [] }); }
+    catch (e) { err.textContent = e?.message?.startsWith('too many boards') ? '군도는 다섯 개까지, 하루에 몇 개만 만들 수 있어요' : '만들지 못했어요. 다시 눌러 주세요'; return; }
     const q = new URLSearchParams(location.search); q.set('board', id); q.delete('world'); location.search = q.toString();
   };
   $('wcard').hidden = false;

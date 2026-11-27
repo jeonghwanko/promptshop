@@ -12,7 +12,7 @@ import { emptyNeighbours, newBoard } from './invite.js';
 const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람들이 첫 가게를 기다리고 있어!', btn: '좋아!' },
   { say: '허가증 🎫이 한 장 있어.\n아래 [짓기]를 눌러 봐!', el: '#d-build', on: 'cards' },
-  { say: '섬 사람들 부탁이야.\n마음에 드는 카드를 하나 골라!', on: 'card' },
+  { say: '섬 사람들 부탁이야.\n마음에 드는 카드를 하나 골라!', el: '#d-build', on: 'card' },   // the arrow shows only while the cards are put away
   { say: '반짝이는 땅을 눌러!\n거기에 지을 거야.', map: 'spot', on: 'place' },
   { say: '어떤 가게일까?\n한 줄로 쓰거나, 아래 예시를 눌러 봐.', el: '#signcard .chips', on: 'line' },
   { say: 'Claude가 짓는 중이야…\n건물이 올라가는 거 봐! 끼룩', on: 'built' },
@@ -26,7 +26,7 @@ const TUT = [
 const TUT_IN = [
   { say: '여기가 가게 안이야!\n손님이 들어와서 주문하고, 자리에 앉아서 계산해.', btn: '다음' },
   { say: () => S.watching?.view?.blocked?.size ? '빨간 김이 나는 곳이 막힌 곳이야.\n손님이 거기서 기다리고 있어!' : '지금은 막힌 곳이 없어.\n손님이 몰리면 막히는 곳에서 빨간 김이 나!', btn: '다음', at: 'slow' },
-  { say: '오른쪽 맨 위 버튼을 눌러\n가구를 들여 봐!', el: '#shopacts .act.buy', on: 'furnish' },
+  { say: '반짝이는 버튼을 눌러\n가구를 들여 봐!', el: '#shopacts .act.buy', on: 'furnish' },
   { say: '쿵! 가구가 들어왔어.\n가구가 늘면 손님을 더 받고, 손님이 늘면 🎫도 빨리 차!', btn: '알겠어' },
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;

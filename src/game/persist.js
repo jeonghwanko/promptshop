@@ -26,15 +26,21 @@ export function save(force) {
   if (!force && (!S.dirty || now() - lastSave < 5000)) return saving;
   S.dirty = false; lastSave = now();
   return saving = saving.then(async () => {
-    if (!S.myDoc) return;
+    if (!S.myDoc || S.role !== 'live') return;   // the island went to another tab while this save waited its turn
     const data = dataOf(S.myDoc); S.myDoc.rev = data.rev;
     try { await myRef().update(data); landed(true); }
     catch (e) {
       // the first write never reached the server (it was restarting): make the island now instead of losing every save after it
-      if (e?.message === 'no island yet') try { await myRef().set({ ...data, term: lease.term || 1, by: WRITER }); landed(true); return; } catch {}
+      if (e?.message === 'no island yet') try { await myRef().set({ ...data, term: lease.term || 1, by: WRITER }); landed(true); return; }
+        catch (e2) { if (e2?.code === 'denied') { lostIsland(); return; } }   // someone moved into it meanwhile: say so instead of trying forever
       S.dirty = true; landed(false);
     }
   });
+}
+/** The island I thought I had moved into was never saved, and is someone else's now: back to choosing one. */
+function lostIsland() {
+  S.myDoc = null; S.role = 'new'; lease = { role: 'new', term: 0 }; S.docs.delete(me); S.dirty = false; landed(true); rebuild();
+  hooks.lost?.();
 }
 /** My new island: written whole, held by this tab. */
 export async function createMine(doc) {
@@ -122,7 +128,7 @@ export function initPersist({ onError, onRefund }) {
   addEventListener('pagehide', () => {   // keepalive: the request outlives the page (the browser allows 64 KB; past that, just let go)
     if (lease.role !== 'live' || !S.myDoc || !db || !me) return;
     const all = { ...dataOf(S.myDoc), by: null };
-    myRef().update(JSON.stringify(all).length < 60000 ? all : { by: null }, { keepalive: true }).catch(() => {});
+    myRef().update(new Blob([JSON.stringify(all)]).size < 60000 ? all : { by: null }, { keepalive: true }).catch(() => {});   // bytes, not letters
   });
   if (db && BOARD !== 'main') db.doc('boards/' + BOARD).get().then(d => { S.boardName = d.data()?.name ?? ''; }).catch(() => {});
   if (SHOWCASE) { S.docs = new Map(Object.entries(ISLES_SEED).map(([u, d]) => [u, migrateLayout(moveWithIsland(d))])); rebuild(); return; }   // look, nobody moves in

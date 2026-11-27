@@ -65,8 +65,16 @@ await B.patch(`i-${board}/${meB.uid}`, { plots: {} });
 check('board: a summary that would break the map is refused', (await B.patch('boards/' + board, { users: 1 })).status === 403 && (await B.patch('boards/' + board, { n: 'x' })).status === 403);
 check('board: bad name refused', (await A.put('boards/bad' + board.slice(1), { name: '시발', lat: 37, lng: 127, owner: meA.uid, at: 1, n: 0, bld: 0, users: [] })).status === 403);
 check('board: bad place refused', (await A.put('boards/bad' + board.slice(1), { name: 'ok', lat: 999, lng: 127, owner: meA.uid, at: 1 })).status === 403);
-{ const P = player(), u = (await P.go('/api/me')).v.uid; let made = 0; for (let i = 0; i < 6; i++) if ((await P.put(`boards/m${i}${board}`, { name: '군도', lat: 1, lng: 1, owner: u, at: 1, n: 0, bld: 0, users: [] })).status === 200) made++;
-  check('five boards a player', made === 5, `${made} made`); }
+check('board: a new board carries its summary', (await A.put('boards/ns' + board.slice(1), { name: 'ok', lat: 1, lng: 1, owner: meA.uid, at: 1 })).status === 403);
+// a whole island number only (1.5 or "3" would slip past "island taken")
+{ const Q = player(), q = (await Q.go('/api/me')).v.uid, qb = 'q' + board.slice(1);
+  await Q.put('boards/' + qb, { name: 'Q', lat: 1, lng: 1, owner: q, at: 1, n: 0, bld: 0, users: [] });
+  check('island number must be whole', (await Q.put(`i-${qb}/${q}`, { ...island(3), slot: 1.5 })).status === 403 && (await Q.put(`i-${qb}/${q}`, island(3))).status === 200); }
+// boards nobody lives in do not count against their maker, but one address makes at most 10 a day (3 counted above: A's board, the bad name, Q's board)
+{ const P = player(), u = (await P.go('/api/me')).v.uid; let made = 0; for (let i = 0; i < 9; i++) if ((await P.put(`boards/m${i}${board}`, { name: '군도', lat: 1, lng: 1, owner: u, at: 1, n: 0, bld: 0, users: [] })).status === 200) made++;
+  check('boards a day per address', made === 7, `${made} made`); }
+// the funnel log: exactly <board>~<me>, for a board that exists
+check('log: any other name is refused', (await B.patch(`log/x1~${meB.uid}`, { a: 1 })).status === 403 && (await B.patch(`log/zzzzzz~${meB.uid}`, { a: 1 })).status === 403);
 check('a write without the page header is refused', (await fetch(base + `/api/doc/i-${board}/x`, { method: 'PUT', body: '{}' })).status === 400);
 // the token lets in nine friends at most
 let used = 1; for (let s = 4; s <= 10; s++) { const P = player(), u = (await P.go('/api/me')).v.uid; if ((await P.put(`i-${board}/${u}`, island(s), { 'x-invite': tok })).status === 200) used++; }
