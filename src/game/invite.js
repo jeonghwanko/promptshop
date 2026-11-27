@@ -5,6 +5,7 @@ import { $, el } from './ui.js';
 import { S, BOARD, site, db, me, map, pr } from './state.js';
 import { track } from './persist.js';
 import { toast } from './hud.js';
+import { supplyTalk } from './guide.js';
 import { hooks } from './model.js';
 
 /** The link a friend opens: this board, and my island so they land next to it; on the hosted game also a token
@@ -38,7 +39,7 @@ export async function shareInvite() {
   track('invite_copy', { slot: S.mySlot });
   hooks.happened('invite');
   if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title, url }); return; } catch (e) { if (e?.name === 'AbortError') return; } }
-  try { await navigator.clipboard.writeText(url); toast('🔗 링크를 복사했어요', 1600); }
+  try { await navigator.clipboard.writeText(url); toast('🔗 링크를 복사했어요', 1600); supplyTalk('친구에게 링크를 보내 봐!\n이사 오면 다리로 이어져.'); }
   catch {   // no clipboard (a page without https): the link in one box to copy by hand, the same box on every press
     const card = document.querySelector('.invitecard'); let i = card?.querySelector('input.link'); if (card && !i) { i = el('input', { type: 'text', readonly: '', class: 'link' }); card.append(i); }
     if (i) { i.value = url; i.select(); } }
@@ -52,8 +53,8 @@ function preview() {
 export function inviteCard() {
   const free = SLOTS - S.owners.size; if (!free || !S.mySlot) return null;
   track('invite_open', { slot: S.mySlot }); hooks.happened('invite');   // the guide's last step is done once the card is open
-  return el('div', { class: 'card invitecard' }, preview(), el('b', {}, `빈 섬 ${free}개`),
-    el('button', { class: 'gold', on: { click: () => shareInvite() } }, '초대 링크 복사'));
+  return el('div', { class: 'card invitecard' }, preview(),
+    el('button', { class: 'gold', on: { click: () => shareInvite() } }, '친구 초대 링크 복사'));   // (what it is, on the button: a bridge needs a friend living there first)
 }
 
 /** A new archipelago of my own, named after me, somewhere near Korea on the world map; then go there. */

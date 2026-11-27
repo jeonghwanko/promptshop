@@ -95,7 +95,7 @@ export function guide() {
     return;
   }
   if (S.inviteGuide) {   // the later moment: a friend next door (no buttons either; the island is what to press)
-    g.hidden = false; speak('섬이 제법 커졌네!\n옆 빈 섬을 눌러 친구를 불러 봐. 다리를 놓을 수 있어!'); $('gbtns').replaceChildren();
+    g.hidden = false; speak('섬이 제법 커졌네!\n옆 빈 섬에 친구를 불러 볼까?');   // (a bridge comes later, once a friend lives there: said after the link is copied) $('gbtns').replaceChildren();
     if (panned !== 'invite') { panned = 'invite'; const n = emptyNeighbours()[0]; if (n) setTimeout(() => { const z = chooseZoom(n); if (S.zoom > z) { S.zoom = z; applyZoom(); } scrollToSlot(n); }, 300); }
     return;
   }

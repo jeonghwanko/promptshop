@@ -132,7 +132,7 @@ export function showIsland(s) { S.choosing = false;
   const uid = S.owners.get(s); S.current = { kind: 'island', slot: s, uid };
   if (!uid) {   // an empty island: live here (no island yet), or call a friend to it
     const by = FROM && neighbours(s).includes(FROM) && S.owners.get(FROM);
-    return show(el('h2', {}, `${s}번 섬`, by ? el('small', {}, ` · ${nameOf(by)} 옆`) : null),
+    return show(el('h2', {}, `${s}번 섬`, el('small', {}, by ? ` · ${nameOf(by)} 옆` : ' · 비어 있어요')),
       S.mySlot ? inviteCard() : SHOWCASE || !MAY_JOIN ? el('button', { class: 'gold', on: { click: () => newBoard() } }, '내 군도 세우기') : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
   }
   if (s === S.mySlot) return showHome();

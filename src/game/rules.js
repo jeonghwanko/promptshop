@@ -11,8 +11,8 @@ export const HELPER_MAX = 4;
 export const helperCost = (n) => 30 * 2 ** n;               // the n-th helper (0-based)
 export const vipBonus = (stars) => 6 * stars;               // a VIP's tip
 export const REQ_BONUS = 15;                                // building what a request card asked for
-/** When 끼룩이 first suggests calling a friend: the island grown this far (level index into LEVELS, my shops). */
-export const INVITE_AT = { level: 1, shops: 3 };
+/** When 끼룩이 first suggests calling a friend: the island grown this far (level index into LEVELS, my buildings). */
+export const INVITE_AT = { level: 3, shops: 6 };   // 번화가 and six buildings: well after the first sessions (the owner: calling friends comes much later)
 
 // ---------- land ----------
 export const MAX_PLOTS = 8, PLOTS_PER_LAND = 3;
