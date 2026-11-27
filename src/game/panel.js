@@ -107,7 +107,7 @@ function nameCard() {
   };
   return card;
 }
-async function join(s) {
+export async function join(s) {
   if (S.owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');
   const byInviter = !!FROM && S.owners.has(FROM) && neighbours(s).includes(FROM);
   track('pick', { slot: s, from: FROM, nextToInviter: byInviter, pick: PICK });

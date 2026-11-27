@@ -6,7 +6,7 @@ import { mountGuideGull } from '../ui/gull/guide-gull.js';
 import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { allPlots, takenSet, nameOf } from './model.js';
 import { save, track } from './persist.js';
-import { toScreen, scrollToSlot, applyZoom } from './camera.js';
+import { toScreen, scrollToSlot, applyZoom, chooseZoom } from './camera.js';
 import { emptyNeighbours, newBoard, shareInvite } from './invite.js';
 
 const TUT = [
@@ -41,6 +41,7 @@ export const picking = () => !S.mySlot && PICK === 'map' && !!db && !!me && S.sc
 /** The island the guide points at while choosing: one next to the inviter, else one with three neighbours, else any. */
 export function pickSpot() {
   const free = (s) => !S.owners.has(s);
+  if (S.pick && free(S.pick)) return S.pick;   // the one I tapped
   if (inviter()) { const n = neighbours(FROM).find(free); if (n) return n; }
   for (const s of [3, 8, 2, 4, 7, 9]) if (free(s)) return s;
   for (let s = 1; s <= SLOTS; s++) if (free(s)) return s;
@@ -72,7 +73,7 @@ export function guide() {
   }
   if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
   const st = TUT[tutStep()]; g.hidden = false; speak(say(st.say));
-  if (st.map === 'invite' && panned !== tutStep()) { panned = tutStep(); const n = emptyNeighbours()[0]; if (n) setTimeout(() => { if (S.zoom > 1) { S.zoom = 1; applyZoom(); } scrollToSlot(n); }, 300); }   // once, as the step starts; near enough to see my island too
+  if (st.map === 'invite' && panned !== tutStep()) { panned = tutStep(); const n = emptyNeighbours()[0]; if (n) setTimeout(() => { const z = chooseZoom(n); if (S.zoom > z) { S.zoom = z; applyZoom(); } scrollToSlot(n); }, 300); }   // once, as the step starts; near enough to see my island too
   if (st.share && emptyNeighbours().length) {
     $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: () => { shareInvite(); setStep('tut', tutStep() + 1); } } }, '초대 링크'),
       el('button', { class: 'skip', on: { click: () => setStep('tut', tutStep() + 1) } }, '나중에'));
@@ -87,7 +88,8 @@ export function guide() {
 let atElPt = null;
 function guideArrow() {
   const a = $('garrow'); atElPt = null;
-  const atEl = (sel) => { const e = sel && document.querySelector(sel); if (!e || !e.offsetParent) return null; e.classList.add('glow'); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top - 4]; };
+  // visible = has a box (offsetParent is null for fixed elements, like the island's button)
+  const atEl = (sel) => { const e = sel && document.querySelector(sel); if (!e || !e.getClientRects().length) return null; e.classList.add('glow'); const r = e.getBoundingClientRect(); return [r.left + r.width / 2, r.top - 4]; };
   let pt = null;
   if (inTutOn()) {
     const st = TUT_IN[inStep()];
@@ -96,7 +98,7 @@ function guideArrow() {
     pt = atEl(st.el) ?? pt;
   } else if (picking()) {   // the island to choose: over its name on the map (the words follow the inviter's name as it arrives)
     speak(pickWords());
-    const s = pickSpot(); if (s) { const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx - 4, cz - 4)); pt = [x, y - 34]; }
+    pt = atElPt = atEl('#joinbtn:not([hidden])'); pt ??= (() => { const s = pickSpot(); if (!s) return null; const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx - 4, cz - 4)); return [x, y - 34]; })();   // over the island's own 'live here' button
   } else if (tutOn()) {
     const st = TUT[tutStep()], n = PLOT[S.size];
     pt = atElPt = atEl(st.el);
@@ -109,7 +111,7 @@ function guideArrow() {
     if (st.map === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && S.lastTops[p.key]; if (tp) { const [x, y] = toScreen(tp[0], tp[1]); pt = [x, y - 8]; } }
   }
   // a spot on the map that UI now covers (a panel, the cards): no arrow pointing at the panel instead
-  if (pt && !inTutOn() && !(tutOn() && TUT[tutStep()].el && pt === atElPt)) { const hit = document.elementFromPoint(pt[0], Math.min(innerHeight - 1, pt[1] + 24)); if (hit && hit.id !== 'map' && !hit.closest('#mapbox')) pt = null; }
+  if (pt && !inTutOn() && pt !== atElPt) { const hit = document.elementFromPoint(pt[0], Math.min(innerHeight - 1, pt[1] + 24)); if (hit && hit.id !== 'map' && !hit.closest('#mapbox')) pt = null; }
   // 끼룩이 holds a wing toward what the arrow points at — only when it is above its head: lower to the right the wing
   // would cover its own speech bubble, so there it just talks
   { const b = document.querySelector('#guide .gbird')?.getBoundingClientRect(); gull?.point(pt && b && pt[1] < b.top + b.height * .2 ? pt : null); }

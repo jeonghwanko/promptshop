@@ -36,8 +36,9 @@ check('arrive: guide asks to choose', (await text(I)).includes('섬'), await tex
 const a1 = await arrow(I); check('arrive: arrow at an island', !!a1);
 // 2. tap the island under the arrow: its card, one button, and I live there
 if (a1) await I.click(a1[0], a1[1] + 40); await sleep(800); await I.shot('2-card');
-check('island card: live here', await I.ev(`[...document.querySelectorAll('#panel button.gold')].some(b => b.textContent.includes('이 섬에 살기'))`));
-await I.ev(`[...document.querySelectorAll('#panel button.gold')].find(b => b.textContent.includes('이 섬에 살기'))?.click()`); await sleep(2500);
+// choosing: the 'live here' button sits on the island itself (no window); the tap on the arrow above it pressed it
+check('island button: live here, on the map', (await I.ev(`__isles.S.mySlot`)) > 0 && (await I.ev(`document.getElementById('panel').hidden`)), await I.ev(`__isles.S.mySlot`));
+await sleep(1700);
 const slotI = await I.ev(`__isles.S.mySlot`); check('joined on the map', slotI > 0, `island ${slotI}`);
 // 3. the last guide step (the build itself is checked by the tutorial run): points at the empty island next door
 await I.ev(`(()=>{ __isles.myDoc.wallet.tut = 8; __isles.S.dirty = true; __isles.guide(); })()`); await sleep(1500);
@@ -50,8 +51,8 @@ const link = await I.ev(`__isles.inviteLink()`); check('link: board and island',
 // 4. the friend opens the link: the camera is on the inviter, the guide points next door
 const F = await tab(`${link}&me=qa-f`); await sleep(7000); await F.shot('5-friend');
 check('friend: guide names the inviter', (await text(F)).includes('옆'), await text(F));
+check('friend: the island button is next to the inviter', (await F.ev(`(()=>{ const b = document.getElementById('joinbtn'), s = +(b?.dataset.s ?? 0), from = +new URLSearchParams(location.search).get('from'); return !b?.hidden && __isles.neighbours(from).includes(s); })()`)));
 const a3 = await arrow(F); if (a3) await F.click(a3[0], a3[1] + 40); await sleep(800); await F.shot('6-friendcard');
-check('friend: card says next to the inviter', (await F.ev(`document.querySelector('#panel h2')?.textContent ?? ''`)).includes('옆'));
 await F.ev(`[...document.querySelectorAll('#panel button.gold')].find(b => b.textContent.includes('이 섬에 살기'))?.click()`); await sleep(2500);
 const slotF = await F.ev(`__isles.S.mySlot`);
 const near = await F.ev(`JSON.stringify(__isles.neighbours(${slotI}))`); check('friend: lives next door', slotF > 0 && JSON.parse(near).includes(slotF), `${slotI} ↔ ${slotF}`);

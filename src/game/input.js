@@ -10,6 +10,7 @@ import { toast } from './hud.js';
 import { setBuildMode, startBuild } from './build.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { showIsland, closePanel, panelOpen, halfBridge } from './panel.js';
+import { picking, guide } from './guide.js';
 import { toScreen, scrollToSlot } from './camera.js';
 import { openShop } from './shop.js';
 
@@ -64,6 +65,7 @@ export function initInput() {
       const n = PLOT[S.size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2), door = s === S.mySlot ? placePlot(S.world, S.mySlot, x, z, n, takenSet()) : null;
       if (door) { setBuildMode(false); return startBuild(x, z, door); }
       return showSpots(s !== S.mySlot); }
+    if (s && picking() && !S.owners.has(s)) { S.pick = s; closePanel(); return guide(); }   // choosing: the 'live here' button moves to the island I tapped
     if (s && s !== S.mySlot) return showIsland(s);
     if (panelOpen() && S.current?.kind !== 'build') closePanel();
   });

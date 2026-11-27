@@ -1,5 +1,6 @@
 // Drawing the archipelago each frame: the ground (or new land rising), buildings, walkers, boats and the building site
 // sorted by depth, then island labels, floating words, stars, empty-stock marks and what my pier's guests cannot find.
+import { join } from './panel.js';
 import { SLOTS, centerOf, PLOT, dockOf, neighbours, bridgeTiles } from '../v2/isles.js';
 import { BRIDGE } from './rules.js';
 import { renderView } from '../v2/render.js';
@@ -9,10 +10,10 @@ import { START_STOCK } from './rules.js';
 import { S, me, pr, map, g, sim, pops, boats, splash, FROM } from './state.js';
 import { allPlots, starsInfo, servesOf, nameOf } from './model.js';
 import { site, drawSite, drawFestBoat, drawBoat } from './mapfx.js';
-import { mapXY } from './camera.js';
+import { mapXY, toScreen } from './camera.js';
 import { NEED_ICON } from './hud.js';
 import { placeSign } from './build.js';
-import { tutGlowSpot } from './guide.js';
+import { tutGlowSpot, picking, pickSpot } from './guide.js';
 
 // each building is rendered once into a sprite (with its alpha, for picking by pixel)
 const sprites = new Map();
@@ -62,6 +63,14 @@ function drawSplash(dt) {
 }
 const outline = (x, z, n, color) => { const pts = [pr.P(x, z), pr.P(x + n, z), pr.P(x + n, z + n), pr.P(x, z + n)]; g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.stroke(); };
 
+/** Choosing an island: its 'live here' button sits on the island itself (no window), and moves to the one tapped. */
+function placeJoin() {
+  let b = document.getElementById('joinbtn'); const s = picking() && !S.fest ? pickSpot() : 0;
+  if (!s) { if (b) b.hidden = true; return; }
+  if (!b) { b = document.createElement('button'); b.id = 'joinbtn'; b.className = 'gold joinb'; b.textContent = '이 섬에 살기'; b.onclick = (e) => { e.stopPropagation(); b.disabled = true; join(+b.dataset.s).finally(() => { b.disabled = false; }); }; document.body.append(b); }
+  const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx, cz)); b.hidden = false; b.dataset.s = s;
+  b.style.left = Math.round(x - b.offsetWidth / 2) + 'px'; b.style.top = Math.round(y - b.offsetHeight / 2) + 'px';
+}
 /** Draw one frame of the map. */
 export function drawMap(dt) {
   const { hover, moving, building, myDoc, mySlot } = S;
@@ -147,7 +156,7 @@ export function drawMap(dt) {
       g.imageSmoothingEnabled = false; const ic = iconCanvas(NEED_ICON[k]); if (ic) g.drawImage(ic, x - 9, y - 9, 18, 18);
       g.font = '900 10px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeText(String(c), x + 11, y + 13); g.fillStyle = '#ff8a7a'; g.fillText(String(c), x + 11, y + 13); }); }
   drawSplash(dt);
-  S.drawn = items; S.lastTops = tops; placeSign();
+  S.drawn = items; S.lastTops = tops; placeSign(); placeJoin();
   { const sb = S.spotBlink, a = sb ? (performance.now() - sb.t0) / 1400 : 1; if (a >= 1) S.spotBlink = null;   // where a building of this size fits: three blinks
     else for (const q of sb.spots) outline(q.x, q.z, sb.n, `rgba(255,224,120,${(Math.sin(a * Math.PI * 6 - Math.PI / 2) + 1) / 2 * .9})`); }
   const ts = tutGlowSpot(); if (ts) { const t = (Math.sin(performance.now() / 180) + 1) / 2; outline(ts.x, ts.z, PLOT[S.size], `rgba(255,${200 + 55 * t | 0},80,${.6 + .4 * t})`); }

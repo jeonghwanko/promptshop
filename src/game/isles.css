@@ -370,3 +370,7 @@ body:has(.guide:not([hidden]):not(.min)) .toast { top:112px; bottom:auto; }
 /* what the guide points at: a brighter tone and a small hop, not a ring around it */
 .glow { box-shadow:none !important; filter:brightness(1.12) saturate(1.15); animation:glowHop 1.1s ease-in-out infinite; }
 @keyframes glowHop { 50% { translate:0 -3px; filter:brightness(1.25) saturate(1.3); } }
+/* choosing an island: its button sits on the island itself */
+.joinb { position:fixed; z-index:8; padding:10px 20px; font:400 20px var(--f-disp); white-space:nowrap; animation:joinIn .35s cubic-bezier(.2,1.6,.4,1); }
+.joinb[hidden] { display:none; }
+@keyframes joinIn { from { transform:scale(.6); opacity:0; } }

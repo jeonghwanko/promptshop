@@ -9,7 +9,7 @@ import { el } from './ui.js';
 import { S, db, me, sim, FROM, BOARD, pr } from './state.js';
 import { hooks, allPlots, ratesOf, servesOf, tilesOf } from './model.js';
 import { initPersist, WRITER, track } from './persist.js';
-import { initCamera, startZoom, applyZoom, scrollToSlot, toScreen, scrollToPoint, inSafe } from './camera.js';
+import { initCamera, startZoom, chooseZoom, applyZoom, scrollToSlot, toScreen, scrollToPoint, inSafe } from './camera.js';
 import { drawMap, riseLand, planks } from './mapview.js';
 import { initHud, toast, celebrate, markHome } from './hud.js';
 import { initEconomy, takeEvents, stepBoats, stepFest, festSoon } from './economy.js';
@@ -74,7 +74,7 @@ function showFresh(p, look) {
 hooks.rebuilt = (oldGround) => {
   if (!S.scrolled) {   // the first view: my island; invited, the inviter's; else the whole archipelago to choose from
     S.scrolled = true; const at = S.mySlot || (FROM && S.owners.has(FROM) ? FROM : 0) || pickSpot() || 1;   // (choosing: the island the guide points at, big enough to read)
-    S.zoom = S.mySlot ? startZoom(at) : 1; applyZoom(); setTimeout(() => { scrollToSlot(at, false); lift(); }, 50);   // the cover lifts on a drawn island, never on an empty sea
+    S.zoom = S.mySlot ? startZoom(at) : chooseZoom(at); applyZoom(); setTimeout(() => { scrollToSlot(at, false); lift(); }, 50);   // the cover lifts on a drawn island, never on an empty sea
     track('arrive', { from: FROM, has: !!S.mySlot, taken: S.owners.size });
   }
   // a friend took an island: it rises from the sea, and 내 섬 gets a mark (no window)

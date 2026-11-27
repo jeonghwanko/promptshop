@@ -1,22 +1,34 @@
 // The map camera: whole zoom steps (pixels stay even), the wheel, scrolling to an island, screen ↔ map points.
-import { centerOf, landSize } from '../v2/isles.js';
+import { centerOf, landSize, neighbours } from '../v2/isles.js';
 import { $ } from './ui.js';
 import { S, pr, map } from './state.js';
 
-const zoomSteps = () => { const lo = Math.min(1, Math.max(innerWidth / pr.width, innerHeight / pr.height) * .9); return [...new Set([lo, .5, .75, 1, 2, 3].filter(z => z >= lo - 1e-6))].sort((a, b) => a - b); };
+// Zoom steps. From one map pixel per device pixel up, whole device pixels (crisp pixel art at any screen scaling, e.g.
+// Windows at 125%); below it, halves and three quarters, drawn smooth instead (see applyZoom).
+const dpr = () => window.devicePixelRatio || 1;
+const zoomSteps = () => { const d = dpr(), lo = Math.min(1 / d, Math.max(innerWidth / pr.width, innerHeight / pr.height) * .9);
+  return [...new Set([lo, .5 / d, .75 / d, 1 / d, 2 / d, 3 / d, 4 / d].map(z => +z.toFixed(4)).filter(z => z >= lo - 1e-6 && z <= 3.01))].sort((a, b) => a - b); };
+/** The biggest step at which a w×h box (map pixels at zoom 1) takes at most fx of the screen's width and fy of its free height. */
+function fitZoom(w, h, fx, fy) { const k = Math.min(innerWidth * fx / w, (innerHeight - 200) * fy / h), st = zoomSteps(); return st.filter(z => z <= k + 1e-6).pop() ?? st[0]; }
 /** Zoom to z, keeping the point under `at` (screen x, y; default the middle of the screen) where it is. */
 function setZoom(z, at) {
   const box = $('mapbox'), [sx, sy] = at ?? [box.clientWidth / 2, box.clientHeight / 2], cx = (box.scrollLeft + sx - map.offsetLeft) / S.zoom, cy = (box.scrollTop + sy - map.offsetTop) / S.zoom;
   S.zoom = z; applyZoom(); box.scrollTo({ left: map.offsetLeft + cx * S.zoom - sx, top: map.offsetTop + cy * S.zoom - sy });
 }
-export const applyZoom = () => { map.style.width = pr.width * S.zoom + 'px'; const st = zoomSteps(); $('zin').disabled = S.zoom >= st[st.length - 1]; $('zout').disabled = S.zoom <= st[0] + 1e-6; };
+export const applyZoom = () => { map.style.width = pr.width * S.zoom + 'px'; map.style.imageRendering = S.zoom * dpr() < .999 ? 'auto' : 'pixelated'; const st = zoomSteps(); $('zin').disabled = S.zoom >= st[st.length - 1]; $('zout').disabled = S.zoom <= st[0] + 1e-6; };
 const zoomBy = (d, at) => { const st = zoomSteps(), i = st.findIndex(z => Math.abs(z - S.zoom) < 1e-6), n = st[Math.max(0, Math.min(st.length - 1, (i < 0 ? st.indexOf(1) : i) + d))]; if (n !== S.zoom) setZoom(n, at); };
 /** The first view: the biggest whole step at which my island (with room for its land to grow) still fits in most of the screen. */
 export function startZoom(slot) {
-  const [cx, cz] = centerOf(slot), r = Math.sqrt(landSize(slot) / Math.PI) + 1, xs = [[-r, -r], [r, -r], [-r, r], [r, r]].map(([dx, dz]) => pr.P(cx + dx, cz + dz));
+  const [cx, cz] = centerOf(slot), r = (Math.sqrt(landSize(slot) / Math.PI) + 1) / Math.SQRT2, xs = [[-r, -r], [r, -r], [-r, r], [r, r]].map(([dx, dz]) => pr.P(cx + dx, cz + dz));   // round: the square's corners pulled in by √2
   const w = Math.max(...xs.map(p => p[0])) - Math.min(...xs.map(p => p[0])), h = Math.max(...xs.map(p => p[1])) - Math.min(...xs.map(p => p[1]));
-  const k = Math.min(innerWidth * .8 / w, (innerHeight - 160) * .85 / h);
-  return Math.max(1, Math.min(3, Math.floor(k * Math.SQRT2)));   // the island is round: its outline is the square's corners pulled in by √2
+  return fitZoom(w, h, .4, .55);   // my island about two fifths of the screen: the sea and the neighbours around it stay in view
+}
+/** Choosing an island: the one pointed at and its neighbours, a step further out than they need — room to look around,
+ *  names still readable (the whole archipelago at once makes them too small to read). */
+export function chooseZoom(slot) {
+  const pts = [slot, ...neighbours(slot)].map(s => pr.P(...centerOf(s))), pad = pr.P(8, 8)[0] - pr.P(0, 0)[0];
+  const w = Math.max(...pts.map(p => p[0])) - Math.min(...pts.map(p => p[0])) + Math.abs(pad) * 2, h = Math.max(...pts.map(p => p[1])) - Math.min(...pts.map(p => p[1])) + Math.abs(pad);
+  const z = fitZoom(w, h, .95, .95), st = zoomSteps(); return st[Math.max(0, st.indexOf(z) - 1)] ?? z;
 }
 /** The part of the screen no UI covers: below the top HUD, above the dock, and left of (PC) or above (phone) an open panel.
  *  The camera puts what it shows in the middle of this, so UI never has to dodge the map. */
