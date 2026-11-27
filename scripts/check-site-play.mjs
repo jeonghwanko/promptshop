@@ -36,7 +36,7 @@ async function person(url) {
   const shot = async (n) => { if (!shots) return; const r = await send('Page.captureScreenshot', { format: 'png' }); fs.writeFileSync(`${shots}/site_${n}.png`, Buffer.from(r.data, 'base64')); };
   const clickSel = async (sel) => { for (let i = 0; i < 30 && await ev(`!!document.querySelector(${JSON.stringify(sel)})?.closest('.wait')`); i++) await sleep(150);   // the guide's buttons show once its line is typed
     const b = JSON.parse(await ev(`(()=>{const e=document.querySelector(${JSON.stringify(sel)}); if(!e||!e.offsetParent) return 'null'; const r=e.getBoundingClientRect(); return JSON.stringify([r.left+r.width/2, r.top+r.height/2])})()`)); if (b) await click(b[0], b[1]); return !!b; };
-  const arrowNow = async () => JSON.parse(await ev(`(()=>{ const a = document.getElementById('garrow'); return JSON.stringify(a.hidden ? null : [parseFloat(a.style.left), parseFloat(a.style.top)]); })()`));
+  const arrowNow = async () => JSON.parse(await ev(`JSON.stringify(__isles.S.guideAt ?? null)`));   // the middle of what the guide asks to press
   const arrow = async () => { let a = await arrowNow(); for (let i = 0; i < 20; i++) { await sleep(300); const b = await arrowNow(); if (JSON.stringify(a) === JSON.stringify(b)) return b; a = b; } return a; };   // once the camera has settled
   const text = () => ev(`document.getElementById('guide').hidden ? '' : document.getElementById('gtext').textContent`);
   return { ev, click, shot, clickSel, arrow, text, front: () => send('Page.bringToFront'), go: (u) => send('Page.navigate', { url: u }) };
@@ -50,7 +50,7 @@ await A.clickSel('#gbtns .gold');
 check('my own archipelago', await until(async () => (await A.ev('location.search')).includes('board=b'), 8000), await A.ev('location.search'));
 await sleep(5000); await A.shot('2-myboard');
 // 2. choose the island the guide points at
-const a1 = await A.arrow(); if (a1) await A.click(a1[0], a1[1] + 22); await sleep(800);
+const a1 = await A.arrow(); if (a1) await A.click(a1[0], a1[1]); await sleep(800);
 await A.ev(`[...document.querySelectorAll('#panel button.gold')].find(b => b.textContent.includes('이 섬에 살기'))?.click()`);
 check('moved in', await until(() => A.ev('__isles.S.mySlot > 0 && __isles.S.role === "live"'), 8000), await A.ev('__isles.S.mySlot'));
 // 3. the first loop with a real build
@@ -59,7 +59,7 @@ check('built by Claude', await until(() => A.ev('Object.values(__isles.myDoc.plo
 check('one call used', (await A.ev(`fetch('/api/me', { headers: { 'x-isles': '1' } }).then(r => r.json()).then(v => v.left)`)) === 4);
 await A.ev(`(()=>{ __isles.myDoc.wallet.tut = 99; __isles.S.inviteGuide = true; __isles.S.dirty = true; __isles.guide(); })()`); await sleep(1500);
 // 4. the invite: a link with a token, and the archipelago's picture for previews
-const a3 = await A.arrow(); if (a3) await A.click(a3[0], a3[1] + 18); await sleep(800);
+const a3 = await A.arrow(); if (a3) await A.click(a3[0], a3[1]); await sleep(800);
 await A.ev(`navigator.clipboard.writeText = (t) => { window.__copied = t; return Promise.resolve(); }`);
 await A.ev(`document.querySelector('#panel .invitecard button.gold')?.click()`);
 check('invite link with a token', await until(() => A.ev('!!window.__copied'), 5000));
@@ -72,7 +72,7 @@ check('link preview: board name and free islands', /og:title" content="[^"]+의 
 const B = await person(link.replace(/^https?:\/\/[^/]+/, base)); await sleep(6000); await B.shot('4-friend');
 await until(async () => (await B.text()).includes('옆'), 15000); await sleep(1500);
 check('friend: guide points next door', (await B.text()).includes('옆'), await B.text());
-const b1 = await B.arrow(); if (b1) await B.click(b1[0], b1[1] + 22); await sleep(800);
+const b1 = await B.arrow(); if (b1) await B.click(b1[0], b1[1]); await sleep(800);
 await B.ev(`[...document.querySelectorAll('#panel button.gold')].find(b => b.textContent.includes('이 섬에 살기'))?.click()`);
 check('friend moved in (token)', await until(() => B.ev('__isles.S.mySlot > 0'), 8000), await B.ev(`JSON.stringify({ b1: ${JSON.stringify(b1)}, panel: document.getElementById('panel').hidden ? '' : document.getElementById('panel').innerText, toast: document.getElementById('toast').textContent, at: (() => { const e = document.elementFromPoint(${b1?.[0] ?? 0}, ${(b1?.[1] ?? 0) + 22}); return e?.className || e?.tagName; })() })`));
 await B.ev(`(()=>{ __isles.myDoc.wallet.tut = 99; __isles.guide(); document.getElementById('d-home').click(); })()`); await sleep(1000);

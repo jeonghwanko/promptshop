@@ -46,7 +46,7 @@ export function logOpen(x, z, n, line, need) {
 function add(tag, text, kind) {
   const box = $('buildlog'); if (!box) return;
   box.append(el('div', { class: 'ln' + (kind ? ' ' + kind : '') }, el('b', {}, tag), text ? el('span', {}, text) : null));
-  const lines = box.querySelectorAll('.ln:not(.head)'); for (let i = 0; i < lines.length - 7; i++) lines[i].remove();
+  const lines = box.querySelectorAll('.ln:not(.head)'); for (let i = 0; i < lines.length - 3; i++) lines[i].remove();
   placeLog();
 }
 /** A part Claude sent: written in the log as decided (its own short words). */
@@ -58,7 +58,7 @@ export function logStep(s) {
 export const logNote = (tag, text) => add(tag, text, 'got');
 /** Done: the log becomes, at once, the building as built — name and floors, the look, sign, centrepiece, props, floors, furniture.
  *  steps: the lines Claude sent (with their words); s: the finished building, normalized. */
-export function logDone(steps, s) {
+export function logDone(steps, s, short = false) {
   clearInterval(think); const box = $('buildlog'); if (!box) return;
   const notes = (k) => steps.filter(x => x.step === k && x.note).map(x => x.note.trim());
   const rows = [
@@ -66,7 +66,7 @@ export function logDone(steps, s) {
     ['간판', notes('sign')[0]], ['대표', notes('hero')[0]], ['소품', notes('prop').slice(0, 3).join(', ')],
     ...floorsOf(steps).slice(0, 3).map(f => [Array.isArray(f.range) && f.range[0] !== f.range[1] ? `${f.range[0]}~${f.range[1]}층` : `${f.range?.[0] ?? 1}층`, [f.name, f.note].filter(Boolean).join(' · ')]),
     ['가구', notes('fixture').slice(0, 3).join(', ')],
-  ].filter(r => r[1]);
+  ].filter(r => r[1] && (!short || ['간판', '대표', '가구'].includes(r[0])));   // the first building: three rows, read at a glance
   box.classList.add('sum');
   box.replaceChildren(el('div', { class: 'ln done' }, el('b', {}, '완성'), el('span', {}, [s.name || TYPE_KO[s.type], `${s.levels}층`, TYPE_KO[s.type]].filter(Boolean).join(' · '))),
     ...rows.map(([k, v]) => el('div', { class: 'ln kv' }, el('b', {}, k), el('span', {}, v))));

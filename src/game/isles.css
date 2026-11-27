@@ -445,3 +445,25 @@ body.hide-counts .want .cnt { display:none; }
 .newly { animation:newly 1.4s cubic-bezier(.2,1.5,.4,1); }
 @keyframes newly { 0% { transform:scale(.4); opacity:0; filter:drop-shadow(0 0 0 #ffd166); } 35% { transform:scale(1.18); opacity:1; filter:drop-shadow(0 0 10px #ffd166); } 100% { transform:none; filter:none; } }
 @media (prefers-reduced-motion: reduce) { .newly { animation:none; } }
+
+/* ---------- the first session's spotlight: one thing to press, the rest dimmed; 끼룩이 beside it (guide.js) ---------- */
+.gspot { position:fixed; z-index:44; pointer-events:none; border-radius:18px; box-shadow:0 0 0 200vmax rgba(10,18,28,.68), 0 0 0 3px #ffd166; transition:left .25s, top .25s, width .25s, height .25s, border-radius .25s; }
+.gspot[hidden] { display:none; } .gspot.round { border-radius:50%; }
+.guide.anchored { transition:left .25s, top .25s; }
+.guide.anchored .gbub { margin-bottom:6px; }
+@media (prefers-reduced-motion: reduce) { .gspot { transition:none; } .guide.anchored { transition:none; } }
+
+/* ---------- first session, after review: one board for the build log, bigger faces, one step's own hides ---------- */
+.guide.anchored .gbub { font-size:18px; }
+/* the build log is one board, its lines plain text (pills read as buttons) */
+.buildlog:not(.sum) { gap:2px; padding:6px 4px; border-radius:14px; background:rgba(46,36,26,.9); box-shadow:0 4px 0 rgba(20,30,40,.3); }
+.buildlog:not(.sum) .ln { background:none; box-shadow:none; padding:3px 10px; }
+.buildlog:not(.sum) .ln.idea { background:none; box-shadow:none; color:#b8a888; }
+/* the step's own: faces first and big (each lifts its head in turn), then the bar alone with the face that asked */
+body.hide-bar #bar, body.hide-free .want.free { display:none; }
+#bar.newly { animation:barUp .32s cubic-bezier(.2,1.2,.4,1); } @keyframes barUp { from { transform:translateY(40px); opacity:0; } }
+body[data-tut="0"] .ask .wants { zoom:1.25; }
+body[data-tut="0"] .want:nth-child(1) { animation:glowHop 1.4s ease-in-out infinite; } body[data-tut="0"] .want:nth-child(2) { animation:glowHop 1.4s ease-in-out .25s infinite; } body[data-tut="0"] .want:nth-child(3) { animation:glowHop 1.4s ease-in-out .5s infinite; }
+body[data-tut="1"] #wants, body[data-tut="1"] .bar .bx, body[data-tut="2"] #wants, body[data-tut="2"] .bar .stamps { display:none; }
+body[data-tut="1"] .bar .bsub button { background:#fbf1dc; color:#2e241a; font:400 15px var(--f-disp); padding:5px 12px; }
+@media (prefers-reduced-motion: reduce) { body[data-tut="0"] .want { animation:none !important; } }

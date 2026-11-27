@@ -106,8 +106,10 @@ export function drawMap(dt) {
   // ones next to the friend who sent the link glow, else every free one does, softly)
   g.textAlign = 'center';
   const pulse = (Math.sin(performance.now() / 260) + 1) / 2, near = FROM && S.owners.has(FROM) ? neighbours(FROM) : null;
+  const quietFree = !!mySlot && !myDoc?.wallet?.invGuide;   // empty islands say nothing until 끼룩이 first suggests calling a friend
   for (let s = 1; s <= SLOTS && !zoomShop; s++) {
     const [cx, cz] = centerOf(s), [lx, ly] = pr.P(cx - 4, cz - 4), uid = S.owners.get(s);
+    if (!uid && quietFree) continue;
     const label = uid === me ? '내 섬' : uid ? nameOf(uid) : `${s} · 빈 섬`, choose = !uid && !mySlot && S.scrolled && (!near || near.includes(s));
     g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(label).width + 14;
     g.fillStyle = uid === me ? '#e3a72f' : uid ? 'rgba(46,36,26,.85)' : choose ? `rgba(255,${205 + 30 * pulse | 0},${110 + 60 * pulse | 0},${near ? .95 : .55 + .35 * pulse})` : 'rgba(255,255,255,.75)'; g.beginPath(); g.roundRect(lx - w / 2, ly - 30, w, 20, 8); g.fill();

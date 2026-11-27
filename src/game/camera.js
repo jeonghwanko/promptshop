@@ -23,9 +23,9 @@ const zoomBy = (d, at) => { const st = zoomSteps(), i = st.findIndex(z => Math.a
 export function startZoom(slot) {
   const [cx, cz] = centerOf(slot), r = (Math.sqrt(landSize(slot) / Math.PI) + 1) / Math.SQRT2, xs = [[-r, -r], [r, -r], [-r, r], [r, r]].map(([dx, dz]) => pr.P(cx + dx, cz + dz));   // round: the square's corners pulled in by √2
   const w = Math.max(...xs.map(p => p[0])) - Math.min(...xs.map(p => p[0])), h = Math.max(...xs.map(p => p[1])) - Math.min(...xs.map(p => p[1]));
-  // PC: my island about two fifths of the screen, the sea and the neighbours around it in view. A phone has no room for
+  // PC: my island a little over half the screen, the sea and a little of the neighbours around it in view. A phone has no room for
   // that: the island (room to grow included) fills the width, and as much of the free height as is left
-  return innerWidth <= 760 ? fitZoom(w, h, .98, .9) : fitZoom(w, h, .4, .55);
+  return innerWidth <= 760 ? fitZoom(w, h, .98, .9) : fitZoom(w, h, .58, .7);
 }
 /** Choosing an island: the one pointed at and its neighbours, a step further out than they need — room to look around,
  *  names still readable (the whole archipelago at once makes them too small to read). */

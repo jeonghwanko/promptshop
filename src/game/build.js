@@ -21,6 +21,7 @@ import { stakeSite, dustSite } from './mapfx.js';
 import { save } from './persist.js';
 import { scrollToSlot, scrollToPoint } from './camera.js';
 import { logOpen, logStep, logNote, logDone, logFail, logDrop } from './buildlog.js';
+import { opened } from './reveal.js';
 import { celebrate, why, callBoat } from './hud.js';
 import { tutEvent, tutOn } from './guide.js';
 import { show, showHome, closePanel, showBuilding } from './panel.js';
@@ -103,7 +104,7 @@ export function drawAsk(force) {
   const go = $('bgo'); go.hidden = !S.buildMode && !busy; go.disabled = busy;
   const full = Object.keys(S.myDoc.plots).length >= maxPlots();
   go.classList.toggle('off', busy || w.permits <= 0 || full);
-  go.replaceChildren(...(busy ? ['짓는 중'] : full ? ['자리 없음'] : w.permits <= 0 ? [iconEl('ticket', 22, ''), '0장'] : [iconEl('ticket', 22, ''), '1', el('span', { class: 'gw' }, '짓기')]));
+  go.replaceChildren(...(busy ? ['짓는 중'] : full ? ['자리 없음'] : w.permits <= 0 ? [iconEl('ticket', 22, ''), '0장'] : opened('permits') ? [iconEl('ticket', 22, ''), '1', el('span', { class: 'gw' }, '짓기')] : ['짓기']));   // the 🎫 is taught at the guide's end
   const sz = $('bsize'); sz.hidden = !S.buildMode || open.length < 2;
   if (!sz.hidden) sz.replaceChildren(...open.map(k => el('button', { class: k === S.size ? 'on' : '', on: { click: () => { S.size = k; S.spot = autoSpot(); $('line').placeholder = '예: ' + ideasOf()[0]; drawAsk(true); } } }, k)));
   if (!busy) $('bsub').replaceChildren(...(S.buildMode ? ideasOf().map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t)) : []));
@@ -177,9 +178,9 @@ async function build() {
     setTimeout(() => { if (!S.building && !S.watching && !S.current?.key && S.zoom === camWas.zoom && !tutOn()) box.scrollTo({ left: camWas.left, top: camWas.top, behavior: 'smooth' }); }, 2600);
     // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
     const role = roleOf(s.type, s.levels), answered = need && role.serves === need;
-    if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
+    if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!'), 400); }
     else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), 400);
-    logDone(seen, s);
+    logDone(seen, s, tutOn());
     done(); tutEvent('built');
     rebuild(); await save(true);
   } catch (e) { logFail(failText(e, '짓지 못했어요')); S.building = null; stakeSite(null); S.current?.kind === 'build' && (S.current = null); input.value = line; setBuildMode(true); say(failText(e, '짓지 못했어요. 다시 눌러 주세요.')); }

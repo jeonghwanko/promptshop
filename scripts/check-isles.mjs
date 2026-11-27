@@ -29,9 +29,9 @@ await sleep(9000); await shot('map');
 check('loaded', await ev(`!!window.__isles && !!__isles.myDoc`));
 check('hud', (await ev(`document.getElementById('wallet').textContent`)).length > 0, await ev(`document.getElementById('who').textContent`));
 // tutorial step 7: tap the shop → inside guide
-const a = JSON.parse(await ev(`(()=>{const a=document.getElementById('garrow'); return JSON.stringify(a.hidden?null:[parseFloat(a.style.left), parseFloat(a.style.top)])})()`));
+const a = JSON.parse(await ev(`JSON.stringify(__isles.S.guideAt ?? null)`));   // the middle of what the guide asks to press
 check('guide arrow at shop', !!a);
-if (a) for (const dy of [30, 50, 70]) { if (await ev(`!!__isles.watching`)) break; await click(a[0], a[1] + dy); await sleep(1500); }
+if (a) for (const dy of [0, 12, -12]) { if (await ev(`!!__isles.watching`)) break; await click(a[0], a[1] + dy); await sleep(1500); }
 check('shop opened by tap', await ev(`!!__isles.watching?.inPlace`), await ev(`__isles.watching?.key`));
 check('inside guide', (await ev(`document.getElementById('gtext').textContent`)).includes('가게 안'));
 await ev(`document.querySelector('#gbtns .gold')?.click()`); await sleep(500); await ev(`document.querySelector('#gbtns .gold')?.click()`); await sleep(500);
