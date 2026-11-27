@@ -3,7 +3,7 @@
 import { NEEDS } from './townsim.js';
 
 // ---------- drawing ----------
-const SHIRTS = ['#c0392b', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2', '#e2743b', '#f4f1ea', '#2b2f3a'];
+const SHIRTS = ['#ef5a4a', '#3d9ee0', '#ffc94a', '#4fbf7a', '#a07ad0', '#ff9a62', '#fff8ea', '#3f5f84'];   // the island palette's accents: no near-black
 const ICON = {
   food: (g, x, y) => { g.fillRect(x, y + 3, 7, 1); g.fillRect(x + 1, y + 4, 5, 2); g.fillRect(x + 2, y, 1, 3); g.fillRect(x + 4, y, 1, 3); },
   cafe: (g, x, y) => { g.fillRect(x + 1, y + 1, 4, 5); g.fillRect(x + 5, y + 2, 1, 2); g.fillRect(x, y + 6, 6, 1); },
@@ -13,16 +13,17 @@ const ICON = {
 };
 export function drawPerson(g, pr, p) {
   const [px, py] = pr.P(p.x + (p.dir === 'z' ? p.side : 0), p.z + (p.dir === 'x' ? p.side : 0));
-  const x = Math.round(px), y = Math.round(py), bob = p.wait > 0 || p.inQueue ? 0 : (Math.sin(p.t * 10) > 0 ? 1 : 0);
-  g.fillStyle = 'rgba(0,0,0,.18)'; g.fillRect(x - 2, y, 5, 1);
-  g.fillStyle = '#3b3f52'; g.fillRect(x - 1, y - 3, 1, 3); g.fillRect(x + 1, y - 3, 1, 3);
-  g.fillStyle = SHIRTS[p.shirt]; g.fillRect(x - 1, y - 7 - bob, 3, 4);
-  g.fillStyle = '#f1c9a0'; g.fillRect(x - 1, y - 9 - bob, 3, 2);
-  if (p.vip) { g.fillStyle = '#ffd23a'; g.fillRect(x - 2, y - 11 - bob, 5, 2); g.fillRect(x - 2, y - 13 - bob, 1, 2); g.fillRect(x, y - 13 - bob, 1, 2); g.fillRect(x + 2, y - 13 - bob, 1, 2); }
+  // the map's chunky pixels: every block is 2×2 and sits on the even grid, the figure stays about as tall as before
+  const x = Math.round(px / 2) * 2, y = Math.round(py / 2) * 2, bob = p.wait > 0 || p.inQueue ? 0 : (Math.sin(p.t * 10) > 0 ? 2 : 0);
+  g.fillStyle = 'rgba(23,63,120,.25)'; g.fillRect(x - 3, y, 6, 2);
+  g.fillStyle = '#3f5f84'; g.fillRect(x - 2, y - 2, 2, 2); g.fillRect(x, y - 2, 2, 2);   // legs
+  g.fillStyle = SHIRTS[p.shirt]; g.fillRect(x - 2, y - 6 - bob, 4, 4);
+  g.fillStyle = '#f5cfa4'; g.fillRect(x - 2, y - 8 - bob, 4, 2);
+  if (p.vip) { g.fillStyle = '#ffd23a'; g.fillRect(x - 2, y - 10 - bob, 4, 2); g.fillRect(x - 2, y - 12 - bob, 2, 2); g.fillRect(x, y - 12 - bob, 2, 2); }
   if (p.need && !p.inQueue) {           // speech bubble with what they want
     const bx = x - 5, by = y - 22 - bob;
     g.fillStyle = '#ffffff'; g.fillRect(bx, by, 11, 10); g.fillRect(bx + 4, by + 10, 2, 2);
     g.fillStyle = NEEDS[p.need].color; ICON[p.need](g, bx + 2, by + 2);
-  } else if (p.mood === 2 && p.wait <= 0) { g.fillStyle = '#8b9a9c'; g.fillRect(x - 3, y - 14, 1, 1); g.fillRect(x, y - 14, 1, 1); g.fillRect(x + 3, y - 14, 1, 1); }
+  } else if (p.mood === 2 && p.wait <= 0) { g.fillStyle = '#8b9a9c'; g.fillRect(x - 6, y - 14, 2, 2); g.fillRect(x - 1, y - 14, 2, 2); g.fillRect(x + 4, y - 14, 2, 2); }
 }
 export function drawNeedIcon(g, need, x, y) { g.fillStyle = NEEDS[need].color; ICON[need](g, x, y); }

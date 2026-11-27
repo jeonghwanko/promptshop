@@ -9,10 +9,12 @@ export class Stage2 {
   constructor({ width = 520, height = 500, lift = 0.84 } = {}) {
     this.W = width; this.H = height;
     this.renderer = new THREE.WebGLRenderer({ antialias: false, alpha: true, preserveDrawingBuffer: true });
-    this.renderer.setPixelRatio(1); this.renderer.setSize(width, height, false); this.renderer.setClearColor(0x000000, 0);
+    // drawn at half size and shown doubled with a coloured outline, like the finished building on the map (render.js, mapview chunky())
+    this.renderer.setPixelRatio(1); this.renderer.setSize(width / 2, height / 2, false); this.renderer.setClearColor(0x000000, 0);
     this.renderer.shadowMap.enabled = true; this.renderer.shadowMap.type = THREE.BasicShadowMap;
     this.renderer.outputColorSpace = THREE.SRGBColorSpace;
-    this.canvas = this.renderer.domElement;
+    this.small = document.createElement('canvas'); this.small.width = width / 2; this.small.height = height / 2;
+    this.canvas = document.createElement('canvas'); this.canvas.width = width; this.canvas.height = height;
     this.cam = new THREE.OrthographicCamera(-width / 2 / PPU, width / 2 / PPU, height / 2 / PPU, -height / 2 / PPU, 0.1, 400);
     const pitch = Math.PI / 6, yaw = Math.PI / 4;
     const dir = new THREE.Vector3(Math.cos(pitch) * Math.sin(yaw), Math.sin(pitch), Math.cos(pitch) * Math.cos(yaw));
@@ -32,7 +34,7 @@ export class Stage2 {
     const g = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.36, color: 0x173f78 }));
     g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
     this.scene = scene; this.drops = [];
-    this.renderer.render(scene, this.cam);
+    this.renderer.render(scene, this.cam); this.blit();
   }
   /** @param input raw v2 input (type, style, overrides) @param key part that changed: 'all', 'mass:<id>', 'sign', 'hero', 'prop:<i>' */
   show(input, key) {
@@ -56,7 +58,18 @@ export class Stage2 {
       if (g.userData.grow) g.scale.y = 0.02 + 0.98 * k; else g.position.y = 2 * (1 - k);
       if (t < 1) busy = true;
     }
-    this.renderer.render(this.scene, this.cam);
+    this.renderer.render(this.scene, this.cam); this.blit();
     if (busy) requestAnimationFrame(() => this.tick()); else this.drops = [];
+  }
+  /** The half-size picture, outlined (the colour it borders, darkened toward deep blue) and doubled onto .canvas. */
+  blit() {
+    const sw = this.small.width, sh = this.small.height, sg = this.small.getContext('2d', { willReadFrequently: true });
+    sg.clearRect(0, 0, sw, sh); sg.drawImage(this.renderer.domElement, 0, 0);
+    const im = sg.getImageData(0, 0, sw, sh), px = im.data, src = new Uint8ClampedArray(px), solid = (i) => src[i * 4 + 3] > 200;
+    for (let y = 0; y < sh; y++) for (let x = 0; x < sw; x++) { const i = y * sw + x; if (solid(i)) continue;
+      const j = x + 1 < sw && solid(i + 1) ? i + 1 : x > 0 && solid(i - 1) ? i - 1 : y + 1 < sh && solid(i + sw) ? i + sw : y > 0 && solid(i - sw) ? i - sw : -1;
+      if (j >= 0) { px[i * 4] = src[j * 4] * .42 + 8; px[i * 4 + 1] = src[j * 4 + 1] * .46 + 26; px[i * 4 + 2] = src[j * 4 + 2] * .5 + 62; px[i * 4 + 3] = 255; } }
+    sg.putImageData(im, 0, 0);
+    const g = this.canvas.getContext('2d'); g.imageSmoothingEnabled = false; g.clearRect(0, 0, this.W, this.H); g.drawImage(this.small, 0, 0, this.W, this.H);
   }
 }

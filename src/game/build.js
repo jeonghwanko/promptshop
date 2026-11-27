@@ -204,6 +204,7 @@ async function build() {
   closePanel(); S.current = { kind: 'build' }; dustSite({ x, z, size: sz }); stakeSite({ x, z, size: sz });
   const box = $('mapbox'), camWas = { left: box.scrollLeft, top: box.scrollTop, zoom: S.zoom };
   const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); S.building = { x, z, size: sz, stage, t0: performance.now(), parts: 0, bumpAt: 0 };   // parts and bumpAt drive the site's show
+  rebuild();   // the ground under the site turns to a cleared lot
   S.buildMode = false; document.body.classList.remove('buildmode'); input.value = `“${line}”`; drawAsk(true); tutEvent('line');
   scrollToPoint(...pr.P(x + n / 2, z + n / 2 - 1));
   const stamps = el('span', { class: 'stamps' }, STAMPS.map(([k, ko]) => el('i', { 'data-k': k }, ko)));

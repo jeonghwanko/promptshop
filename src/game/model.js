@@ -51,7 +51,8 @@ export const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.s
 export const servesOf = (p) => { const n = normalize(p.b.input); return roleOf(n.type, n.levels).serves; };
 /** Tiles under any building (and every island's power plant and water tank), except the ones under the buildings named in `skip`. */
 export function takenSet(...skip) { const t = new Set(); for (const p of allPlots()) if (!skip.includes(p.key)) for (let i = p.x; i < p.x + PLOT[p.size]; i++) for (let k = p.z; k < p.z + PLOT[p.size]; k++) t.add(i + ',' + k);
-  for (const s of S.owners?.keys() ?? []) for (const [x, z] of plantTiles(s)) t.add(x + ',' + z); return t; }
+  for (const s of S.owners?.keys() ?? []) for (const [x, z] of plantTiles(s)) t.add(x + ',' + z);
+  return t; }
 /** The tiles of an island right now. */
 export function tilesOf(slot) { const [cx, cz] = centerOf(slot), out = []; for (let z = cz - 14; z <= cz + 14; z++) for (let x = cx - 14; x <= cx + 14; x++) if (slotAt(x, z) === slot) out.push([x, z]); return out; }
 /** The open shops of an island that still have stock (and power and water: a shop cut off for an unpaid bill is closed). */
@@ -141,7 +142,8 @@ export function rebuild() {
   const world = S.world = makeIsles(joined, bridges), oldGround = S.ground;
   const all = allPlots();
   const avoid = new Set(); for (const sl of joined) for (const t of plantTiles(sl)) if (t) avoid.add(t[0] + ',' + t[1]);   // no trees where power and water stand
-  S.ground = drawIsles(world, pr, { taken: takenSet(), avoid });
+  const lots = takenSet(), b = S.building; if (b) for (let i = b.x; i < b.x + PLOT[b.size]; i++) for (let k = b.z; k < b.z + PLOT[b.size]; k++) lots.add(i + ',' + k);   // the site being built shows as a cleared lot (for the picture only: placing still checks takenSet)
+  S.ground = drawIsles(world, pr, { taken: lots, avoid });
   // reset the walkers only when the road network changes (an island joined, a bridge finished)
   const sig = [...joined].sort((a, b) => a - b).join(',') + '|' + [...bridges].filter(([, h]) => h.a && h.b).map(([id]) => id).sort().join(',');
   if (sig !== roadSig) { roadSig = sig; sim.setArea({ w: world.w, d: world.d, isRoad: world.isRoad, lots: [] }); } else sim.A = { ...sim.A, isRoad: world.isRoad };
