@@ -10,7 +10,7 @@ execSync(`curl -s localhost:5300/api/db/i/dev-me -o ${dir}/d.json`);
 const d = JSON.parse(fs.readFileSync(`${dir}/d.json`)); d.wallet.tut = 99; d.wallet.tutIn = 99; d.wallet.autoInvest = false; d.rev = 1; delete d.term; delete d.by; delete d.ack;
 fs.writeFileSync(`${dir}/d.json`, JSON.stringify(d)); api('DELETE', DOC); api('DELETE', `i-${BOARD}/_mod`); api('PUT', DOC, `${dir}/d.json`);
 
-const port = 9380, chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}/chrome`, '--window-size=1200,800', 'about:blank'], { stdio: 'ignore' });
+const port = 9380, chrome = spawn('google-chrome', ['--headless=new', '--password-store=basic', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}/chrome`, '--window-size=1200,800', 'about:blank'], { stdio: 'ignore' });
 process.on('exit', () => { try { chrome.kill(); } catch {} });
 await new Promise(r => setTimeout(r, 1500));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms)), errs = [];

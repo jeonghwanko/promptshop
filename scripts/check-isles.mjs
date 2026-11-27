@@ -11,7 +11,7 @@ const del = (path) => execSync(`curl -s -X DELETE localhost:5300/api/db/${path}`
 const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 7; delete doc.wallet.tutIn; doc.rev = 1;
 (await import('node:fs')).writeFileSync(S + '/rd.json', JSON.stringify(doc));
 del('i-qarg/qa-x'); put('boards/qarg', S + '/rb.json'); put('i-qarg/qa-x', S + '/rd.json');
-const port = 9370, chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=/tmp/cdp-rg-${Date.now()}`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
+const port = 9370, chrome = spawn('google-chrome', ['--headless=new', '--password-store=basic', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=/tmp/cdp-rg-${Date.now()}`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
 process.on('exit', () => { try { chrome.kill(); } catch {} });   // never leave a browser saving to the copy
 await new Promise(r => setTimeout(r, 1500));
 const tabs = await (await fetch(`http://127.0.0.1:${port}/json`)).json();

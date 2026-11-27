@@ -8,7 +8,7 @@ const api = (m, path) => execSync(`curl -s -X ${m} localhost:5300/api/db/${path}
 const get = (path) => JSON.parse(api('GET', path) || 'null');
 const clean = () => { for (const p of [`i-${BOARD}/qa-i`, `i-${BOARD}/qa-f`, `i-${BOARD}/qa-g`, `log/${BOARD}~qa-i`, `log/${BOARD}~qa-f`, `log/${BOARD}~qa-g`]) api('DELETE', p); };
 clean();
-const port = 9381, chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}/chrome`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
+const port = 9381, chrome = spawn('google-chrome', ['--headless=new', '--password-store=basic', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}/chrome`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
 process.on('exit', () => { try { chrome.kill(); } catch {} });
 await new Promise(r => setTimeout(r, 1500));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms)), errs = [];

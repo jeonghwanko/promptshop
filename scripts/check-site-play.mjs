@@ -12,7 +12,7 @@ if (!base) {
   srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, 'server/main.mjs')], { env: { ...process.env, PORT: String(PORT), DATA_DIR: path.join(dir, 'data'), SAMPLE: process.env.SAMPLE ?? 'cli' }, stdio: ['ignore', 'pipe', 'inherit'] });
   await new Promise(r => srv.stdout.once('data', r));
 }
-const port = 9393, chrome = spawn('google-chrome', ['--headless=new', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}/chrome`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
+const port = 9393, chrome = spawn('google-chrome', ['--headless=new', '--password-store=basic', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=${dir}/chrome`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
 process.on('exit', () => { try { chrome.kill(); srv?.kill(); } catch {} try { fs.rmSync(dir, { recursive: true, force: true }); } catch {} });
 await new Promise(r => setTimeout(r, 1500));
 const sleep = (ms) => new Promise(r => setTimeout(r, ms)), errs = [];
