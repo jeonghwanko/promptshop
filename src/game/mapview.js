@@ -4,6 +4,7 @@ import { join } from './panel.js';
 import { SLOTS, centerOf, PLOT, dockOf, neighbours, bridgeTiles, placePlot } from '../v2/isles.js';
 import { BRIDGE } from './rules.js';
 import { renderView } from '../v2/render.js';
+import { drawWaves } from '../v2/ground.js';
 import { drawPerson } from '../v2/townview.js';
 import { iconCanvas, EMOJI } from '../ui/icons.js';
 import { START_STOCK } from './rules.js';
@@ -18,10 +19,15 @@ import { placeLog } from './buildlog.js';
 import { placeAsk } from './build.js';
 
 // each building is rendered once into a sprite (with its alpha, for picking by pixel)
+// at half resolution, then doubled: the map's chunky pixels (the ground is painted the same way, see ground.js)
+function chunky({ canvas: c, anchor }) {
+  const o = document.createElement('canvas'); o.width = c.width * 2; o.height = c.height * 2; const og = o.getContext('2d');
+  og.imageSmoothingEnabled = false; og.drawImage(c, 0, 0, o.width, o.height); return { canvas: o, anchor: { x: anchor.x * 2, y: anchor.y * 2 } };
+}
 const sprites = new Map();
 function sprite(p) {
   const k = p.key + ':' + p.b.at, s = sprites.get(p.key); if (s && s.k === k) return s;
-  try { const { canvas, anchor } = renderView(p.b.input, 'ext'), alpha = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  try { const { canvas, anchor } = chunky(renderView(p.b.input, 'ext', { res: .5 })), alpha = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     // the roof's top: the first painted row near the building's middle (the picture has room above it, and props stand to the sides)
     const W = canvas.width, x0 = Math.max(0, Math.round(anchor.x - W / 10)), x1 = Math.min(W, Math.round(anchor.x + W / 10)), painted = (y) => { for (let x = x0; x < x1; x++) if (alpha[(y * W + x) * 4 + 3] > 40) return true; return false; };
     let top = 0; while (top < canvas.height - 1 && !painted(top)) top++;
@@ -126,13 +132,13 @@ function drawPlants(items) {
     // the power plant: a low cabinet with its lamps on top, lit = power left (all lit at first; each building takes one away)
     { const [x, z] = tiles[0], [px, py] = pr.P(x + .5, z + .5), cap = sup[0], per = Math.min(6, Math.ceil(cap / 2)), rows = Math.ceil(cap / per), k = squash(0);
       items.push({ d: x + z + .5, draw: () => { g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(1, k);
-        g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(0, 1, 15, 6, 0, 0, 7); g.fill();
+        g.fillStyle = 'rgba(23,63,120,.28)'; g.beginPath(); g.ellipse(0, 1, 15, 6, 0, 0, 7); g.fill();
         const W = Math.max(22, per * 7 + 6), H = 10 + rows * 7;
-        g.fillStyle = '#4f4c46'; g.fillRect(-W / 2, -H, W, H); g.fillStyle = '#6e6a62'; g.fillRect(-W / 2, -H, W, 2); g.fillStyle = '#f2c12e'; g.fillRect(-W / 2 + 3, -5, W - 6, 2);
+        g.fillStyle = '#4f6f9a'; g.fillRect(-W / 2, -H, W, H); g.fillStyle = '#7d9cc4'; g.fillRect(-W / 2, -H, W, 2);   // slate blue: nothing on the map near black g.fillStyle = '#f2c12e'; g.fillRect(-W / 2 + 3, -5, W - 6, 2);
         for (let i = 0; i < cap; i++) { const r = Math.floor(i / per), c = i % per, lx = Math.round(-per * 3.5 + c * 7), ly = -H + 4 + r * 7;
           const lit = i < left[0], going = d && lit && i >= left[0] - d[0];
           if (lit && !(going && !blink)) { g.fillStyle = 'rgba(255,214,102,.35)'; g.fillRect(lx - 1, ly - 1, 7, 7); }
-          g.fillStyle = lit ? (going && !blink ? '#7a6a3a' : '#ffd166') : '#2b2620'; g.fillRect(lx, ly, 5, 5); }
+          g.fillStyle = lit ? (going && !blink ? '#7a6a3a' : '#ffd166') : '#2c4468'; g.fillRect(lx, ly, 5, 5); }
         g.restore();
         if (mine && left[0] <= 0) warnMark(Math.round(px), Math.round(py - H - 16));   // no lamp left: it asks to be grown before anything is built
       } });
@@ -140,9 +146,9 @@ function drawPlants(items) {
     // the water tank (from 동네 on): a wooden barrel with a glass strip, its water the water left
     if (waterOn(slot)) { const [x, z] = tiles[1], [px, py] = pr.P(x + .5, z + .5), cap = sup[1], k = squash(1), H = 24, f = Math.max(0, left[1]) / cap, fd = d ? Math.max(0, left[1] - d[1]) / cap : f;
       items.push({ d: x + z + .5, draw: () => { g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(1, k);
-        g.fillStyle = 'rgba(0,0,0,.2)'; g.beginPath(); g.ellipse(0, 1, 13, 5, 0, 0, 7); g.fill();
+        g.fillStyle = 'rgba(23,63,120,.28)'; g.beginPath(); g.ellipse(0, 1, 13, 5, 0, 0, 7); g.fill();
         g.fillStyle = '#8a5a32'; g.fillRect(-10, -H, 20, H); g.fillStyle = '#a8703e'; g.fillRect(-10, -H, 20, 3); g.fillStyle = '#5a3a1e'; g.fillRect(-10, -H + 7, 20, 2); g.fillRect(-10, -6, 20, 2);
-        g.fillStyle = '#22303a'; g.fillRect(-3, -H + 3, 6, H - 5);
+        g.fillStyle = '#2f4a6a'; g.fillRect(-3, -H + 3, 6, H - 5);
         const wh = Math.round((H - 5) * (blink ? fd : f)); g.fillStyle = '#5fb6e0'; g.fillRect(-2, -2 - wh, 4, wh); g.fillStyle = '#bfe6f7'; g.fillRect(-2, -2 - wh, 4, 1);
         g.restore(); if (mine && left[1] <= 0) warnMark(Math.round(px), Math.round(py - H - 16)); } });
     }
@@ -202,6 +208,8 @@ export function drawMap(dt) {
   const { hover, moving, building, myDoc, mySlot } = S;
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
   g.clearRect(0, 0, map.width, map.height); if (S.landAnim) drawLandAnim(dt); else g.drawImage(S.ground, 0, 0);
+  { const box = map.parentElement, z = S.zoom || 1, x0 = (box.scrollLeft - map.offsetLeft) / z, y0 = (box.scrollTop - map.offsetTop) / z;   // only what is on screen
+    drawWaves(g, S.ground.waves, performance.now() / 1000, [x0, y0, x0 + box.clientWidth / z, y0 + box.clientHeight / z]); }
   drawChoice();
   if (hover && !building) outline(hover.x, hover.z, moving ? PLOT[moving.size] : PLOT[S.size], hover.idle ? 'rgba(255,255,255,.7)' : hover.door || hover.swap ? '#2fbf71' : '#e2432f');
   if (moving) { const mp0 = myDoc.plots[moving.key]; if (mp0) outline(mp0.x, mp0.z, PLOT[mp0.size], 'rgba(255,255,255,.55)'); }

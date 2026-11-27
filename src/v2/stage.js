@@ -25,11 +25,11 @@ export class Stage2 {
   clear() {
     this.scene?.traverse(o => o.geometry?.dispose?.());
     const scene = new THREE.Scene();
-    const sun = new THREE.DirectionalLight(0xfff4e6, 1.9);
+    const sun = new THREE.DirectionalLight(0xfff4dc, 1.75);   // the same light as render.js
     sun.position.set(-1.25, 2.2, 0.35).multiplyScalar(30); sun.castShadow = true; sun.shadow.mapSize.set(2048, 2048);
     Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 120 }); sun.shadow.bias = -0.0015;
-    scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
-    const g = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.28 }));
+    scene.add(sun, new THREE.HemisphereLight(0xb8ecff, 0xe6d7a8, 2.25));
+    const g = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.36, color: 0x173f78 }));
     g.rotation.x = -Math.PI / 2; g.receiveShadow = true; scene.add(g);
     this.scene = scene; this.drops = [];
     this.renderer.render(scene, this.cam);

@@ -1,5 +1,6 @@
 // Spec v2: the model writes a type, a style and only the overrides it needs.
 // normalize() fills every default from the catalogue and clamps every value, so the renderer never sees a bad spec.
+import { snapSpec } from './palette.js';
 import { TYPES, STYLES, SCALE, FAMILY_LOOK, TYPE_LOOK } from './catalog.js';
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
@@ -96,15 +97,15 @@ export function normalize(input = {}) {
   }).sort((x, y) => x.range[0] - y.range[0]) : defaultFloors(typeName, levels);
   floors = floors.filter((f, i, a) => i === 0 || f.range[0] > a[i - 1].range[1]);
   if (floors[0].range[0] !== 1) floors[0].range[0] = 1;
-  return {
+  return snapSpec({
     floors,
     type: typeName, style: styleName, family: type.family, name: str(input.name, 16, ''), levels,
-    trim, accent, style_: style, masses,
+    trim, accent, style_: structuredClone(style), masses,
     sign: { icon: oneOf(input.sign?.icon, ICONS, type.icon), place: oneOf(input.sign?.place, ['front', 'roof', 'blade', 'pole'], type.hero === 'pylon_sign' ? 'pole' : 'front'),
       bg: color(input.sign?.bg, accent), fg: color(input.sign?.fg, '#fff7e6') },
     hero: oneOf(input.hero, HEROES, type.hero),
     props: (Array.isArray(input.props) ? input.props : [{ type: 'plant', x: -0.4 }, { type: 'plant', x: 0.4 }]).slice(0, 8)
       .filter(p => PROPS.includes(p?.type)).map(p => ({ type: p.type, x: num(p.x, -4, 4, 0), color: color(p.color, accent) })),
     night: !!input.night,
-  };
+  });
 }

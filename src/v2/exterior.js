@@ -9,6 +9,7 @@ import { MAX_SHOWN_LEVELS } from './spec.js';
 const GH = 1.45, FH = 1.25, PL = 0.12;                    // ground floor, upper floor, default plinth height
 const levelY = (n) => (n <= 0 ? 0 : GH + (n - 1) * FH);
 const GLASS = 0xbfe3ee;
+let GLINT = null;
 
 export function buildExterior(spec, section) {
   const root = new THREE.Group();
@@ -19,7 +20,8 @@ export function buildExterior(spec, section) {
   const cyl = (r1, r2, h, m, x, y, z, seg = 10) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg), m); o.position.set(x, y + h / 2, z); return add(o); };
   const ball = (r, m, x, y, z) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m); o.position.set(x, y, z); return add(o); };
   const st = spec.style_, trim = mat(spec.trim), accent = spec.accent;
-  const glassM = mat(GLASS, { emissive: spec.night ? 0x6a5020 : 0x22404a });
+  // daylight glass: sky blue with a lighter lower band and one diagonal glint per pane (the map is a sunny day)
+  const glassM = mat(0xffffff, { map: GLINT ??= tex(8, 8, (g) => { g.fillStyle = '#8fd8ee'; g.fillRect(0, 0, 8, 8); g.fillStyle = '#6cc0e0'; g.fillRect(0, 5, 8, 3); g.fillStyle = '#eafcff'; for (let q = 0; q < 5; q++) g.fillRect(5 - q, q, 1, 1); }), emissive: 0x2a6f84 });
   const plinthH = st.plinth?.h ?? PL;
 
   // ---------- place masses ----------
@@ -267,11 +269,13 @@ export function buildExterior(spec, section) {
   enter('sign');
   {
     const it = iconTexture(spec.sign.icon, spec.sign.fg, spec.sign.bg), im = mat(0xffffff, { map: it }), edge = mat(shade(spec.sign.bg, .6));
-    const board = (s) => new THREE.Mesh(new THREE.BoxGeometry(s, s, .06), [edge, edge, edge, edge, im, edge]);
+    // signs are drawn big (×1.85) with a light frame, so the picture reads at the map's chunky pixel size
+    const SB = 1.85, frame = mat(shade(spec.sign.bg, 1.35)), board = (s) => { const g = new THREE.Group(), b = new THREE.Mesh(new THREE.BoxGeometry(s * SB, s * SB, .06), [edge, edge, edge, edge, im, edge]); g.add(b);
+      const f = new THREE.Mesh(new THREE.BoxGeometry(s * SB + .1, s * SB + .1, .04), frame); f.position.z = -.02; g.add(f); return g; };
     const top = main.top ?? gy + 2;
-    if (spec.sign.place === 'front') { const b = board(.72); b.position.set(fx + (main.ground === 'shopfront' ? mw * .33 : 0), gy + (main.shown > 1 ? .22 : -.18), fz + .06); add(b); }
-    if (spec.sign.place === 'roof') { const b = board(.7); b.position.set(fx, top + .45, fz - .25); add(b); box(.05, .3, .05, trim, fx, top, fz - .25); }
-    if (spec.sign.place === 'blade') { const b = new THREE.Mesh(new THREE.BoxGeometry(.06, .72, .72), [im, edge, edge, edge, edge, edge]); b.position.set(fx + mw / 2 + .42, gy + .35, fz - .4); add(b); box(.3, .04, .04, trim, fx + mw / 2 + .15, gy + .6, fz - .3); }
+    if (spec.sign.place === 'front') { const b = board(.72); b.position.set(fx + (main.ground === 'shopfront' ? mw * .33 : 0), gy + (main.shown > 1 ? .22 : -.18) + .38, fz + .12); add(b); }
+    if (spec.sign.place === 'roof') { const b = board(.7); b.position.set(fx, top + .8, fz - .25); add(b); box(.05, .2, .05, trim, fx, top, fz - .25); }
+    if (spec.sign.place === 'blade') { const b = new THREE.Mesh(new THREE.BoxGeometry(.06, .72 * SB, .72 * SB), [im, edge, edge, edge, edge, edge]); b.position.set(fx + mw / 2 + .42, gy + .35, fz - .4); add(b); box(.3, .04, .04, trim, fx + mw / 2 + .15, gy + .6, fz - .3); }
     if (spec.sign.place === 'pole') { cyl(.06, .06, 2.6, mat('#9aa0a6'), fx + mw / 2 + .6, 0, fz + .5, 6); const b = board(.75); b.position.set(fx + mw / 2 + .6, 2.95, fz + .5); add(b); }
   }
 

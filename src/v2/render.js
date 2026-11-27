@@ -37,22 +37,24 @@ function crispen(color, normal, depth, W, H, soft = false, lw = 1) {   // lw: li
     const i = y * W + x;
     if (!solid(i)) {   // outside: an outline pixel if it touches the building
       let j = -1; for (let r = 1; r <= lw && j < 0; r++) for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) { const xx = x + dx * r, yy = y + dy * r; if (xx >= 0 && yy >= 0 && xx < W && yy < H && solid(yy * W + xx)) { j = yy * W + xx; break; } }
-      if (j >= 0) { px[i * 4] = src[j * 4] * .28; px[i * 4 + 1] = src[j * 4 + 1] * .26; px[i * 4 + 2] = src[j * 4 + 2] * .3; px[i * 4 + 3] = 255; }
+      if (j >= 0) { px[i * 4] = src[j * 4] * .42 + 8; px[i * 4 + 1] = src[j * 4 + 1] * .46 + 26; px[i * 4 + 2] = src[j * 4 + 2] * .5 + 62; px[i * 4 + 3] = 255; }   // a coloured outline: the colour it borders, darkened toward deep blue (never black)
       continue;
     }
     const di = dep(i), ni = nv(i); let k = 1, front = 0;
+    if (!soft && y > 0 && (!solid(i - W) || dep(i - W) - di < -.02)) {   // rim light: a top edge facing the sun catches a warm line
+      px[i * 4] = Math.min(255, src[i * 4] * 1.12 + 40); px[i * 4 + 1] = Math.min(255, src[i * 4 + 1] * 1.1 + 32); px[i * 4 + 2] = Math.min(255, src[i * 4 + 2] * 1.04 + 14); continue; }
     for (const [dx, dy] of [[1, 0], [-1, 0], [0, 1], [0, -1]]) for (let r = 1; r <= lw; r++) {
       const xx = x + dx * r, yy = y + dy * r; if (xx < 0 || yy < 0 || xx >= W || yy >= H) continue; const j = yy * W + xx; if (!solid(j)) continue;
-      if (dep(j) - di > (soft ? .12 : .02)) k = Math.min(k, .55);                // I am in front of a jump: an inner outline
+      if (dep(j) - di > (soft ? .12 : .02)) k = Math.min(k, .74);                // I am in front of a jump: an inner outline
       if (soft || r > 1) continue;                                               // creases stay one pixel: fine detail inside a part
-      const nj = nv(j); if (ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2] < .5) k = Math.min(k, .82);   // a crease
+      const nj = nv(j); if (ni[0] * nj[0] + ni[1] * nj[1] + ni[2] * nj[2] < .5) k = Math.min(k, .9);   // a crease
     }
     if (soft) { if (k < 1) dark(i, k); continue; }
     // an inside corner: I sit behind the line through two opposite neighbours (a flat slanted wall stays on that line)
     for (const [dx, dy] of [[1, 0], [0, 1], [1, 1], [1, -1]]) for (const r of [lw, 2 * lw, 3 * lw]) {
       const ax = x + dx * r, ay = y + dy * r, bx = x - dx * r, by = y - dy * r; if (ax < 0 || ay < 0 || bx < 0 || by < 0 || ax >= W || bx >= W || ay >= H || by >= H) continue;
       const a = ay * W + ax, b = by * W + bx; if (solid(a) && solid(b) && di - (dep(a) + dep(b)) / 2 > .006) front++; }
-    k *= 1 - Math.min(.25, front * .03);                                           // inside corners and under eaves
+    k *= 1 - Math.min(.1, front * .03);                                           // inside corners and under eaves
     if (k < 1) dark(i, k);
   }
   c.putImageData(img, 0, 0);
@@ -106,9 +108,9 @@ function shoot(scene, cam, box, W, H, { crisp, shadows = false, skip = () => fal
 }
 /** The warm sun (with or without shadows) and the sky light every render uses. */
 function addLights(scene, shadows, mapSize = 2048) {
-  const sun = new THREE.DirectionalLight(0xfff4e6, 1.9); sun.position.set(-1.25, 2.2, 0.35).multiplyScalar(30);
+  const sun = new THREE.DirectionalLight(0xfff4dc, 1.75); sun.position.set(-1.25, 2.2, 0.35).multiplyScalar(30);
   if (shadows) { sun.castShadow = true; sun.shadow.mapSize.set(mapSize, mapSize); Object.assign(sun.shadow.camera, { left: -14, right: 14, top: 14, bottom: -14, near: 1, far: 120 }); sun.shadow.bias = -0.0015; }
-  scene.add(sun, new THREE.HemisphereLight(0xfff2e4, 0xb89880, 1.6));
+  scene.add(sun, new THREE.HemisphereLight(0xb8ecff, 0xe6d7a8, 2.25));   // a sky-blue fill: shaded sides turn cool and clear, not dark
 }
 
 /**
@@ -118,7 +120,7 @@ function addLights(scene, shadows, mapSize = 2048) {
  */
 export function renderView(input, view = 'ext', opt = {}) {
   const spec = input.style_ ? input : normalize(input);   // normalized specs carry style_
-  const res = Math.max(1, Math.round(opt.res ?? 1));
+  const res = opt.res === .5 ? .5 : Math.max(1, Math.round(opt.res ?? 1));   // .5: half the pixels, shown at twice the size (the map's chunky pixels)
   const scene = new THREE.Scene(), iso = isoCamera(100, 400), cam = iso.cam;
   addLights(scene, true, res > 1 ? 4096 : 2048);   // finer pixels need a finer shadow map, or the shadows go blocky
   let labels = [], fixtures = [], plan = null;
@@ -127,11 +129,11 @@ export function renderView(input, view = 'ext', opt = {}) {
   if (crisp && opt.cel) toCel(scene);   // cel bands dull the walls here, so they are off unless asked for
   const box = new THREE.Box3().setFromObject(scene), { W, H } = frameBox(iso, box, PPU * res, view === 'section' ? { l: 8 * res, r: 18 * res, b: 12 * res, t: 8 * res } : { l: 10 * res, r: 56 * res, b: 26 * res, t: 10 * res });
   // a building keeps room on the right and below for its shadow; a cut-away (a low floor plate) needs little, and every pixel saved is a bigger room on a phone
-  const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.28 }));
+  const ground = new THREE.Mesh(new THREE.PlaneGeometry(80, 80), new THREE.ShadowMaterial({ opacity: 0.36, color: 0x173f78 }));
   ground.rotation.x = -Math.PI / 2; ground.receiveShadow = true; scene.add(ground);
   // one upper floor alone: the shadow falls under that floor, not on the ground far below it
   if (view === 'section' && plan?.floors?.length > 1 && opt.floor !== undefined) ground.position.y = (plan.floors[Math.max(0, Math.min(plan.floors.length - 1, opt.floor))].y || .14) - .14;
-  const out = shoot(scene, cam, box, W, H, { crisp, lw: res, shadows: true, skip: (o) => o === ground || (o.material?.transparent && o.material.opacity < .6) });   // outlines on solid parts only
+  const out = shoot(scene, cam, box, W, H, { crisp, lw: Math.max(1, Math.round(res)), shadows: true, skip: (o) => o === ground || (o.material?.transparent && o.material.opacity < .6) });   // outlines on solid parts only
   out.dataset.levels = spec.levels;
   const v = new THREE.Vector3(), project = (x, y, z) => { v.set(x, y, z).project(cam); return [(v.x + 1) / 2 * W, (1 - v.y) / 2 * H]; };
   const [ax, ay] = project(0, 0, 0), anchor = { x: ax, y: ay };   // where the ground origin lands in the canvas

@@ -140,7 +140,8 @@ export function rebuild() {
   }
   const world = S.world = makeIsles(joined, bridges), oldGround = S.ground;
   const all = allPlots();
-  S.ground = drawIsles(world, pr, { taken: takenSet(), mine: S.mySlot });
+  const avoid = new Set(); for (const sl of joined) for (const t of plantTiles(sl)) if (t) avoid.add(t[0] + ',' + t[1]);   // no trees where power and water stand
+  S.ground = drawIsles(world, pr, { taken: takenSet(), avoid });
   // reset the walkers only when the road network changes (an island joined, a bridge finished)
   const sig = [...joined].sort((a, b) => a - b).join(',') + '|' + [...bridges].filter(([, h]) => h.a && h.b).map(([id]) => id).sort().join(',');
   if (sig !== roadSig) { roadSig = sig; sim.setArea({ w: world.w, d: world.d, isRoad: world.isRoad, lots: [] }); } else sim.A = { ...sim.A, isRoad: world.isRoad };

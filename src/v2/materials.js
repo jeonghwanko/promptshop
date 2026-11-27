@@ -11,7 +11,15 @@ export function tex(w, h, draw) {
   const t = new THREE.CanvasTexture(c); t.magFilter = t.minFilter = THREE.NearestFilter; t.generateMipmaps = false;
   t.colorSpace = THREE.SRGBColorSpace; t.wrapS = t.wrapT = THREE.RepeatWrapping; return t;
 }
-export const mat = (color, o = {}) => new THREE.MeshLambertMaterial({ color, ...o });
+// Nothing goes near black (the bright, sunny look): a dark grey lifts to deep slate blue, a dark colour keeps its hue and only gets lighter
+// (turning a brown toward blue would pass through olive).
+export function liftDark(color) {
+  if (color === undefined || color === null) return color;
+  const c = new THREE.Color(color), hsl = {}; c.getHSL(hsl); if (hsl.l >= .3) return color;
+  const grey = hsl.s < .15;
+  c.setHSL(grey ? .6 : hsl.h, grey ? .3 : Math.min(.75, hsl.s * 1.1), (grey ? .3 : .32) + hsl.l * .3); return '#' + c.getHexString();
+}
+export const mat = (color, o = {}) => new THREE.MeshLambertMaterial({ color: liftDark(color), ...o });
 export const glow = (color) => new THREE.MeshBasicMaterial({ color });
 export function texMat(t, rx = 1, ry = 1, o = {}) { const tt = t.clone(); tt.needsUpdate = true; tt.repeat.set(rx, ry); return mat(0xffffff, { map: tt, ...o }); }
 
@@ -68,6 +76,6 @@ export function surface(kind, name, color, w = 1, h = 1) {
   const lib = kind === 'roof' ? ROOF : WALL;
   const m = lib[name] ?? (kind === 'roof' ? ROOF.roof_tiles : WALL.plaster);
   const key = kind + name + color;
-  if (!cache.has(key)) cache.set(key, m.draw(color));
+  if (!cache.has(key)) cache.set(key, m.draw(liftDark(color)));
   return texMat(cache.get(key), Math.max(1, w / m.tile[0]), Math.max(1, h / m.tile[1]));
 }
