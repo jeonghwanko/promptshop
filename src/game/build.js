@@ -14,12 +14,12 @@ import { iconEl } from '../ui/icons.js';
 import { START_STOCK, REQ_BONUS, LEVELS, levelOf, sizesOpen, bad } from './rules.js';
 import { refundOf } from './migrate.js';
 import { $, el, xbtn } from './ui.js';
-import { S, me, sample, pr, sim, now, canWrite } from './state.js';
+import { S, me, sample, pr, sim, now, canWrite, pops, splash, nextBoat, map } from './state.js';
 import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild } from './model.js';
 import { stakeSite, dustSite } from './mapfx.js';
 import { save } from './persist.js';
-import { scrollToSlot, toScreen } from './camera.js';
-import { toast, celebrate } from './hud.js';
+import { scrollToSlot, toScreen, scrollToPoint } from './camera.js';
+import { toast, celebrate, why, callBoat } from './hud.js';
 import { tutEvent } from './guide.js';
 import { show, showHome, closePanel, showBuilding } from './panel.js';
 import { openShop, closeInside, renderActs, placeActs } from './shop.js';
@@ -34,6 +34,14 @@ const REQ = {
 };
 const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어빵 노점'], M: ['동네 빵집', '할머니 분식집', '네온사인 PC방'], L: ['12층 아파트', '레트로 볼링장', '작은 기차역'] };
 const EXT_IDEAS = { food: ['2층에 창가 자리', '루프탑 테라스', '주방 넓히기'], cafe: ['2층 다락 좌석', '루프탑 테라스', '빵 굽는 주방 늘리기'], shop: ['2층 매장 넓히기', '계산대 늘리기', '창고 한 층'], fun: ['2층 관람석', '놀이방 한 층', '휴게실'], rest: ['객실 한 층 더', '루프탑 라운지', '스파 층'] };
+// the parts a building arrives in, stamped one by one on the sign while Claude writes (no bar, no percent)
+const STAMPS = [['building', '건물'], ['main', '본관'], ['sign', '간판'], ['hero', '대표'], ['prop', '소품'], ['floor', '층'], ['fixture', '가구']];
+/** A part landed on the site: square dust kicks up from the lot and the map gives a small thud. */
+function thud(x, z, n) {
+  const [px, py] = pr.P(x + n / 2, z + n / 2);
+  for (let i = 0; i < 8; i++) splash.push({ x: px + (Math.random() - .5) * n * 22, y: py + (Math.random() - .5) * n * 6, vx: (Math.random() - .5) * 60, vy: -15 - Math.random() * 35, t: 0, dust: true });
+  if (!S.watching) map.animate([{ translate: '0 3px' }, { translate: '0 0' }], { duration: 140, easing: 'ease-out' });
+}
 const STEP_KO = { building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구', order: '순서' };
 const failText = (e, msg) => e?.code === 'daily_limit' ? '오늘 Claude와 지을 수 있는 횟수를 다 썼어요. 내일 또 와요!' : e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : msg;
 
@@ -41,7 +49,7 @@ export const buildHint = () => `${S.card?.need ? REQ[S.card.need].icon + ' ' + R
 export function setBuildMode(on) {
   S.buildMode = on && !!S.mySlot; $('d-build').classList.toggle('on', S.buildMode); document.body.classList.toggle('buildmode', S.buildMode); $('d-build').querySelector('.lb').textContent = S.buildMode ? '그만' : '짓기'; $('sizes').hidden = !S.buildMode; S.hover = null;
   if (S.buildMode) { const open = sizesOpen(levelOf(G().served)); if (!open.includes(S.size)) S.size = 'S';
-    $('sizes').replaceChildren(...Object.keys(PLOT).map(k => { const ok = open.includes(k); return el('button', { class: k === S.size ? 'on' : '', on: { click: () => { if (!ok) return toast(`${k} 크기는 ${LEVELS.find(l => l.size === k).name}부터 지을 수 있어요`, 1800); S.size = k; setBuildMode(true); } } }, ok ? k : `🔒 ${k}`); })); toast(buildHint()); scrollToSlot(S.mySlot); }
+    $('sizes').replaceChildren(...Object.keys(PLOT).map(k => { const ok = open.includes(k); return el('button', { class: k === S.size ? 'on' : '', on: { click: () => { if (!ok) { const L = LEVELS.findIndex(l => l.size === k), w = G(); return why($('sizes'), { icon: 'lock', title: `${k} 크기는 ${LEVELS[L].name}부터`, gauge: [w.served, LEVELS[L].at] }); } S.size = k; setBuildMode(true); } } }, ok ? k : `🔒 ${k}`); })); toast(buildHint()); scrollToSlot(S.mySlot); }
   else toast('');
 }
 
@@ -49,8 +57,8 @@ export function setBuildMode(on) {
 export function openCards() {
   if (!canWrite()) return;
   const w = G();
-  if (w.permits <= 0) return toast(`손님 ${w.nextAt - w.served}명을 더 받으면 허가증이 나와요 🎫`, 2400);
-  if (Object.keys(S.myDoc.plots).length >= maxPlots()) return toast(`섬에는 ${maxPlots()}채까지 지을 수 있어요`, 2000);
+  if (w.permits <= 0) return noPermit($('d-build'));
+  if (Object.keys(S.myDoc.plots).length >= maxPlots()) return why($('d-build'), { icon: 'door', title: `섬에 ${maxPlots()}채가 다 찼어요`, btn: '땅 넓히기', run: () => showHome() });
   // the two wants that most need a place: people waiting for it, and more so when my island has none
   const dm = sim.demand(), have = new Set(allPlots().filter(p => p.owner === me && p.b).map(servesOf));
   const score = (k) => dm[k].waiting + (have.has(k) ? 0 : 4) + Math.random() * 2;
@@ -61,15 +69,21 @@ export function openCards() {
     const c = el('button', { class: 'rcard' + (need ? '' : ' free'), on: { click: () => { S.card = { need }; box.hidden = true; setBuildMode(true); tutEvent('card'); } } },
       el('span', { class: 'big' }, r ? r.icon : '✏️'), el('b', {}, r ? `“${r.ko}”` : '마음대로'), el('small', {}, r ? r.sub : '무엇이든 한 줄로'),
       r ? el('span', { class: 'need' }, iconEl('people', 20, ''), wait ? `${wait}명 기다림` : have.has(need) ? '더 원해요' : '섬에 없음') : null,
-      r ? el('span', { class: 'prize' }, iconEl('coin', 18, ''), `+${REQ_BONUS} · 손님 무리`) : el('span', { class: 'prize' }, '보너스 없음'));
+      r ? el('span', { class: 'prize' }, iconEl('coin', 18, ''), `+${REQ_BONUS}`, iconEl('people', 18, '')) : el('span', { class: 'prize' }, '보너스 없음'));   // coins and a crowd, as icons (the words wrapped on phones)
     c.style.animationDelay = i * 90 + 'ms'; return c;
   };
   // a hand of cards at the bottom: the island and its waiting guests stay in sight above; a tap beside the cards puts them away
   box.replaceChildren(el('h2', {}, iconEl('ticket', 36, ''), `${w.permits} · 무엇을 지을까?`), el('div', { class: 'row3' }, ...picks.map(deal), deal(null, 2)));
   box.onclick = (e) => { if (!e.target.closest('.rcard')) box.hidden = true; };
-  box.hidden = false; tutEvent('cards');
+  box.hidden = false; tutEvent('cards'); scrollToSlot(S.mySlot);   // the island the cards are for stays in sight above them
 }
 
+/** No 🎫: the guests still to serve, and what brings them sooner — my boat now, or the inside of a shop to fit out. */
+export function noPermit(anchor) {
+  const w = G(), boat = $('boat').classList.contains('callable'), shop = allPlots().find(p => p.owner === me && p.b && servesOf(p));
+  why(anchor, { icon: 'ticket', title: `손님 ${w.nextAt - w.served}명 더 받으면 🎫`, gauge: [w.served - w.prevAt, w.nextAt - w.prevAt],
+    ...(boat ? { btn: '배 부르기', run: callBoat } : shop ? { btn: '가게 손보기', run: () => openShop(shop.key) } : {}) });
+}
 /** The signboard sits above its spot, wherever the map is scrolled. */
 export function placeSign() {
   const c = document.querySelector('.signcard'); if (!c) return; const [x, z] = JSON.parse(c.dataset.at), [sx, sy] = toScreen(...pr.P(x, z)), w = c.offsetWidth, h = c.offsetHeight;
@@ -118,11 +132,19 @@ export function startBuild(x, z, door) {
     if (bad(line)) { err.textContent = '그 표현으로는 지을 수 없어요.'; return; }
     if (!sample) { err.textContent = '이 화면에서는 Claude를 부를 수 없어요.'; return; }
     go.disabled = true; tutEvent('line'); card0.classList.add('busy');
+    // the show: the sign carries my line, the parts get stamped as they arrive, and the camera faces the lot
+    card0.querySelector('.st').textContent = `“${line}”`;
+    const stamps = el('div', { class: 'stamps' }, STAMPS.map(([k, ko]) => el('i', { 'data-k': k }, ko))); log.before(stamps);
+    const box = $('mapbox'), camWas = { left: box.scrollLeft, top: box.scrollTop };
+    scrollToPoint(...pr.P(x + n / 2, z + n / 2 - 1));
     const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); S.building = { x, z, size: sz, stage };
     note('…', '구상 중');
     const seen = []; let raw = '', broken = 0;
     const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
-      if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note(STEP_KO[s.step] ?? s.step, s.note || s.type || ''); };
+      if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } note(STEP_KO[s.step] ?? s.step, s.note || s.type || '');
+      const st = stamps.querySelector(`[data-k="${s.step}"]:not(.on)`); if (st) st.classList.add('on');
+      if (ch.view === 'ext' || st) thud(x, z, n);
+      const words = (s.note || '').trim(); if (words) pops.push({ key: '@site', text: words.length > 16 ? words.slice(0, 15) + '…' : words, t: 0 }); };   // Claude's own words, over the lot
     try {
       const rd = lineReader(apply, () => broken++);
       await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
@@ -144,6 +166,10 @@ export function startBuild(x, z, door) {
       const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
       S.myDoc.plots = { ...S.myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, lay: LAYOUT, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
       dustSite({ x, z, size: sz }); S.building = null;
+      // finished: the building lands with a squash, my line rises over its roof, the first boat leaves now, and the camera
+      // stays a moment before going back to where it was
+      S.landing = { key, t0: performance.now(), line }; nextBoat.set(S.mySlot, 0);
+      setTimeout(() => { if (!S.building && !S.watching && !S.current?.key) box.scrollTo({ ...camWas, behavior: 'smooth' }); }, 2600);
       // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
       const role = roleOf(s.type, s.levels), answered = need && role.serves === need;
       if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }
@@ -152,7 +178,7 @@ export function startBuild(x, z, door) {
       rebuild(); await save(true);
       note('완성', `${s.name || TYPE_KO[s.type]} · ${s.levels}층${role.serves ? ' — ' + NEEDS[role.serves].ko + '을(를) 채워요' : ''}${role.source ? ` · 사람 +${role.source}` : ''}`);
       stakeSite(null); setTimeout(() => { card0.remove(); if (S.current?.kind === 'build') S.current = null; }, 1800);
-    } catch (e) { S.building = null; card0.classList.remove('busy'); err.textContent = failText(e, '짓지 못했어요. 다시 눌러 주세요.'); }
+    } catch (e) { S.building = null; card0.classList.remove('busy'); card0.querySelector('.stamps')?.remove(); err.textContent = failText(e, '짓지 못했어요. 다시 눌러 주세요.'); }
     go.disabled = false;
   }
   go.onclick = build; input.addEventListener('keydown', e => { if (e.key === 'Enter') build(); });
@@ -162,7 +188,7 @@ export function startBuild(x, z, door) {
 /** inShop: the form takes the place of the open shop's buttons; otherwise it opens in the panel. */
 export function startExtend(key, { inShop = false } = {}) {
   const p = allPlots().find(x => x.key === key); if (!p?.b || p.owner !== me || !canWrite()) return;
-  if (G().permits <= 0) return toast(`허가증이 있어야 증축해요 · 다음까지 손님 ${G().nextAt - G().served}명`, 2200);
+  if (G().permits <= 0) return noPermit(document.activeElement?.closest?.('button') ?? $('d-build'));
   const n = normalize(p.b.input), ideas = EXT_IDEAS[servesOf(p)] ?? ['한 층 더 올리기', '루프탑 테라스', '2층 휴게실'];
   const input = el('input', { type: 'text', maxlength: '60', placeholder: '예: ' + ideas[0] }), go = el('button', { class: 'gold' }, `${n.levels + 1}층 올리기 · 🎫1`), err = el('div', { class: 'err' }), log = el('div', { class: 'log' });
   const body = [el('div', { class: 'row' }, input), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; run(); } } }, t))), err, log];

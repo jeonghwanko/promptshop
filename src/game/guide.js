@@ -7,7 +7,7 @@ import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } fro
 import { allPlots, takenSet, nameOf } from './model.js';
 import { save, track } from './persist.js';
 import { toScreen, scrollToSlot, applyZoom } from './camera.js';
-import { emptyNeighbours, newBoard } from './invite.js';
+import { emptyNeighbours, newBoard, shareInvite } from './invite.js';
 
 const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람들이 첫 가게를 기다리고 있어!', btn: '좋아!' },
@@ -20,14 +20,14 @@ const TUT = [
   { say: '첫 수입이야! 동전이 쌓였지?\n이제 가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
   // the last step: a friend next door, so the first session ends on the bridge (the card that opens has the link)
   { say: () => emptyNeighbours().length ? '잘했어! 🎫이 다 차면 또 지을 수 있어.\n옆 섬이 비었네. 친구를 불러 다리를 놓자!' : '잘했어! 손님을 받을수록 🎫 게이지가 차.\n다 차면 또 지을 수 있어. 섬을 키워 보자!',
-    btn: () => emptyNeighbours().length ? '나중에' : '시작!', map: 'invite', on: 'invite' },
+    btn: () => emptyNeighbours().length ? '나중에' : '시작!', map: 'invite', on: 'invite', share: true },   // with a free island next door, the gold button is the invite link itself
 ];
 // inside a shop for the first time: how to read the flow and what a fixture buys
 const TUT_IN = [
   { say: '여기가 가게 안이야!\n손님이 들어와서 주문하고, 자리에 앉아서 계산해.', btn: '다음' },
   { say: () => S.watching?.view?.blocked?.size ? '빨간 김이 나는 곳이 막힌 곳이야.\n손님이 거기서 기다리고 있어!' : '지금은 막힌 곳이 없어.\n손님이 몰리면 막히는 곳에서 빨간 김이 나!', btn: '다음', at: 'slow' },
   { say: '반짝이는 버튼을 눌러\n가구를 들여 봐!', el: '#shopacts .act.buy', on: 'furnish' },
-  { say: '쿵! 가구가 들어왔어.\n가구가 늘면 손님을 더 받고, 손님이 늘면 🎫도 빨리 차!', btn: '알겠어' },
+  { say: '쿵! 가구가 들어왔어.\n손님이 늘면 🎫 눈금이 빨리 차!', btn: '알겠어' },
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
@@ -73,6 +73,11 @@ export function guide() {
   if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
   const st = TUT[tutStep()]; g.hidden = false; speak(say(st.say));
   if (st.map === 'invite' && panned !== tutStep()) { panned = tutStep(); const n = emptyNeighbours()[0]; if (n) setTimeout(() => { if (S.zoom > 1) { S.zoom = 1; applyZoom(); } scrollToSlot(n); }, 300); }   // once, as the step starts; near enough to see my island too
+  if (st.share && emptyNeighbours().length) {
+    $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: () => { shareInvite(); setStep('tut', tutStep() + 1); } } }, '초대 링크'),
+      el('button', { class: 'skip', on: { click: () => setStep('tut', tutStep() + 1) } }, '나중에'));
+    if (st.boat && S.mySlot) nextBoat.set(S.mySlot, 0); return;
+  }
   $('gbtns').replaceChildren(...[st.btn ? el('button', { class: 'gold', on: { click: () => setStep('tut', tutStep() + 1) } }, say(st.btn)) : null,
     tutStep() < TUT.length - 1 ? el('button', { class: 'skip', on: { click: () => setStep('tut', 99) } }, '건너뛰기') : null].filter(Boolean));
   if (st.boat && S.mySlot) nextBoat.set(S.mySlot, 0);   // the first boat comes at once

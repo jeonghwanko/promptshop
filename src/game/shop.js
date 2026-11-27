@@ -13,7 +13,7 @@ import { S, me, pr, map, earned, canWrite } from './state.js';
 import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, G, rebuild } from './model.js';
 import { save } from './persist.js';
 import { applyZoom } from './camera.js';
-import { toast } from './hud.js';
+import { toast, why, callBoat } from './hud.js';
 import { guide, tutEvent, tutInEvent } from './guide.js';
 import { closePanel } from './panel.js';
 import { setBuildMode, startExtend } from './build.js';
@@ -99,13 +99,19 @@ function shopActions(w, p) {
 }
 export function renderActs(w, p) {
   if (w.extending) return;   // the extension form is showing
-  const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok]));
+  // a price I cannot pay yet fills up as coins come in (in tenths, so the buttons are not rebuilt every coin)
+  const coins = S.myDoc?.wallet?.coins ?? 0, fill = (a) => typeof a.cost === 'number' && !a.ok ? Math.min(.9, Math.floor(coins / a.cost * 10) / 10) : null;
+  const acts = w.mine ? shopActions(w, p) : [], key = JSON.stringify(acts.map(a => [a.title, a.sub, a.cost, a.ok, fill(a)]));
   if (key === w.actKey) return; w.actKey = key;
   const box = $('shopacts'), info = w.mine ? null : (() => { const n = normalize(p.b.input), st = roleOf(n.type, n.levels).serves ? starsInfo(p).stars : 0;   // someone else's shop: whose it is, its line, and nothing to buy
     return el('div', { class: 'actinfo' }, el('b', {}, n.name || TYPE_KO[n.type] || '건물'), el('small', {}, `${nameOf(p.owner)}의 가게 · ${n.levels}층`), st ? el('span', { class: 'stars' }, starText(st)) : null, el('q', {}, p.b.line)); })();
   box.replaceChildren(...(info ? [info] : []), ...acts.map(a => { const b = el('button', { class: 'act' + (a.cost !== undefined && a.ok ? ' buy' : '') }, iconEl(a.icon, 32), el('span', {}, a.title, a.sub ? el('small', {}, a.sub) : null),
       a.cost !== undefined ? el('span', { class: 'price' }, typeof a.cost === 'number' ? iconEl('coin', 18) : '', String(a.cost)) : null);
-    b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; };
+    const f = fill(a);
+    if (f !== null) {   // not enough coins: still pressable — it says how far, and calls the boat that brings them
+      b.classList.add('short'); b.style.setProperty('--fill', f);
+      b.onclick = (e) => { e.stopPropagation(); why(b, { icon: 'coin', title: `동전 ${(a.cost - coins).toLocaleString('ko-KR')}개 더`, gauge: [coins, a.cost], ...($('boat').classList.contains('callable') ? { btn: '배 부르기', run: callBoat } : {}) }); };
+    } else { b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; }; }
     if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
     return b; }), el('button', { class: 'act close', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, '✕ 닫기'));
   placeActs();

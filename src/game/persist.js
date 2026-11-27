@@ -88,7 +88,7 @@ let namesAt = 0;
 async function resolveNames() {
   if (!user) return; const ids = [...S.owners.values()].filter(u => !u.startsWith('seed')); if (!ids.length) return;
   if (ids.every(id => id in S.names) && Date.now() - namesAt < 60e3) return;
-  namesAt = Date.now(); try { const ps = await user.profiles(ids); for (const id of ids) S.names[id] = ps[id]?.name || '친구'; } catch { namesAt = 0; }
+  namesAt = Date.now(); try { const ps = await user.profiles(ids); let changed = false; for (const id of ids) { const n = ps[id]?.name || '친구'; if (S.names[id] !== n) { S.names[id] = n; changed = true; } } if (changed) hooks.namesChanged?.(); } catch { namesAt = 0; }
 }
 // keep this board's summary on the world map up to date (friends, buildings, who)
 let lastSummary = '';

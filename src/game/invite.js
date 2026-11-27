@@ -1,8 +1,8 @@
 // Inviting friends: the link (this board, and the island that invites), a card with a picture of the archipelago
 // and one button that shares or copies it. A friend who opens the link lands next to the inviter (see guide.js).
-import { SLOTS, neighbours } from '../v2/isles.js';
+import { SLOTS, neighbours, centerOf } from '../v2/isles.js';
 import { $, el } from './ui.js';
-import { S, BOARD, site, db, me } from './state.js';
+import { S, BOARD, site, db, me, map, pr } from './state.js';
 import { track } from './persist.js';
 import { toast } from './hud.js';
 import { hooks } from './model.js';
@@ -21,8 +21,11 @@ let token = null;   // one token per page is enough: it lets in 9 friends
 let thumbSent = false;
 function sendThumb() {
   if (!site || thumbSent || !S.ground) return; thumbSent = true;
-  const c = document.createElement('canvas'), src = S.ground, w = 800, h = 420, k = Math.max(w / src.width, h / src.height);
-  c.width = w; c.height = h; const g = c.getContext('2d'); g.fillStyle = '#3f7fb0'; g.fillRect(0, 0, w, h); g.drawImage(src, (w - src.width * k) / 2, (h - src.height * k) / 2, src.width * k, src.height * k);
+  // the live map (the shops built, the guests on the roads), cut around my island so the friend sees what I made
+  const c = document.createElement('canvas'), src = map, w = 800, h = 420; c.width = w; c.height = h;
+  const g = c.getContext('2d'); g.fillStyle = '#3f7fb0'; g.fillRect(0, 0, w, h);
+  const [cx, cy] = S.mySlot ? pr.P(...centerOf(S.mySlot)) : [src.width / 2, src.height / 2], cw = Math.min(src.width, 760), ch = cw * h / w;
+  g.imageSmoothingEnabled = false; g.drawImage(src, Math.max(0, Math.min(src.width - cw, cx - cw / 2)), Math.max(0, Math.min(src.height - ch, cy - ch / 2 - 40)), cw, ch, 0, 0, w, h);
   c.toBlob((b) => { if (b) site.thumb(BOARD, b).catch(() => {}); }, 'image/png');
 }
 /** Empty islands next to mine, nearest first in number order. */
@@ -40,7 +43,7 @@ export async function shareInvite() {
 }
 /** The archipelago as it is now, small: what a friend will see. */
 function preview() {
-  const c = el('canvas', { class: 'invpic' }), src = S.ground, w = 280, h = Math.round(w * src.height / src.width);
+  const c = el('canvas', { class: 'invpic' }), src = map, w = 280, h = Math.round(w * src.height / src.width);   // the live map, shops and all
   c.width = w; c.height = h; const g = c.getContext('2d'); g.imageSmoothingEnabled = true; g.drawImage(src, 0, 0, w, h); return c;
 }
 /** The invite card: a picture, how many islands are free, one button. Null when the archipelago is full. */

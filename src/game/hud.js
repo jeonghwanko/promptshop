@@ -51,6 +51,35 @@ export function festHud() {
     b.replaceChildren(ic, el('span', { class: 'cd' }, `${fest.served}/${fest.total}`), el('span', { class: 'bar' }, Object.assign(el('i'), { style: `width:${fest.served / fest.total * 100}%` }), Object.assign(el('i', { class: 'lost' }), { style: `width:${lost / fest.total * 100}%` }))); }
 }
 /** A small mark on 내 섬: something new there (a friend moved in next door). Gone when it is opened. */
+/** Something I pressed cannot happen yet: a small window on what I pressed, showing why (a gauge of what is missing)
+ *  and the one button that helps, if there is one. A tap anywhere else closes it. No shake, no one-line tip.
+ *  o: { icon, title, gauge: [now, of] , note, btn, run } */
+export function why(anchor, o) {
+  document.getElementById('why')?.remove();
+  const r = anchor.getBoundingClientRect(), w = el('div', { class: 'why', id: 'why', on: { pointerdown: (e) => e.stopPropagation() } },
+    el('div', { class: 'row' }, o.icon ? iconEl(o.icon, 28, '') : null, el('b', {}, o.title)),
+    o.gauge ? el('div', { class: 'wg' }, el('i', { style: `width:${Math.min(100, o.gauge[0] / Math.max(1, o.gauge[1]) * 100).toFixed(1)}%` }), el('span', {}, `${Math.max(0, Math.floor(o.gauge[0]))} / ${o.gauge[1]}`)) : null,
+    o.note ? el('small', {}, o.note) : null,
+    o.btn ? el('button', { class: 'gold', on: { click: () => { close(); o.run(); } } }, o.btn) : null);
+  document.body.append(w);
+  const W = w.offsetWidth, H = w.offsetHeight, x = Math.max(8, Math.min(innerWidth - W - 8, r.left + r.width / 2 - W / 2)), above = r.top - H - 12 > 8;
+  w.style.left = x + 'px'; w.style.top = (above ? r.top - H - 12 : r.bottom + 12) + 'px';
+  const close = () => { w.remove(); removeEventListener('pointerdown', close, true); };
+  setTimeout(() => addEventListener('pointerdown', close, true), 0);
+}
+/** Call my boat now, if it can come (also the button in the why window). */
+export function callBoat() {
+  if (!S.mySlot || !$('boat').classList.contains('callable')) return false;
+  nextBoat.set(S.mySlot, 0); S.callReady = performance.now() / 1000 + 25; toast('📣 뿌우— 배를 불렀어요!', 1400); hud(); return true;
+}
+/** A new 🎫 flies from the ticket chip into the 짓기 button, which bounces: that is where it is spent. */
+function flyTicket() {
+  const from = document.querySelector('#who .tk')?.getBoundingClientRect(), btn = $('d-build'), to = btn?.getBoundingClientRect(); if (!from || !to || !from.width) return;
+  const f = iconEl('ticket', 32, ''); f.classList.add('flyer'); document.body.append(f);
+  const x0 = from.left, y0 = from.top, x1 = to.left + to.width / 2 - 16, y1 = to.top + 10;
+  f.animate([{ transform: `translate(${x0}px,${y0}px) scale(1)` }, { transform: `translate(${(x0 + x1) / 2}px,${Math.min(y0, y1) - 80}px) scale(1.6) rotate(-12deg)`, offset: .45 }, { transform: `translate(${x1}px,${y1}px) scale(.8)` }], { duration: 750, easing: 'cubic-bezier(.4,0,.6,1)' })
+    .finished.then(() => { f.remove(); btn.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-4deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,1.6,.4,1)' }); });
+}
 export function markHome() { const b = $('d-home'); if (!b.querySelector('.badge')) b.append(el('span', { class: 'badge' }, '!')); }
 function dockState() { const auto = !!S.myDoc && !!S.myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !S.myDoc; }
 
@@ -63,8 +92,12 @@ export function hud() {
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
   const per = earned.reduce((a, e) => a + e[1], 0); $('rate').textContent = myDoc && per ? `+${per}/분` : '';
   if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), p = Math.min(1, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt));
-    const tk = el('span', { class: 'tk' + (shownPermits != null && w.permits > shownPermits ? ' got' : '') }, iconEl('ticket', 24, ''), String(w.permits)); shownPermits = w.permits;
-    $('who').replaceChildren(el('span', { class: 'lvr', style: `--p:${p.toFixed(3)}` }, el('b', {}, String(lv + 1))),
+    // the ticket fills where it is shown: one notch a guest, up to the next 🎫 (the level ring is just the level)
+    const need = Math.max(1, w.nextAt - w.prevAt), notches = Math.min(need, 12), lit = Math.floor(p * notches + 1e-6), got = shownPermits != null && w.permits > shownPermits;
+    const tk = el('span', { class: 'tk' + (got ? ' got' : '') }, iconEl('ticket', 24, ''), String(w.permits),
+      el('span', { class: 'notch' }, Array.from({ length: notches }, (_, i) => el('i', { class: i < lit ? 'on' : '' }))));
+    shownPermits = w.permits; if (got) setTimeout(() => flyTicket(), 50);
+    $('who').replaceChildren(el('span', { class: 'lvr', style: '--p:1' }, el('b', {}, String(lv + 1))),
       el('span', { class: 'nm' }, (S.boardName || '한 줄 군도'), el('small', {}, `${mySlot}번 섬 · ${LEVELS[lv].name}`)), tk);
     $('who').title = `다음 허가증까지 손님 ${w.nextAt - w.served}명`;
     const bt = $('d-build'); bt.querySelector('.badge')?.remove(); if (w.permits > 0) bt.append(el('span', { class: 'badge' }, String(w.permits))); bt.classList.toggle('ready', w.permits > 0 && !S.buildMode);
@@ -88,8 +121,7 @@ export function initHud() {
   setInterval(hud, 500); hud();
   // the horn: call the next boat now, then wait for the horn to come back
   $('boat').addEventListener('click', () => {
-    if (!S.mySlot || !$('boat').classList.contains('callable')) return;
-    nextBoat.set(S.mySlot, 0); S.callReady = performance.now() / 1000 + 25; toast('📣 뿌우— 배를 불렀어요!', 1400); hud();
+    if (!callBoat()) return;
   });
   $('d-build').onclick = () => { if (!S.mySlot) return showHome(); if (S.buildMode) return setBuildMode(false); openCards(); };
   $('d-home').onclick = () => { $('d-home').querySelector('.badge')?.remove(); setBuildMode(false); if ($('panel').hidden || S.current) showHome(); else closePanel(); };   // open my island; a second press closes it

@@ -3,12 +3,13 @@
 import { applyTheme } from '../ui/theme.js';
 import { pixelIcons } from '../ui/icons.js';
 import { setVoxelPalette } from '../ui/voxelui.js';
-import { centerOf, neighbours } from '../v2/isles.js';
+import { centerOf, neighbours, PLOT } from '../v2/isles.js';
+import { normalize } from '../v2/spec.js';
 import { el } from './ui.js';
-import { S, db, me, sim, FROM } from './state.js';
+import { S, db, me, sim, FROM, BOARD, pr } from './state.js';
 import { hooks, allPlots, ratesOf, servesOf, tilesOf } from './model.js';
 import { initPersist, WRITER, track } from './persist.js';
-import { initCamera, startZoom, applyZoom, scrollToSlot, toScreen } from './camera.js';
+import { initCamera, startZoom, applyZoom, scrollToSlot, toScreen, scrollToPoint, inSafe } from './camera.js';
 import { drawMap, riseLand } from './mapview.js';
 import { initHud, toast, celebrate, markHome } from './hud.js';
 import { initEconomy, takeEvents, stepBoats, stepFest, festSoon } from './economy.js';
@@ -38,12 +39,31 @@ hooks.yielded = () => {   // another tab plays this island now: this one stops a
 };
 hooks.live = () => { const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // a shop of mine opened while waiting: open it again as mine
 hooks.lost = () => showHome('그 섬은 다른 친구가 먼저 들어갔어요. 다른 섬을 골라 주세요.');   // my first save never landed, and the island was taken
+hooks.namesChanged = () => { const c = S.current; if (c?.kind === 'island' && panelOpen()) showIsland(c.slot); };   // the name arrived after the panel was drawn
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };
 let seen = null;   // the islands taken when the map was last rebuilt
+// Friends' shops: a new one lands on my screen with its line over the roof as it is built; coming back, the camera goes
+// once to the first one built while I was away (what I saw last is kept in this browser).
+let shopsSeen = null; const SEEN_KEY = `isles:seen:${BOARD}`;
+function friendsShops() {
+  if (!S.mySlot || !S.myDoc) return;   // my island loaded: the board's docs are in
+  const others = allPlots().filter(p => p.b && p.owner !== me), id = (p) => `${p.key}:${p.b.at}`, keys = new Set(others.map(id));
+  let fresh = [];
+  if (shopsSeen === null) { let before = null; try { before = JSON.parse(localStorage.getItem(SEEN_KEY) || 'null'); } catch {}
+    if (Array.isArray(before)) { const b = new Set(before); fresh = others.filter(p => !b.has(id(p))); if (fresh[0]) setTimeout(() => showFresh(fresh[0], true), 1800); } }
+  else { fresh = others.filter(p => !shopsSeen.has(id(p))); if (fresh[0]) showFresh(fresh[0], false); }
+  shopsSeen = keys; try { localStorage.setItem(SEEN_KEY, JSON.stringify([...keys])); } catch {}
+}
+function showFresh(p, look) {
+  if (S.building || S.watching) return;
+  const n = PLOT[p.size]; let line = p.b.line; try { line ||= normalize(p.b.input).name; } catch {}
+  dustSite({ x: p.x, z: p.z, size: p.size }); S.landing = { key: p.key, t0: performance.now(), line: line || '새 가게' };
+  const at = pr.P(p.x + n / 2, p.z + n / 2); if (look && !inSafe(...at)) scrollToPoint(...at);
+}
 hooks.rebuilt = (oldGround) => {
   if (!S.scrolled) {   // the first view: my island; invited, the inviter's; else the whole archipelago to choose from
     S.scrolled = true; const at = S.mySlot || (FROM && S.owners.has(FROM) ? FROM : 0) || pickSpot() || 1;   // (choosing: the island the guide points at, big enough to read)
-    S.zoom = S.mySlot ? startZoom(at) : 1; applyZoom(); setTimeout(() => scrollToSlot(at, false), 50);
+    S.zoom = S.mySlot ? startZoom(at) : 1; applyZoom(); setTimeout(() => { scrollToSlot(at, false); lift(); }, 50);   // the cover lifts on a drawn island, never on an empty sea
     track('arrive', { from: FROM, has: !!S.mySlot, taken: S.owners.size });
   }
   // a friend took an island: it rises from the sea, and 내 섬 gets a mark (no window)
@@ -52,6 +72,7 @@ hooks.rebuilt = (oldGround) => {
     riseLand(oldGround, tilesOf(s), centerOf(s)); markHome(); track('friend_joined', { slot: s, next: neighbours(S.mySlot).includes(s) });
   }
   seen = now0;
+  friendsShops();
   { const c = S.current; if (c?.kind === 'island' && S.owners.get(c.slot) !== c.uid && panelOpen()) showIsland(c.slot); }   // the island on the panel changed hands
   if (!S.mySlot) guide();   // choosing an island: the guide follows who took which
   if (!S.current && !S.mySlot && !panelOpen()) showHome();
@@ -91,8 +112,9 @@ window.__isles = {
   startMove, tryDrop: (fx, fz) => dropMove(moveTarget(fx, fz)), target: (fx, fz) => moveTarget(fx, fz), cancel: cancelMove,
   openShop, close: closeInside, extend: startExtend, centerOf, neighbours, S, writer: WRITER, scrollToSlot, guide, inviteLink,
 };
-// the game is up: the plain title that covered the loading goes
-{ const b = document.getElementById('boot'); if (b) { b.style.opacity = '0'; setTimeout(() => b.remove(), 400); } }
+// the plain title that covers the loading goes when the first view is drawn and in place (hooks.rebuilt), or after 8 s whatever happens
+function lift() { const b = document.getElementById('boot'); if (b && b.style.opacity !== '0') { b.style.opacity = '0'; b.style.pointerEvents = 'none'; setTimeout(() => b.remove(), 400); } }   // no animation frame: a tab in the background has none
+setTimeout(lift, 8000);
 // ?world=1 opens the world map at once; ?open=<plot key> opens a building's inside at once (for checks)
 if (q.get('world')) setTimeout(openWorld, 600);
 if (q.get('open')) { const t = setInterval(() => { if (S.role === 'live') { clearInterval(t); openShop(q.get('open')); } }, 300); }

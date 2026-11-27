@@ -75,8 +75,12 @@ export function drawMap(dt) {
     if (zoomShop?.key === p.key) { const u = zoomShop.t; if (u >= 1) continue; const e = u * u;   // the roof lifts away from an opened shop
       items.push({ d: p.x + p.z + n, draw: () => { g.globalAlpha = 1 - e; g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y - e * 60)); g.globalAlpha = 1; } }); continue; }
     tops[p.key] = [px, py - s.anchor.y + s.top + 6];   // just over the roof
+    const land = S.landing?.key === p.key ? (performance.now() - S.landing.t0) / 420 : 1;
+    if (land < 1) {   // just finished: it lands — squashed flat, then a little tall, then itself (the foot stays put)
+      const k = Math.sin(land * Math.PI * 2) * (1 - land) * .16, sy = 1 - k, sx = 1 + k * .6;
+      items.push({ d: p.x + p.z + n, draw: () => { g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(sx, sy); g.drawImage(s.canvas, -s.anchor.x, -s.anchor.y); g.restore(); }, key: p.key, s, px, py }); continue; }
     items.push({ d: p.x + p.z + n, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), key: p.key, s, px, py }); }
-  if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
+  if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; tops['@site'] = [px, py - Math.max(40, st.H * .6)]; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
   for (const b of boats) items.push({ d: b.x + b.z, draw: () => drawBoat(g, pr, b) });
   const fest = S.fest; if (fest) items.push({ d: fest.x + fest.z, draw: () => drawFestBoat(g, pr, fest) });
@@ -102,6 +106,11 @@ export function drawMap(dt) {
   for (const p of pops) { const tp = tops[p.key]; if (!tp || zoomShop) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;
     if (em) { g.imageSmoothingEnabled = false; g.drawImage(iconCanvas(EMOJI[em]), Math.round(tp[0] - g.measureText(txt).width / 2 - w - 2), Math.round(y - 12), 14, 14); }
     g.strokeText(txt, tp[0] + w / 2, y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(txt, tp[0] + w / 2, y); g.globalAlpha = 1; }
+  // a new building's name plate: my line over its roof for 3 s, rising in and fading out
+  { const L = S.landing, tp = L && tops[L.key], age = L ? (performance.now() - L.t0) / 1000 : 9;
+    if (L && age > 3.4) S.landing = null;
+    else if (tp && !zoomShop) { const a = Math.min(1, age * 4, (3.4 - age) * 2.5), y = tp[1] - 18 - Math.min(1, age * 3) * 10, t = `“${L.line}”`;
+      g.globalAlpha = a; g.font = '400 18px "Jua", "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.lineWidth = 5; g.strokeStyle = '#2e241a'; g.strokeText(t, tp[0], y); g.fillStyle = '#ffd166'; g.fillText(t, tp[0], y); g.globalAlpha = 1; } }
   // the stars of every shop, small and gold, over its roof
   g.font = '900 11px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
   { const si = iconCanvas('star');

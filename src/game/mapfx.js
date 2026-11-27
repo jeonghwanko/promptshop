@@ -37,14 +37,14 @@ export function drawSite(g, pr, half, building) {
     tape(C[1], C[2]); tape(C[2], C[3]);
     if (Math.random() < dt * 8) { const c = C[Math.floor(Math.random() * 4)]; for (let i = 0; i < 5; i++) site.parts.push({ x: c[0] + (Math.random() - .5) * 20, y: c[1] - H * (.3 + Math.random() * .6), vx: (Math.random() - .5) * 50, vy: -20 - Math.random() * 30, t: 0, spark: true }); }
     if (Math.random() < dt * 4) { const k = Math.floor(Math.random() * 4); site.parts.push({ x: C[k][0], y: C[k][1], vx: (Math.random() - .5) * 12, vy: -8, t: 0 }); }
-  } else if (site.done && site.done.t === 0) {   // finished: a ring of dust bursts out from the foot
-    for (let i = 0; i < 26; i++) { const a = i / 26 * 6.28; site.parts.push({ x: (C[0][0] + C[2][0]) / 2, y: (C[0][1] + C[2][1]) / 2, vx: Math.cos(a) * 60, vy: Math.sin(a) * 26 - 6, t: 0, big: true }); }
+  } else if (site.done && site.done.t === 0) {   // finished: chunks of dust thrown out from the foot, each its own way (no ring)
+    for (let i = 0; i < 30; i++) { const a = Math.random() * 6.28, v = 25 + Math.random() * 55; site.parts.push({ x: (C[0][0] + C[2][0]) / 2 + (Math.random() - .5) * 16, y: (C[0][1] + C[2][1]) / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v * .45 - 10 - Math.random() * 20, t: 0, big: true, s: 2 + (Math.random() * 3 | 0) }); }
   }
   if (site.done) { site.done.t += dt; if (site.done.t > 1.2) site.done = null; }
-  for (const q of site.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.spark) q.vy += 100 * dt; else { q.vx *= .96; q.vy *= .96; } }
+  for (const q of site.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.spark) q.vy += 100 * dt; else { q.vx *= .96; q.vy *= .96; if (q.big) q.vy += 70 * dt; } }
   site.parts = site.parts.filter(q => q.t < (q.spark ? .45 : q.big ? 1.1 : 1));
   for (const q of site.parts) { if (q.spark) { g.fillStyle = `rgba(255,${200 + Math.random() * 55 | 0},90,${1 - q.t / .45})`; g.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); }
-    else { g.fillStyle = `rgba(225,210,180,${(q.big ? .8 : .5) * (1 - q.t / (q.big ? 1.1 : 1))})`; g.beginPath(); g.arc(q.x, q.y, (q.big ? 4 : 2) + q.t * (q.big ? 9 : 5), 0, 7); g.fill(); } }
+    else { const s = q.s ?? 2; g.fillStyle = `rgba(${q.t < .2 ? '232,216,176' : '184,154,106'},${(q.big ? .9 : .6) * (1 - q.t / (q.big ? 1.1 : 1))})`; g.fillRect(Math.round(q.x), Math.round(q.y), s, s); } }   // square pixel dust, not soft circles
 }
 
 /** The festival boat: a big boat with bunting and a deck full of people. */

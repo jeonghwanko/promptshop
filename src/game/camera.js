@@ -22,6 +22,8 @@ export function startZoom(slot) {
  *  The camera puts what it shows in the middle of this, so UI never has to dodge the map. */
 export function safeRect() {
   let l = 0, t = 96, r = innerWidth, b = innerHeight - 124;
+  // on a phone, 끼룩이's open bubble covers the lower part too
+  const gd = $('guide'); if (innerWidth <= 760 && gd && !gd.hidden && !gd.classList.contains('min')) { const q = gd.getBoundingClientRect(); if (q.height && q.top > innerHeight / 2) b = Math.min(b, q.top - 8); }
   const p = $('panel'); if (p && !p.hidden) { const q = p.getBoundingClientRect(); if (q.width < innerWidth * .6) r = Math.min(r, q.left - 8); else b = Math.min(b, q.top - 8); }
   return { l, t, r, b, cx: (l + r) / 2, cy: (t + b) / 2 };
 }

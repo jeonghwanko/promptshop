@@ -155,7 +155,7 @@ function vipGuests() {
     if (t < nextVip.get(p.key)) continue;
     nextVip.set(p.key, t + 70 - 10 * st);
     const d = dockOf(S.mySlot); sim.spawn(d.road, 0, need, d.road, true);
-    toast(`👑 VIP 손님이 ${normalize(p.b.input).name || '가게'}에 와요!`, 2200);
+    if (!document.querySelector('#guide:not([hidden]):not(.min)')) toast(`👑 VIP 손님이 ${normalize(p.b.input).name || '가게'}에 와요!`, 2200);   // not over 끼룩이 while it explains
   }
 }
 // supplies refill themselves: a shop at 2 or fewer buys the next batch when the wallet allows
