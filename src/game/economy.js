@@ -33,9 +33,20 @@ export function takeEvents() {
   }
 }
 
+// ---------- the first guests: before my island has any building, a few wait at my pier for one ----------
+// (they are what the faces at the bottom ask for; when the first shop opens, the ones it serves walk in and the rest leave)
+const FIRST = ['food', 'food', 'cafe', 'shop'];
+function firstGuests() {
+  const mine = S.mySlot && S.myDoc && canWrite(), empty = mine && !Object.keys(S.myDoc.plots).length;
+  const waiting = sim.people.filter(p => p.first);
+  if (!empty) { for (const p of waiting) { p.first = false; p.patience = undefined; p.since = sim.t; } return; }   // a shop now: ordinary guests again
+  if (waiting.length || S.building || !sim.roads.length) return;
+  const d = dockOf(S.mySlot); FIRST.forEach((need, k) => { const p = sim.spawn(d.road, k * .5, need, d.road); if (p) { p.first = true; p.patience = 1e9; } });
+}
+
 // ---------- boats: customers come by sea to islands that have shops ----------
 export function stepBoats(dt) {
-  const t = performance.now() / 1000;
+  const t = performance.now() / 1000; firstGuests();
   for (const s of S.world.joined) {
     const shops = islandShops(s); if (!shops.length) { nextBoat.delete(s); continue; }
     if (!nextBoat.has(s)) nextBoat.set(s, t + 3);

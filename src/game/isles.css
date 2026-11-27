@@ -487,3 +487,11 @@ body[data-tut="1"] .bar .bsub button { background:#fbf1dc; color:#2e241a; font:4
   .guide.anchored .gbub { font-size:17px; }
 }
 @media (prefers-reduced-motion: reduce) { .guide .gthumb { animation:none !important; } }
+
+/* the faces: short words on a phone, and the side with more faces fades out so it reads as something to slide */
+.want .wt b.sh { display:none; }
+@media (max-width:760px) { .want .wt b.lg { display:none; } .want .wt b.sh { display:inline; } }
+.ask .wants.more-r { -webkit-mask-image:linear-gradient(to right, #000 80%, transparent); mask-image:linear-gradient(to right, #000 80%, transparent); }
+.ask .wants.more-l { -webkit-mask-image:linear-gradient(to left, #000 80%, transparent); mask-image:linear-gradient(to left, #000 80%, transparent); }
+.ask .wants.more-r.more-l { -webkit-mask-image:linear-gradient(to right, transparent, #000 15%, #000 85%, transparent); mask-image:linear-gradient(to right, transparent, #000 15%, #000 85%, transparent); }
+.ask .wants { scroll-snap-type:x proximity; } .ask .wants .want { scroll-snap-align:start; }

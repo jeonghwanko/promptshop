@@ -29,11 +29,11 @@ import { openShop, closeInside, renderActs, placeActs } from './shop.js';
 
 // what the island asks for, by kind of guest
 const REQ = {
-  food: { ko: '배고파요', sub: '식당 · 포장마차', icon: '🍜', en: 'a place to eat', ex: ['할머니 국밥집', '골목 포장마차', '바다 보이는 횟집'] },
-  cafe: { ko: '커피 한잔 하고 싶어요', sub: '카페 · 빵집 · 노점', icon: '☕', en: 'coffee and snacks', ex: ['창가 자리 많은 카페', '아침마다 줄 서는 빵집', '붕어빵 노점'] },
-  shop: { ko: '살 게 있어요', sub: '가게 · 볼일', icon: '🛍️', en: 'a shop or an errand', ex: ['24시간 편의점', '작은 약국', '바닷가 우체국'] },
-  fun: { ko: '놀 데가 없어요', sub: '놀거리 · 구경거리', icon: '🎳', en: 'something fun to do', ex: ['레트로 볼링장', '작은 영화관', '등대 전망대'] },
-  rest: { ko: '쉴 곳이 필요해요', sub: '숙소 · 쉼터', icon: '🛏️', en: 'a place to stay and rest', ex: ['바닷가 게스트하우스', '작은 모텔', '조용한 산사'] },
+  food: { short: '배고파요', ko: '배고파요', sub: '식당 · 포장마차', icon: '🍜', en: 'a place to eat', ex: ['할머니 국밥집', '골목 포장마차', '바다 보이는 횟집'] },
+  cafe: { short: '커피', ko: '커피 한잔 하고 싶어요', sub: '카페 · 빵집 · 노점', icon: '☕', en: 'coffee and snacks', ex: ['창가 자리 많은 카페', '아침마다 줄 서는 빵집', '붕어빵 노점'] },
+  shop: { short: '살 거', ko: '살 게 있어요', sub: '가게 · 볼일', icon: '🛍️', en: 'a shop or an errand', ex: ['24시간 편의점', '작은 약국', '바닷가 우체국'] },
+  fun: { short: '놀 데', ko: '놀 데가 없어요', sub: '놀거리 · 구경거리', icon: '🎳', en: 'something fun to do', ex: ['레트로 볼링장', '작은 영화관', '등대 전망대'] },
+  rest: { short: '쉴 곳', ko: '쉴 곳이 필요해요', sub: '숙소 · 쉼터', icon: '🛏️', en: 'a place to stay and rest', ex: ['바닷가 게스트하우스', '작은 모텔', '조용한 산사'] },
 };
 const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어빵 노점'], M: ['동네 빵집', '할머니 분식집', '네온사인 PC방'], L: ['12층 아파트', '레트로 볼링장', '작은 기차역'] };
 const EXT_IDEAS = { food: ['2층에 창가 자리', '루프탑 테라스', '주방 넓히기'], cafe: ['2층 다락 좌석', '루프탑 테라스', '빵 굽는 주방 늘리기'], shop: ['2층 매장 넓히기', '계산대 늘리기', '창고 한 층'], fun: ['2층 관람석', '놀이방 한 층', '휴게실'], rest: ['객실 한 층 더', '루프탑 라운지', '스파 층'] };
@@ -94,9 +94,9 @@ export function drawAsk(force) {
   const chip = (need, waiting) => { const r = need ? REQ[need] : null, on = S.buildMode && S.card?.need === need;
     const b = el('button', { class: 'want' + (on ? ' on' : '') + (need ? '' : ' free'), 'data-need': need ?? '', on: { click: () => pickWant(need) } },
       waiting ? el('span', { class: 'cnt' }, String(waiting)) : null, faceEl(need),
-      el('span', { class: 'wt' }, el('b', {}, r ? r.ko : '마음대로'), el('small', {}, r ? `${r.sub} · +${REQ_BONUS}` : '보너스 없음')));
+      el('span', { class: 'wt' }, el('b', { class: 'lg' }, r ? r.ko : '마음대로'), el('b', { class: 'sh' }, r ? r.short : '마음대로'), el('small', {}, r ? `${r.sub} · +${REQ_BONUS}` : '보너스 없음')));
     b.disabled = busy; return b; };
-  $('wants').replaceChildren(...wants.map(x => chip(x.need, x.waiting)), chip(null, 0));
+  $('wants').replaceChildren(...wants.map(x => chip(x.need, x.waiting)), chip(null, 0)); wantsEdge();
   $('bwho').replaceChildren(S.buildMode || busy ? faceEl(S.card?.need ?? null) : iconEl('hammer', 28, ''));
   const input = $('line'); input.disabled = busy; if (!busy && !S.buildMode) input.placeholder = '무엇을 지을까?';
   $('bx').hidden = !S.buildMode;
@@ -108,6 +108,8 @@ export function drawAsk(force) {
   if (!sz.hidden) sz.replaceChildren(...open.map(k => el('button', { class: k === S.size ? 'on' : '', on: { click: () => { S.size = k; S.spot = autoSpot(); $('line').placeholder = '예: ' + ideasOf()[0]; drawAsk(true); } } }, k)));
   if (!busy) $('bsub').replaceChildren(...(S.buildMode ? ideasOf().map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t)) : []));
 }
+/** More faces than fit (a phone): the side that has more fades out, so it reads as something to slide; none when all fit. */
+function wantsEdge() { const w = $('wants'), end = w.scrollWidth - w.clientWidth; w.classList.toggle('more-r', end > 2 && w.scrollLeft < end - 2); w.classList.toggle('more-l', end > 2 && w.scrollLeft > 2); }
 const say = (t) => { const e = $('berr'); e.textContent = t; e.hidden = !t; };
 
 /** Shrink a building's masses until they fit an n×n plot. */
@@ -196,7 +198,7 @@ export function initAsk() {
   const input = $('line');
   input.addEventListener('focus', () => { if (!S.buildMode && !S.building) pickWant(S.card?.need ?? null); });
   input.addEventListener('keydown', (e) => { if (e.key === 'Enter') build(); if (e.key === 'Escape') { input.blur(); setBuildMode(false); } });
-  $('bgo').onclick = build;
+  $('bgo').onclick = build; $('wants').addEventListener('scroll', wantsEdge, { passive: true }); addEventListener('resize', wantsEdge);
   $('bx').onclick = () => { input.value = ''; say(''); setBuildMode(false); };
   setInterval(() => drawAsk(), 500);
 }
