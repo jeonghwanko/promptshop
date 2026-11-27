@@ -86,7 +86,8 @@ const BUNDLE = fs.existsSync(path.join(root, 'dist', 'main.js'));
 function serveFile(req, res, f, type) {
   const st = fs.statSync(f), tag = `"${st.size.toString(36)}-${Math.floor(st.mtimeMs).toString(36)}"`;
   const head = { 'content-type': type, 'cache-control': 'no-cache', etag: tag };
-  if (req.headers['if-none-match'] === tag) { res.writeHead(304, head); return res.end(); }
+  // nginx's gzip turns the tag weak (W/"…") on the way out, so the browser sends it back that way
+  if ((req.headers['if-none-match'] ?? '').split(',').some(t => t.trim().replace(/^W\//, '') === tag)) { res.writeHead(304, head); return res.end(); }
   res.writeHead(200, head); fs.createReadStream(f).pipe(res);
 }
 
