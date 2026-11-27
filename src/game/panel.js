@@ -12,11 +12,11 @@ import { S, db, me, site, pr, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_
 import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild } from './model.js';
 import { save, createMine, removeOthers, track } from './persist.js';
 import { scrollToSlot, startZoom, applyZoom, scrollToPoint, inSafe } from './camera.js';
-import { toast, celebrate } from './hud.js';
+import { toast, celebrate, why } from './hud.js';
 import { guide } from './guide.js';
 import { openShop } from './shop.js';
 import { startMove } from './move.js';
-import { riseLand } from './mapview.js';
+import { riseLand, planks } from './mapview.js';
 import { inviteCard, newBoard } from './invite.js';
 
 const panel = () => $('panel');
@@ -117,13 +117,15 @@ async function join(s) {
   closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide();
 }
 /** What my half of the bridge to island n costs: free to the friend who invited me, once. */
-const halfCost = (n) => S.myDoc?.wallet?.freeHalf === n ? 0 : BRIDGE;
-async function halfBridge(n) {
+export const halfCost = (n) => S.myDoc?.wallet?.freeHalf === n ? 0 : BRIDGE;
+/** My half of the bridge to island n. fromMap: pressed on the map's plank tag (anchor: where to show why it cannot). */
+export async function halfBridge(n, fromMap = null) {
   const { myDoc } = S; if (!canWrite()) return;
   const cost = halfCost(n);
-  if (myDoc.wallet.coins < cost) return showHome(`다리 반쪽에는 ${cost} 동전이 필요해요.`);
+  if (myDoc.wallet.coins < cost) return fromMap ? why(fromMap, { icon: 'coin', title: `동전 ${cost - myDoc.wallet.coins}개 더`, gauge: [myDoc.wallet.coins, cost] }) : showHome(`다리 반쪽에는 ${cost} 동전이 필요해요.`);
   myDoc.wallet.coins -= cost; delete myDoc.wallet.freeHalf; myDoc.half = { ...myDoc.half, [n]: now() }; rebuild(); await save(true);
-  track('bridge_half', { to: n, free: !cost, done: !!S.docs.get(S.owners.get(n))?.half?.[S.mySlot] }); showHome();
+  track('bridge_half', { to: n, free: !cost, done: !!S.docs.get(S.owners.get(n))?.half?.[S.mySlot] });
+  planks(S.mySlot, n, true); if (!fromMap) showHome();
 }
 export function showIsland(s) {
   const uid = S.owners.get(s); S.current = { kind: 'island', slot: s, uid };

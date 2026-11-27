@@ -13,7 +13,7 @@ import { S, me, pr, map, earned, canWrite } from './state.js';
 import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, G, rebuild } from './model.js';
 import { save } from './persist.js';
 import { applyZoom } from './camera.js';
-import { toast, why, callBoat } from './hud.js';
+import { toast, why, callBoat, flyIcon } from './hud.js';
 import { guide, tutEvent, tutInEvent } from './guide.js';
 import { closePanel } from './panel.js';
 import { setBuildMode, startExtend } from './build.js';
@@ -51,7 +51,10 @@ function openInside(key) {   // the cut-away in place, over the zoomed map (open
       S.myDoc.wallet.coins -= cost; levelsOf(p)[i] = L; S.dirty = true; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
     coins: mineP ? () => S.myDoc.wallet.coins : undefined,
     buy: (i, kind, cost) => { if (S.myDoc.wallet.coins < cost) return false;
-      setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); S.myDoc.wallet.coins -= cost; const mp = S.myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
+      setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); S.myDoc.wallet.coins -= cost;
+      // the new piece means more guests, and guests fill the 🎫: a guest flies from it to the ticket chip (where the chip shows)
+      setTimeout(() => { const f = view.fx?.[i], r = view.top?.getBoundingClientRect(), tk = document.querySelector('#who .tk'); if (!f || !r || !tk?.offsetParent || +getComputedStyle(tk.closest('.hud')).opacity < .5) return;
+        const [x, y] = view.view.project(f.x, f.y + 1.4, f.z); flyIcon('people', [r.left + x * view.zoom, r.top + y * view.zoom], tk, 28); }, 250); const mp = S.myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
   });
   view.sim.setHelpers(helpersOf(p), levelsOf(p));
   S.watching = { key, view, mine: mineP, earned: 0, ins: [], outs: [], losts: [], lost0: 0, inPlace: true, actKey: '' };

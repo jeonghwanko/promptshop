@@ -20,7 +20,7 @@ import { stakeSite, dustSite } from './mapfx.js';
 import { save } from './persist.js';
 import { scrollToSlot, toScreen, scrollToPoint } from './camera.js';
 import { toast, celebrate, why, callBoat } from './hud.js';
-import { tutEvent } from './guide.js';
+import { tutEvent, tutOn } from './guide.js';
 import { show, showHome, closePanel, showBuilding } from './panel.js';
 import { openShop, closeInside, renderActs, placeActs } from './shop.js';
 
@@ -135,7 +135,7 @@ export function startBuild(x, z, door) {
     // the show: the sign carries my line, the parts get stamped as they arrive, and the camera faces the lot
     card0.querySelector('.st').textContent = `“${line}”`;
     const stamps = el('div', { class: 'stamps' }, STAMPS.map(([k, ko]) => el('i', { 'data-k': k }, ko))); log.before(stamps);
-    const box = $('mapbox'), camWas = { left: box.scrollLeft, top: box.scrollTop };
+    const box = $('mapbox'), camWas = { left: box.scrollLeft, top: box.scrollTop, zoom: S.zoom };
     scrollToPoint(...pr.P(x + n / 2, z + n / 2 - 1));
     const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); S.building = { x, z, size: sz, stage };
     note('…', '구상 중');
@@ -169,7 +169,8 @@ export function startBuild(x, z, door) {
       // finished: the building lands with a squash, my line rises over its roof, the first boat leaves now, and the camera
       // stays a moment before going back to where it was
       S.landing = { key, t0: performance.now(), line }; nextBoat.set(S.mySlot, 0);
-      setTimeout(() => { if (!S.building && !S.watching && !S.current?.key) box.scrollTo({ ...camWas, behavior: 'smooth' }); }, 2600);
+      // (only if nothing else has taken the camera since: a new zoom, or the guide showing the way)
+      setTimeout(() => { if (!S.building && !S.watching && !S.current?.key && S.zoom === camWas.zoom && !tutOn()) box.scrollTo({ left: camWas.left, top: camWas.top, behavior: 'smooth' }); }, 2600);
       // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat
       const role = roleOf(s.type, s.levels), answered = need && role.serves === need;
       if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!', `+${REQ_BONUS}동전 · 손님들이 몰려와요`), 400); }

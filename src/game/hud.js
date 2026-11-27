@@ -72,14 +72,16 @@ export function callBoat() {
   if (!S.mySlot || !$('boat').classList.contains('callable')) return false;
   nextBoat.set(S.mySlot, 0); S.callReady = performance.now() / 1000 + 25; toast('📣 뿌우— 배를 불렀어요!', 1400); hud(); return true;
 }
-/** A new 🎫 flies from the ticket chip into the 짓기 button, which bounces: that is where it is spent. */
-function flyTicket() {
-  const from = document.querySelector('#who .tk')?.getBoundingClientRect(), btn = $('d-build'), to = btn?.getBoundingClientRect(); if (!from || !to || !from.width) return;
-  const f = iconEl('ticket', 32, ''); f.classList.add('flyer'); document.body.append(f);
-  const x0 = from.left, y0 = from.top, x1 = to.left + to.width / 2 - 16, y1 = to.top + 10;
-  f.animate([{ transform: `translate(${x0}px,${y0}px) scale(1)` }, { transform: `translate(${(x0 + x1) / 2}px,${Math.min(y0, y1) - 80}px) scale(1.6) rotate(-12deg)`, offset: .45 }, { transform: `translate(${x1}px,${y1}px) scale(.8)` }], { duration: 750, easing: 'cubic-bezier(.4,0,.6,1)' })
-    .finished.then(() => { f.remove(); btn.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-4deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,1.6,.4,1)' }); });
+/** An icon flies in an arc from a screen point to an element, which bounces when it lands: cause to effect, without words. */
+export function flyIcon(name, [x0, y0], target, size = 32) {
+  const to = target?.getBoundingClientRect(); if (!to || !to.width) return;
+  const f = iconEl(name, size, ''); f.classList.add('flyer'); document.body.append(f);
+  const x1 = to.left + to.width / 2 - size / 2, y1 = to.top + to.height / 2 - size / 2;
+  f.animate([{ transform: `translate(${x0 - size / 2}px,${y0 - size / 2}px) scale(.7)` }, { transform: `translate(${(x0 + x1) / 2}px,${Math.min(y0, y1) - 80}px) scale(1.5) rotate(-12deg)`, offset: .45 }, { transform: `translate(${x1}px,${y1}px) scale(.8)` }], { duration: 750, easing: 'cubic-bezier(.4,0,.6,1)' })
+    .finished.then(() => { f.remove(); target.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-4deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,1.6,.4,1)' }); });
 }
+/** A new 🎫 flies from the ticket chip into the 짓기 button: that is where it is spent. */
+function flyTicket() { const r = document.querySelector('#who .tk')?.getBoundingClientRect(); if (r?.width) flyIcon('ticket', [r.left + 16, r.top + 16], $('d-build')); }
 export function markHome() { const b = $('d-home'); if (!b.querySelector('.badge')) b.append(el('span', { class: 'badge' }, '!')); }
 function dockState() { const auto = !!S.myDoc && !!S.myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !S.myDoc; }
 

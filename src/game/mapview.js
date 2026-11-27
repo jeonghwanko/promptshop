@@ -1,6 +1,7 @@
 // Drawing the archipelago each frame: the ground (or new land rising), buildings, walkers, boats and the building site
 // sorted by depth, then island labels, floating words, stars, empty-stock marks and what my pier's guests cannot find.
-import { SLOTS, centerOf, PLOT, dockOf, neighbours } from '../v2/isles.js';
+import { SLOTS, centerOf, PLOT, dockOf, neighbours, bridgeTiles } from '../v2/isles.js';
+import { BRIDGE } from './rules.js';
 import { renderView } from '../v2/render.js';
 import { drawPerson } from '../v2/townview.js';
 import { iconCanvas, EMOJI } from '../ui/icons.js';
@@ -50,8 +51,13 @@ function drawLandAnim(dt) {   // old coast, then each new tile rising into place
   }
   if (a.t > a.end) S.landAnim = null;
 }
+/** Wood chips over a bridge's planks: my half just laid (half) or the whole bridge done. */
+export function planks(a, b, half) {
+  const t = bridgeTiles(a, b), part = half ? t.slice(0, Math.ceil(t.length / 2)) : t;
+  part.forEach(([x, z], i) => setTimeout(() => { const [px, py] = pr.P(x + .5, z + .5); for (let k = 0; k < 5; k++) splash.push({ x: px + (Math.random() - .5) * 14, y: py - 2, vx: (Math.random() - .5) * 50, vy: -30 - Math.random() * 40, t: 0, wood: true }); }, i * 70));
+}
 function drawSplash(dt) {
-  for (const p of splash) { p.t += dt; p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; g.globalAlpha = Math.max(0, 1 - p.t / .7); g.fillStyle = p.dust ? (p.t < .25 ? '#e8d8b0' : '#b89a6a') : p.t < .25 ? '#ffffff' : '#bfe3f2'; g.fillRect(Math.round(p.x), Math.round(p.y), 3, 3); }
+  for (const p of splash) { p.t += dt; p.vy += 160 * dt; p.x += p.vx * dt; p.y += p.vy * dt; g.globalAlpha = Math.max(0, 1 - p.t / .7); g.fillStyle = p.wood ? (p.t < .25 ? '#e0a868' : '#8a5a32') : p.dust ? (p.t < .25 ? '#e8d8b0' : '#b89a6a') : p.t < .25 ? '#ffffff' : '#bfe3f2'; g.fillRect(Math.round(p.x), Math.round(p.y), 3, 3); }
   g.globalAlpha = 1; for (let i = splash.length - 1; i >= 0; i--) if (splash[i].t > .7) splash.splice(i, 1);
 }
 const outline = (x, z, n, color) => { const pts = [pr.P(x, z), pr.P(x + n, z), pr.P(x + n, z + n), pr.P(x, z + n)]; g.strokeStyle = color; g.lineWidth = 2; g.beginPath(); pts.forEach(([a, b], i) => (i ? g.lineTo(a, b) : g.moveTo(a, b))); g.closePath(); g.stroke(); };
@@ -102,6 +108,19 @@ export function drawMap(dt) {
       g.fillStyle = 'rgba(46,36,26,.78)'; g.beginPath(); g.roundRect(mx - tw / 2, my - 15, tw, 22, 11); g.fill(); g.fillStyle = '#fff7e6'; g.fillText(t, mx, my + 1);
     }
   }
+  // my half missing toward a friend next door: a plank tag over the gap — its price — and a tap lays it (input.js)
+  S.bridgeTags = [];
+  if (mySlot && myDoc && !zoomShop && !S.buildMode) for (const n of neighbours(mySlot)) {
+    if (!S.owners.has(n) || myDoc.half?.[n]) continue; const t = bridgeTiles(mySlot, n); if (!t.length) continue;
+    const [mx, mz] = t[Math.floor((t.length - 1) / 2)], [x, y] = pr.P(mx + .5, mz + .5), free = myDoc.wallet?.freeHalf === n, bob = Math.sin(performance.now() / 300 + n) * 2;
+    const txt = free ? '다리 · 무료' : `다리 · ${BRIDGE}`; g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(txt).width + (free ? 18 : 34), h = 24, X = Math.round(x - w / 2), Y = Math.round(y - 30 + bob);
+    g.fillStyle = '#2e241a'; g.beginPath(); g.roundRect(X - 2, Y - 2, w + 4, h + 6, 7); g.fill();
+    g.fillStyle = '#c98a4e'; g.beginPath(); g.roundRect(X, Y, w, h, 5); g.fill(); g.fillStyle = '#a8703e'; g.fillRect(X + 3, Y + h - 6, w - 6, 3);   // a plank: wood with a darker grain at its foot
+    if (!free) { g.imageSmoothingEnabled = false; const ic = iconCanvas('coin'); if (ic) g.drawImage(ic, X + w - 22, Y + 4, 16, 16); }
+    g.fillStyle = '#fff7e6'; g.textAlign = 'left'; g.fillText(txt, X + 8, Y + 17);
+    S.bridgeTags.push({ n, x: X - 2, y: Y - 2, w: w + 4, h: h + 6 });
+  }
+  g.textAlign = 'center';
   g.font = '900 12px "Noto Sans KR", sans-serif';
   for (const p of pops) { const tp = tops[p.key]; if (!tp || zoomShop) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;
     if (em) { g.imageSmoothingEnabled = false; g.drawImage(iconCanvas(EMOJI[em]), Math.round(tp[0] - g.measureText(txt).width / 2 - w - 2), Math.round(y - 12), 14, 14); }
@@ -129,5 +148,7 @@ export function drawMap(dt) {
       g.font = '900 10px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.lineWidth = 3; g.strokeText(String(c), x + 11, y + 13); g.fillStyle = '#ff8a7a'; g.fillText(String(c), x + 11, y + 13); }); }
   drawSplash(dt);
   S.drawn = items; S.lastTops = tops; placeSign();
+  { const sb = S.spotBlink, a = sb ? (performance.now() - sb.t0) / 1400 : 1; if (a >= 1) S.spotBlink = null;   // where a building of this size fits: three blinks
+    else for (const q of sb.spots) outline(q.x, q.z, sb.n, `rgba(255,224,120,${(Math.sin(a * Math.PI * 6 - Math.PI / 2) + 1) / 2 * .9})`); }
   const ts = tutGlowSpot(); if (ts) { const t = (Math.sin(performance.now() / 180) + 1) / 2; outline(ts.x, ts.z, PLOT[S.size], `rgba(255,${200 + 55 * t | 0},80,${.6 + .4 * t})`); }
 }

@@ -10,7 +10,7 @@ import { S, db, me, sim, FROM, BOARD, pr } from './state.js';
 import { hooks, allPlots, ratesOf, servesOf, tilesOf } from './model.js';
 import { initPersist, WRITER, track } from './persist.js';
 import { initCamera, startZoom, applyZoom, scrollToSlot, toScreen, scrollToPoint, inSafe } from './camera.js';
-import { drawMap, riseLand } from './mapview.js';
+import { drawMap, riseLand, planks } from './mapview.js';
 import { initHud, toast, celebrate, markHome } from './hud.js';
 import { initEconomy, takeEvents, stepBoats, stepFest, festSoon } from './economy.js';
 import { initGuide, guide, tutOn, inTutOn, tutEvent, pickSpot } from './guide.js';
@@ -54,6 +54,17 @@ function friendsShops() {
   else { fresh = others.filter(p => !shopsSeen.has(id(p))); if (fresh[0]) showFresh(fresh[0], false); }
   shopsSeen = keys; try { localStorage.setItem(SEEN_KEY, JSON.stringify([...keys])); } catch {}
 }
+// a bridge both halves of which are now laid: planks fly, and if it is mine, a moment and the camera on it
+let doneSeen = null;
+function bridgesDone() {
+  if (!S.world || !S.mySlot) return;   // from when my island is in: bridges already there on arrival are not news
+  const done = new Set([...S.world.bridges].filter(([, h]) => h.a && h.b).map(([id]) => id));
+  if (doneSeen) for (const id of done) if (!doneSeen.has(id)) {
+    const [a, b] = id.split('-').map(Number); planks(a, b, false);
+    if (a === S.mySlot || b === S.mySlot) { const [ax, az] = centerOf(a), [bx, bz] = centerOf(b); celebrate('다리 완성!', `${a}번 ↔ ${b}번 · 손님이 오가요`); scrollToPoint(...pr.P((ax + bx) / 2, (az + bz) / 2)); }
+  }
+  doneSeen = done;
+}
 function showFresh(p, look) {
   if (S.building || S.watching) return;
   const n = PLOT[p.size]; let line = p.b.line; try { line ||= normalize(p.b.input).name; } catch {}
@@ -72,7 +83,7 @@ hooks.rebuilt = (oldGround) => {
     riseLand(oldGround, tilesOf(s), centerOf(s)); markHome(); track('friend_joined', { slot: s, next: neighbours(S.mySlot).includes(s) });
   }
   seen = now0;
-  friendsShops();
+  friendsShops(); bridgesDone();
   { const c = S.current; if (c?.kind === 'island' && S.owners.get(c.slot) !== c.uid && panelOpen()) showIsland(c.slot); }   // the island on the panel changed hands
   if (!S.mySlot) guide();   // choosing an island: the guide follows who took which
   if (!S.current && !S.mySlot && !panelOpen()) showHome();
