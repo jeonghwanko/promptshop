@@ -5,7 +5,7 @@ import { buildSection } from '../v2/interior.js';
 import { roleOf } from '../v2/townsim.js';
 import { normalize } from '../v2/spec.js';
 import { startingFixtures } from '../v2/insideview.js';
-import { shopRates, starsOf } from '../v2/inside.js';
+import { shopRates, starsOf, setOwnedFixtures } from '../v2/inside.js';
 import { START_STOCK, BASE_COIN, maxPlots as maxPlotsOf, LEVELS, levelOf, boatPlanOf, UTIL, fixUse, supplyOf } from './rules.js';
 import { S, me, pr, sim } from './state.js';
 
@@ -65,7 +65,7 @@ export function boatPlan(slot) { const shops = islandShops(slot); return boatPla
 export function G() { const w = S.myDoc.wallet; w.served ??= 0; return w; }
 export function countGuest() {
   const w = G(), lv0 = levelOf(w.served ?? 0); w.served = (w.served ?? 0) + 1; S.dirty = true;
-  const lv = levelOf(w.served); if (lv > lv0) setTimeout(() => hooks.celebrate(`${LEVELS[lv].name}로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : '섬이 번화가가 됐어요'), 1600);
+  const lv = levelOf(w.served); if (lv > lv0) setTimeout(() => hooks.celebrate(`${LEVELS[lv].name}로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : `섬이 ${LEVELS[lv].name}가 됐어요`), 1600);
 }
 
 // ---------- power and water ----------
@@ -141,6 +141,7 @@ export function rebuild() {
   }
   const world = S.world = makeIsles(joined, bridges), oldGround = S.ground;
   const all = allPlots();
+  setOwnedFixtures(all.filter(p => p.owner === me && p.b).reduce((n, p) => n + ownedOf(p).size, 0) - (S.myDoc?.wallet?.fxBase ?? 0));   // prices grow with what my island already has (inside.js)
   const avoid = new Set(); for (const sl of joined) for (const t of plantTiles(sl)) if (t) avoid.add(t[0] + ',' + t[1]);   // no trees where power and water stand
   const lots = takenSet(), b = S.building; if (b) for (let i = b.x; i < b.x + PLOT[b.size]; i++) for (let k = b.z; k < b.z + PLOT[b.size]; k++) lots.add(i + ',' + k);   // the site being built shows as a cleared lot (for the picture only: placing still checks takenSet)
   S.ground = drawIsles(world, pr, { taken: lots, avoid });

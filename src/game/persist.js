@@ -3,7 +3,7 @@
 import { GAP, PLOT } from '../v2/isles.js';
 import { normalize } from '../v2/spec.js';
 import { ISLES_SEED } from '../../examples/isles-seed.js';
-import { moveWithIsland, migrateLayout, migrateGuide } from './migrate.js';
+import { moveWithIsland, migrateLayout, migrateGuide, migrateEcon } from './migrate.js';
 import { step, SETTLE_MS, STALE_MS, HEARTBEAT_MS } from './lease.js';
 import { S, db, user, me, BOARD, COL, now, SHOWCASE } from './state.js';
 import { hooks, allPlots, rebuild } from './model.js';
@@ -153,7 +153,7 @@ export function initPersist({ onError, onRefund }) {
     for (const d of snap.docs) {
       if (d.id === MOD) { marks = d.data(); continue; }
       if (d.id.startsWith('_')) continue;
-      let raw, doc; try { raw = cleanDoc(d.data() ?? {}); doc = migrateGuide(migrateLayout(moveWithIsland(raw))); } catch { continue; }   // a doc that still breaks: left out
+      let raw, doc; try { raw = cleanDoc(d.data() ?? {}); doc = migrateEcon(migrateGuide(migrateLayout(moveWithIsland(raw)))); } catch { continue; }   // a doc that still breaks: left out
       if (d.id === me && doc.gap === GAP && raw.gap !== GAP) doc._gapMoved = true;   // islands moved apart: save the new places
       S.docs.set(d.id, doc);
     }

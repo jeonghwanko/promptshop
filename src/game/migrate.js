@@ -4,6 +4,7 @@ import { buildSection, LAYOUT, remapFixtures } from '../v2/interior.js';
 import { startingFixtures } from '../v2/insideview.js';
 import { costOf, upgradeCost } from '../v2/inside.js';
 import { GAP, OLD_GAP, centerOfGap } from '../v2/isles.js';
+import { LEVELS, OLD_LEVEL_AT } from './rules.js';
 
 /** Islands laid out with the old gap between them: every plot moves with its island's centre. */
 export function moveWithIsland(d) {
@@ -46,4 +47,14 @@ export function migrateGuide(d) {
   const w = d?.wallet, v = w?.tutV ?? 1; if (!w || v >= 3) return d;
   const m = TO_V3[v] ?? TO_V3[1], tut = typeof w.tut === 'number' && w.tut < m.length ? m[w.tut] : w.tut;
   return { ...d, wallet: { ...w, tut, tutV: 3 } };
+}
+
+/** Levels 40 times further apart and prices that grow (2026-11-28): an island keeps the level it had, its guests count from that level's
+ *  new step on, and its fixtures so far are where price growth starts (wallet.fxBase). */
+export function migrateEcon(d) {
+  const w = d?.wallet; if (!w || (w.econV ?? 1) >= 2) return d;
+  const served = w.served ?? 0, old = OLD_LEVEL_AT.reduce((i, a, k) => (served >= a ? k : i), 0);
+  // prices grow with fixtures bought from now on: what an island already had is its starting point (a furnished island is not priced out)
+  const fxBase = Object.values(d.plots ?? {}).reduce((n, p) => n + (p.b ? (Array.isArray(p.own) ? p.own.length : p.fx ?? 0) : 0), 0);
+  return { ...d, wallet: { ...w, served: Math.max(served, LEVELS[old].at), fxBase, econV: 2 } };
 }

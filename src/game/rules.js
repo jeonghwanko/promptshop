@@ -16,11 +16,16 @@ export const INVITE_AT = { level: 3, shops: 6 };   // 번화가 and six building
 
 // ---------- land ----------
 export const MAX_PLOTS = 8, PLOTS_PER_LAND = 3;
-export const LAND_COST = [80, 200, 450, 900], LAND_LEVEL = [0, 1, 2, 3];   // per widening step: its price, the island level it needs
+export const LAND_COST = [1600, 4000, 9000, 18000], LAND_LEVEL = [0, 1, 2, 3];   // ×20 (2026-11-28: days, not minutes)   // per widening step: its price, the island level it needs
 export const maxPlots = (land = 0) => MAX_PLOTS + PLOTS_PER_LAND * land;
 
 // ---------- growth: served guests raise the island's level (it opens bigger sizes) ----------
-export const LEVELS = [{ at: 0, name: '마을', size: 'S' }, { at: 40, name: '동네', size: 'M' }, { at: 150, name: '거리', size: 'L' }, { at: 400, name: '번화가', size: 'L' }];
+// 2026-11-28: an island serves ~130 guests a minute with five shops, so the old steps (40 · 150 · 400) went by in three minutes.
+// The steps are 40 times further, and four more follow: a week of growth.
+export const LEVELS = [{ at: 0, name: '마을', size: 'S' }, { at: 1600, name: '동네', size: 'M' }, { at: 6000, name: '거리', size: 'L' }, { at: 16000, name: '번화가', size: 'L' },
+  { at: 40000, name: '도시', size: 'L' }, { at: 100000, name: '항구 도시', size: 'L' }, { at: 240000, name: '큰 도시', size: 'L' }, { at: 600000, name: '섬의 수도', size: 'L' }];
+/** The steps before 2026-11-28, for bringing a saved island over (migrate.js migrateEcon). */
+export const OLD_LEVEL_AT = [0, 40, 150, 400];
 export const levelOf = (served) => LEVELS.reduce((i, l, k) => served >= l.at ? k : i, 0);
 export const sizesOpen = (lv) => ['S', 'M', 'L'].slice(0, Math.min(3, lv + 1));
 
@@ -40,8 +45,8 @@ export const UTIL = {
 export const fixUse = (kind, L = 1) => { const f = UTIL.fix[kind]; if (!f) return [0, 0]; const m = 1 + Math.floor(((L ?? 1) - 1) / 2); return [f[0] * m, f[1] * m]; };
 /** What an island supplies after `ups` upgrades of [cable joint, water works]. */
 export const supplyOf = (ups) => [UTIL.start[0] + UTIL.step[0] * (ups?.[0] ?? 0), UTIL.start[1] + UTIL.step[1] * (ups?.[1] ?? 0)];
-/** The n-th upgrade (0-based) of one of them: 40, 60, 90, 135 … */
-export const supplyCost = (n) => Math.round(40 * 1.5 ** (n ?? 0));
+/** The n-th upgrade (0-based) of one of them: 320, 480, 720, 1080 … */
+export const supplyCost = (n) => Math.round(320 * 1.5 ** (n ?? 0));   // ×8 (2026-11-28)
 /** The bill for a use, per minute. */
 export const billOf = (use) => Math.round((use[0] + use[1]) * UTIL.rate);
 

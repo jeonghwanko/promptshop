@@ -27,7 +27,12 @@ export const FIX_INFO = {
 const PLAIN = { crates: '상자', rolldoor: '셔터', curtain: '커튼', flat: '집 한 칸', wardrobe: '옷장', board: '칠판', stage: '무대', treadmill: '러닝머신', weights: '역기', locker: '사물함', lane: '레인', platform: '승강장', conveyor: '컨베이어', car: '차', firetruck: '소방차', altar: '제단', prayer: '기도 깔개', court: '코트', ring: '링', diamond: '야구장', sink: '세면대' };
 for (const [k, n] of Object.entries(PLAIN)) FIX_INFO[k] ??= [n, '꾸밈'];
 export const FIX_COST = { counter: 20, stove: 14, prep: 9, fridge: 6, table4: 12, table2: 7, stool: 3, sofa: 7, seats: 10, bench: 5, lowtable: 10, toilet: 8, sink: 3, plant: 4, rug: 5, tv: 7, lamp: 4 };
-export const costOf = (k) => FIX_COST[k] ?? 6;
+// Prices grow with what an island already has: ×1.12 for every fixture it owns (the game sets it, model.js rebuild).
+// A first counter costs 20; by the sixtieth fixture the same counter is ~18,000 — goals that last days, not minutes.
+export const PRICE_GROWTH = 1.12;
+let priceK = 1;
+export const setOwnedFixtures = (n) => { priceK = PRICE_GROWTH ** Math.max(0, n | 0); };
+export const costOf = (k) => Math.round((FIX_COST[k] ?? 6) * priceK);
 
 /** What a building can become when every fixture is bought: counts per role. */
 export function profileOf(fixtures) {
