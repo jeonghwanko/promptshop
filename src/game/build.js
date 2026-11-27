@@ -72,7 +72,18 @@ export function openCards() {
 /** The signboard sits above its spot, wherever the map is scrolled. */
 export function placeSign() {
   const c = document.querySelector('.signcard'); if (!c) return; const [x, z] = JSON.parse(c.dataset.at), [sx, sy] = toScreen(...pr.P(x, z)), w = c.offsetWidth, h = c.offsetHeight;
+  if (c.classList.contains('busy') && c.dataset.lot) {   // the building rises where the sign stood: the folded sign steps beside the lot
+    const [lx, lz, n] = JSON.parse(c.dataset.lot), pts = [[lx, lz], [lx + n, lz], [lx, lz + n], [lx + n, lz + n]].map(p => toScreen(...pr.P(...p)));
+    const right = Math.max(...pts.map(p => p[0])), left = Math.min(...pts.map(p => p[0])), mid = (Math.min(...pts.map(p => p[1])) + Math.max(...pts.map(p => p[1]))) / 2;
+    const at = right + 16 + w <= innerWidth - 8 ? right + 16 : Math.max(8, left - 16 - w);
+    c.style.left = at + 'px'; c.style.top = Math.max(70, Math.min(innerHeight - h - 120, mid - h / 2)) + 'px'; return;
+  }
   c.style.left = Math.max(8, Math.min(innerWidth - w - 8, sx - w / 2)) + 'px'; c.style.top = Math.max(70, Math.min(innerHeight - h - 120, sy - h - 70)) + 'px';
+}
+/** When the sign would sit on its spot (the spot is near the top of the screen), glide the map down once so the spot shows below it. */
+function clearSign(c, n) {
+  const [x, z] = JSON.parse(c.dataset.at), [, sy] = toScreen(...pr.P(x, z)), over = 70 + c.offsetHeight + 70 - sy + n * 12;
+  if (over > 0) $('mapbox').scrollBy({ top: -over, behavior: 'smooth' });
 }
 /** Shrink a building's masses until they fit an n×n plot. */
 function fitToLot(input, n) {
@@ -98,7 +109,7 @@ export function startBuild(x, z, door) {
   const card0 = el('div', { class: 'signcard', id: 'signcard', on: { pointerdown: (e) => e.stopPropagation(), click: (e) => e.stopPropagation() } },
     el('div', { class: 'row' }, el('b', { class: 'st' }, req ? `${req.icon} ${req.sub}` : '✏️ 마음대로'), el('small', {}, `${sz} ${n}×${n}`), xbtn(cancel)),
     el('div', { class: 'row' }, input, go), el('div', { class: 'chips' }, ideas.map(t => el('button', { on: { click: () => { input.value = t; build(); } } }, t))), err, log);
-  card0.dataset.at = JSON.stringify([x + n / 2, z]); document.body.append(card0); placeSign(); setTimeout(() => input.focus(), 60);
+  card0.dataset.at = JSON.stringify([x + n / 2, z]); card0.dataset.lot = JSON.stringify([x, z, n]); document.body.append(card0); placeSign(); clearSign(card0, n); setTimeout(() => input.focus(), 60);
   const note = (tag, t) => { log.append(el('div', {}, el('b', {}, tag), t)); log.scrollTop = 1e9; };
   async function build() {
     const line = input.value.trim() || input.placeholder.replace(/^예: /, '');

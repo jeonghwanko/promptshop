@@ -235,7 +235,11 @@
   .signcard { position:fixed; z-index:14; width:min(360px, calc(100vw - 16px)); display:flex; flex-direction:column; gap:8px; padding:12px 14px; border-radius:18px; background:#e9c89a; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -6px 0 #c9a06a, 0 6px 0 rgba(0,0,0,.3); animation:signRise .35s cubic-bezier(.2,1.4,.4,1); }
   .signcard::after { content:''; position:absolute; left:50%; bottom:-62px; width:6px; height:60px; margin-left:-3px; background:#5b3a22; box-shadow:0 0 0 2px #2e241a; z-index:-1; }
   .signcard .row { flex-wrap:nowrap; } .signcard .st { font:400 18px var(--f-disp); flex:1; } .signcard small { font:400 13px var(--f-disp); color:#6b4f2a; } .signcard .xb { width:32px; height:32px; } .signcard .xb img { width:18px; height:18px; }
-  .signcard input { background:#fff8ea; } .signcard .chips button { background:#fff3dc; } .signcard .log { max-height:44px; color:#5b3a22; } .signcard.busy .chips, .signcard.busy .row:nth-child(2) { opacity:.5; pointer-events:none; }
+  .signcard input { background:#fff8ea; } .signcard .chips button { background:#fff3dc; } .signcard .log { max-height:44px; color:#5b3a22; }
+  /* small enough that the spot stays in sight: a short sign, small idea chips */
+  .signcard { width:min(300px, calc(100vw - 16px)); gap:6px; padding:9px 11px; } .signcard .st { font-size:15px; } .signcard .chips { gap:4px; flex-wrap:nowrap; overflow-x:auto; scrollbar-width:none; } .signcard .chips button { font-size:12px; padding:3px 8px; white-space:nowrap; } .signcard input { min-width:0; }
+  /* while Claude builds, the sign folds to its title and the last line, so the building rising below can be watched */
+  .signcard.busy .chips, .signcard.busy .row:nth-child(2), .signcard.busy .err:empty { display:none; } .signcard.busy .log { max-height:20px; overflow:hidden; } .signcard.busy .log > div:not(:last-child) { display:none; } .signcard.busy::after { display:none; } .signcard.busy { width:min(240px, calc(100vw - 16px)); }
   @keyframes signRise { from { opacity:0; transform:translateY(16px) scale(.9); } }
   /* the shop's buttons as wooden signs, the guide as a cream speech card */
   .act { background:#e9c89a; box-shadow:inset 0 0 0 3px #2e241a, inset 0 -5px 0 #c9a06a, 0 4px 0 rgba(0,0,0,.3); } .act small { color:#6b4f2a; }
