@@ -52,8 +52,8 @@ function openInside(key) {   // the cut-away in place, over the zoomed map (open
     coins: mineP ? () => S.myDoc.wallet.coins : undefined,
     buy: (i, kind, cost) => { if (S.myDoc.wallet.coins < cost) return false;
       setTimeout(() => { tutEvent('furnish'); tutInEvent('furnish'); }, 300); S.myDoc.wallet.coins -= cost;
-      // the new piece means more guests, and guests fill the 🎫: a guest flies from it to the ticket chip (where the chip shows)
-      setTimeout(() => { const f = view.fx?.[i], r = view.top?.getBoundingClientRect(), tk = document.querySelector('#who .tk'); if (!f || !r || !tk?.offsetParent || +getComputedStyle(tk.closest('.hud')).opacity < .5) return;
+      // the new piece means more guests, and guests fill the 🎫: a guest flies from it to the next-🎫 line under my island's name
+      setTimeout(() => { const f = view.fx?.[i], r = view.top?.getBoundingClientRect(), tk = document.querySelector('#who small'); if (!f || !r || !tk?.offsetParent || +getComputedStyle(tk.closest('.hud')).opacity < .5) return;
         const [x, y] = view.view.project(f.x, f.y + 1.4, f.z); flyIcon('people', [r.left + x * view.zoom, r.top + y * view.zoom], tk, 28); }, 250); const mp = S.myDoc.plots[key]; mp.own = [...new Set([...ownedOf(p), i])]; mp.fx = mp.own.length; rebuild(); save(true); view.sim.price = ratesOf(p).price; return true; },
   });
   view.sim.setHelpers(helpersOf(p), levelsOf(p));

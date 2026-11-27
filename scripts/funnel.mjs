@@ -5,7 +5,7 @@ const db = JSON.parse(fs.readFileSync(process.argv[2] ?? 'dev-data/db.json', 'ut
 const players = Object.entries(db.log ?? {}).filter(([id]) => !only || id.startsWith(only + '~')).map(([id, l]) => {
   const ev = Object.entries(l).map(([k, v]) => ({ e: k.slice(k.indexOf('_') + 1), t: +k.split('_')[0], ...v })).sort((a, b) => a.t - b.t);
   const first = (e, f = () => true) => ev.find(x => x.e === e && f(x));
-  return { id, invited: !!first('arrive', x => x.from), arrive: first('arrive'), pick: first('pick'), built: first('tut', x => x.step >= 6), done: first('tut', x => x.step >= 9),
+  return { id, invited: !!first('arrive', x => x.from), arrive: first('arrive'), pick: first('pick'), built: first('tut', x => x.step >= (x.v === 2 ? 4 : 6)), done: first('tut', x => x.step >= (x.v === 2 ? 7 : 9)),   // v 2: the guide since the bar (seven steps)
     invite: first('invite_copy'), joined: first('friend_joined'), half: first('bridge_half'), next: first('pick', x => x.nextToInviter) };
 });
 const row = (name, list, steps) => {

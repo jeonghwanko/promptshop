@@ -43,7 +43,7 @@ Each layer may use the layers below it, never the ones above.
 
 ## Checks
 
-- `node scripts/check-isles.mjs` (with `node scripts/dev.mjs 5300` running): copies the dev island to a throwaway board and drives the main paths in headless Chrome: guide, shop, buying, floors, zoom, long press, moving a building, festival, panel, cards, world map, a refused board name, widening land, furniture coming in by itself. Every line must say PASS.
+- `node scripts/check-isles.mjs` (with `node scripts/dev.mjs 5300` running): copies the dev island to a throwaway board and drives the main paths in headless Chrome: guide, shop, buying, floors, zoom, long press, moving a building, festival, panel, the faces over the bar, world map, a refused board name, widening land, furniture coming in by itself. Every line must say PASS.
 - `node scripts/check-tabs.mjs`: several tabs on one island — a stale holder, the answer and handing over unsaved changes, the watcher writing nothing, an old copy written over, a closed tab, a shop opened while waiting, two tabs at once, a removal that sticks.
 - `node scripts/check-lease.mjs`: the one-writer rule as a table and same-term races, without a browser.
 - `node scripts/check-invite.mjs [shots dir]`: the first session with a friend — choosing an island on the map, the invite step and link, the friend landing next to the inviter, the free half bridge, the inviter seeing them arrive, the funnel log.

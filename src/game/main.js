@@ -19,7 +19,7 @@ import { initShop, openShop, closeInside, stepInside } from './shop.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { initInput } from './input.js';
 import { inviteLink } from './invite.js';
-import { setBuildMode, startExtend } from './build.js';
+import { setBuildMode, startExtend, initAsk } from './build.js';
 import { dustSite } from './mapfx.js';
 import { initWorld, openWorld } from './world.js';
 
@@ -33,7 +33,7 @@ hooks.celebrate = celebrate;
 hooks.guiding = (inside) => tutOn() || (inside && inTutOn());
 hooks.happened = tutEvent;
 hooks.yielded = () => {   // another tab plays this island now: this one stops and offers to take it back
-  closeInside(); setBuildMode(false); cancelMove(); closePanel(); S.fest = null; document.getElementById('festp').hidden = true; document.getElementById('cards').hidden = true;
+  closeInside(); setBuildMode(false); cancelMove(); closePanel(); S.fest = null; document.getElementById('festp').hidden = true;
   if (document.querySelector('.handoff')) return;
   document.body.append(el('div', { class: 'handoff' }, el('div', {}, el('b', {}, '다른 창에서 플레이 중'), el('button', { class: 'gold', on: { click: () => location.reload() } }, '여기서 하기'))));
 };
@@ -90,11 +90,11 @@ hooks.rebuilt = (oldGround) => {
   else if (S.mySlot && S.joinShown) closePanel();   // the join card goes away once my island is known
   if (S.myDoc && S.mySlot && !S.guided) { S.guided = true; const w = S.myDoc.wallet, none = !Object.keys(S.myDoc.plots).length;
     if (w.tut === undefined && none) w.tut = 0;
-    if (w.tut >= 2 && w.tut <= 5 && none) w.tut = 1;   // came back in the middle of the first build: start it again from [짓기]
+    if (w.tut >= 2 && w.tut <= 3 && none) w.tut = 1;   // came back in the middle of the first build: start it again from the faces
     guide(); }
 };
 
-initCamera(); initHud(); initGuide(); initShop(); initInput(); initEconomy(); initWorld();
+initCamera(); initHud(); initAsk(); initGuide(); initShop(); initInput(); initEconomy(); initWorld();
 
 let last = performance.now();
 function frame(t) {

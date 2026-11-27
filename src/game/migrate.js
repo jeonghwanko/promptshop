@@ -35,3 +35,14 @@ export function migrateLayout(d) {
 
 /** What the fixtures that found no place were worth: their price and every level paid for. */
 export const refundOf = (lost) => lost.reduce((t, l) => { let c = costOf(l.kind); for (let L = 1; L < l.level; L++) c += upgradeCost(l.kind, L); return t + c; }, 0);
+
+/**
+ * The first-visit guide under the old build steps (a 짓기 button, a hand of cards, a tap on the map, a signboard: nine steps)
+ * moved to where the same step is now (a face over the bar, the bar: seven steps). Guides saved since carry tutV 2.
+ */
+const OLD_TUT = [0, 1, 1, 2, 2, 3, 4, 5, 6];
+export function migrateGuide(d) {
+  const w = d?.wallet; if (!w || (w.tutV ?? 1) >= 2) return d;
+  const tut = typeof w.tut === 'number' && w.tut < OLD_TUT.length ? OLD_TUT[w.tut] : w.tut;
+  return { ...d, wallet: { ...w, tut, tutV: 2 } };
+}

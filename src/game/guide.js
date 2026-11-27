@@ -1,20 +1,18 @@
 // The first visit: 끼룩이 walks a new owner through one whole loop, one step at a time,
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
-import { SLOTS, centerOf, placePlot, PLOT, neighbours } from '../v2/isles.js';
+import { SLOTS, centerOf, neighbours } from '../v2/isles.js';
 import { $, el } from './ui.js';
 import { mountGuideGull } from '../ui/gull/guide-gull.js';
 import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
-import { allPlots, takenSet, nameOf } from './model.js';
+import { allPlots, nameOf } from './model.js';
 import { save, track } from './persist.js';
 import { toScreen, scrollToSlot, applyZoom, chooseZoom } from './camera.js';
 import { emptyNeighbours, newBoard, shareInvite } from './invite.js';
 
 const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람들이 첫 가게를 기다리고 있어!', btn: '좋아!' },
-  { say: '허가증 🎫이 한 장 있어.\n아래 [짓기]를 눌러 봐!', el: '#d-build', on: 'cards' },
-  { say: '섬 사람들 부탁이야.\n마음에 드는 카드를 하나 골라!', el: '#d-build', on: 'card' },   // the arrow shows only while the cards are put away
-  { say: '반짝이는 땅을 눌러!\n거기에 지을 거야.', map: 'spot', on: 'place' },
-  { say: '어떤 가게일까?\n한 줄로 쓰거나, 아래 예시를 눌러 봐.', el: '#signcard .chips', on: 'line' },
+  { say: '아래가 섬 사람들 부탁이야.\n얼굴 하나를 눌러 봐!', el: '#wants .want', on: 'card' },
+  { say: '어떤 가게일까? 한 줄로 쓰거나\n예시를 눌러 봐. 반짝이는 땅에 지어져!', el: '#bsub button', on: 'line' },
   { say: 'Claude가 짓는 중이야…\n건물이 올라가는 거 봐! 끼룩', on: 'built' },
   { say: '완공! 🎉\n저기 봐, 배가 손님을 싣고 와!', on: 'coin', boat: true },
   { say: '첫 수입이야! 동전이 쌓였지?\n이제 가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
@@ -31,7 +29,7 @@ const TUT_IN = [
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
-const setStep = (field, n) => { if (!canWrite()) return; if (n > (S.myDoc.wallet[field] ?? 0) && n < 99) gull?.cheer(); S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n }); guide(); };
+const setStep = (field, n) => { if (!canWrite()) return; if (n > (S.myDoc.wallet[field] ?? 0) && n < 99) gull?.cheer(); S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n, v: 2 }); guide(); };
 const say = (v) => typeof v === 'function' ? v() : v;
 
 // before I have an island: choose one on the map. Invited: next to the friend who sent the link.
@@ -100,13 +98,8 @@ function guideArrow() {
     speak(pickWords());
     pt = atElPt = atEl('#joinbtn:not([hidden])'); pt ??= (() => { const s = pickSpot(); if (!s) return null; const [cx, cz] = centerOf(s), [x, y] = toScreen(...pr.P(cx - 4, cz - 4)); return [x, y - 34]; })();   // over the island's own 'live here' button
   } else if (tutOn()) {
-    const st = TUT[tutStep()], n = PLOT[S.size];
+    const st = TUT[tutStep()];
     pt = atElPt = atEl(st.el);
-    if (st.map === 'spot' && S.buildMode) {
-      if (!S.tutSpot) { const [cx, cz] = centerOf(S.mySlot), taken = takenSet();
-        for (let d = 1; d < 6 && !S.tutSpot; d++) for (const [dx, dz] of [[1, 1], [-n, 1], [1, -n], [-n, -n]]) { const door = placePlot(S.world, S.mySlot, cx + dx * d, cz + dz * d, n, taken); if (door) { S.tutSpot = { x: cx + dx * d, z: cz + dz * d, door }; break; } } }
-      if (S.tutSpot) { const [x, y] = toScreen(...pr.P(S.tutSpot.x + n / 2, S.tutSpot.z + n / 2)); pt = [x, y - 10]; }
-    }
     if (st.map === 'invite') { const n = emptyNeighbours()[0]; if (n) { const [cx, cz] = centerOf(n), [x, y] = toScreen(...pr.P(cx + .5, cz + .5)); pt = [x, y - 16]; } }
     if (st.map === 'shop') { const p = allPlots().find(q => q.owner === me && q.b), tp = p && S.lastTops[p.key]; if (tp) { const [x, y] = toScreen(tp[0], tp[1]); pt = [x, y - 8]; } }
   }
@@ -118,8 +111,6 @@ function guideArrow() {
   if (!pt) { a.hidden = true; return; }
   a.hidden = false; a.style.left = pt[0] + 'px'; a.style.top = pt[1] + 'px';
 }
-/** The spot the guide makes glow on the map while it asks for a place to build. */
-export const tutGlowSpot = () => S.tutSpot && S.buildMode && tutOn() && TUT[tutStep()].map === 'spot' ? S.tutSpot : null;
 // ---------- 끼룩이 and its words: the line types itself out while the beak moves; a tap on the bubble shows it all ----------
 let gull = null, spoken = null, typing = null;
 let foldT = 0;

@@ -54,12 +54,13 @@ export const S = {
   // what the player is doing
   current: null,                 // what the panel shows: { kind: 'info' | 'build', key }
   size: 'S', hover: null, buildMode: false,
-  card: null,                    // the request card picked for the next building
+  card: null,                    // the guest's request picked for the next building: { need } (need null: anything I like)
+  spot: null,                    // where the next building goes while the bar is open: { x, z, door }
   building: null,                // the building Claude is writing now: { x, z, size, stage }
   moving: null,                  // the building being moved: { key, size }
   watching: null,                // the shop whose inside is open
   zoomShop: null, camBefore: null,   // the roof lifting off an opened shop; the camera to go back to
-  joinShown: false, guided: false, tutSpot: null,
+  joinShown: false, guided: false,
   // the map as last drawn
   drawn: [], lastTops: {}, landAnim: null, unmet: [],
   // boats and the festival

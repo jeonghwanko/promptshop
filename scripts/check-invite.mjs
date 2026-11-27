@@ -41,12 +41,12 @@ check('island button: live here, on the map', (await I.ev(`__isles.S.mySlot`)) >
 await sleep(1700);
 const slotI = await I.ev(`__isles.S.mySlot`); check('joined on the map', slotI > 0, `island ${slotI}`);
 // 3. the last guide step (the build itself is checked by the tutorial run): points at the empty island next door
-await I.ev(`(()=>{ __isles.myDoc.wallet.tut = 8; __isles.S.dirty = true; __isles.guide(); })()`); await sleep(1500);
+await I.ev(`(()=>{ __isles.myDoc.wallet.tut = 6; __isles.S.dirty = true; __isles.guide(); })()`); await sleep(1500);
 check('last step: call a friend', (await text(I)).includes('친구'), await text(I)); const a2 = await arrow(I); check('last step: arrow at the free island', !!a2); await I.shot('3-laststep');
 if (a2) await I.click(a2[0], a2[1] + 18); await sleep(800); await I.shot('4-invitecard');
 check('invite card: picture and button', await I.ev(`!!document.querySelector('#panel .invitecard canvas') && !!document.querySelector('#panel .invitecard button.gold')`));
 await I.ev(`document.querySelector('#panel .invitecard button.gold').click()`); await sleep(800);
-check('invite pressed: guide done', (await I.ev(`__isles.myDoc.wallet.tut`)) >= 9);
+check('invite pressed: guide done', (await I.ev(`__isles.myDoc.wallet.tut`)) >= 7);
 const link = await I.ev(`__isles.inviteLink()`); check('link: board and island', link.includes(`board=${BOARD}`) && link.includes(`from=${slotI}`), link);
 // 4. the friend opens the link: the camera is on the inviter, the guide points next door
 const F = await tab(`${link}&me=qa-f`); await sleep(7000); await F.shot('5-friend');

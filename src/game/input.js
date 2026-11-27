@@ -1,5 +1,5 @@
 // Pointer and keys on the map: drag to pan, hover a spot in build or move mode, tap a building to open it,
-// press and hold one of mine to move it, tap a spot to build, tap another island to see it.
+// press and hold one of mine to move it, tap a spot to move where the next building goes, tap another island to see it.
 import { SLOTS, PLOT, placePlot, slotAt, centerOf } from '../v2/isles.js';
 import { $ } from './ui.js';
 import { S, me, pr, map } from './state.js';
@@ -7,7 +7,7 @@ import { allPlots, takenSet, tilesOf } from './model.js';
 import { mapXY } from './camera.js';
 import { buildingAt } from './mapview.js';
 import { toast } from './hud.js';
-import { setBuildMode, startBuild } from './build.js';
+import { setBuildMode, setSpot } from './build.js';
 import { startMove, cancelMove, moveTarget, dropMove } from './move.js';
 import { showIsland, closePanel, panelOpen, halfBridge } from './panel.js';
 import { picking, guide } from './guide.js';
@@ -61,13 +61,13 @@ export function initInput() {
     { const t = (S.bridgeTags ?? []).find(q => sx >= q.x && sx <= q.x + q.w && sy >= q.y && sy <= q.y + q.h);   // a plank tag: lay my half
       if (t) { const [l, tp] = toScreen(t.x, t.y), [r, b] = toScreen(t.x + t.w, t.y + t.h); return halfBridge(t.n, { getBoundingClientRect: () => ({ left: l, top: tp, right: r, bottom: b, width: r - l, height: b - tp }) }); } }
     const s = slotAt(Math.floor(fx), Math.floor(fz)) || labelAt(sx, sy);   // an island, or its name tag over the water
-    if (S.buildMode) {   // the spot comes from the tap itself (touch screens have no hover)
+    if (S.buildMode) {   // the bar is open: the tap moves where the building goes (touch screens have no hover)
       const n = PLOT[S.size], x = Math.round(fx - n / 2), z = Math.round(fz - n / 2), door = s === S.mySlot ? placePlot(S.world, S.mySlot, x, z, n, takenSet()) : null;
-      if (door) { setBuildMode(false); return startBuild(x, z, door); }
+      if (door) return setSpot(x, z, door);
       return showSpots(s !== S.mySlot); }
     if (s && picking() && !S.owners.has(s)) { S.pick = s; closePanel(); return guide(); }   // choosing: the 'live here' button moves to the island I tapped
     if (s && s !== S.mySlot) return showIsland(s);
     if (panelOpen() && S.current?.kind !== 'build') closePanel();
   });
-  addEventListener('keydown', (e) => { if (e.key === 'Escape' && !$('cards').hidden) { $('cards').hidden = true; return; } if (e.key === 'Escape' && S.buildMode) setBuildMode(false); if (e.key === 'Escape' && S.moving) cancelMove(); });
+  addEventListener('keydown', (e) => { if (e.key === 'Escape' && S.buildMode) setBuildMode(false); if (e.key === 'Escape' && S.moving) cancelMove(); });
 }

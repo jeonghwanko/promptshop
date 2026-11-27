@@ -8,7 +8,7 @@ execSync(`curl -s localhost:5300/api/db/i/dev-me -o ${S}/qa26.json`);
 const put = (path, file) => execSync(`curl -s -X PUT localhost:5300/api/db/${path} --data-binary @${file}`);
 const del = (path) => execSync(`curl -s -X DELETE localhost:5300/api/db/${path}`);
 (await import('node:fs')).writeFileSync(S + '/rb.json', '{"name":"회귀","lat":-35,"lng":-58}');
-const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 7; delete doc.wallet.tutIn; doc.rev = 1;
+const doc = JSON.parse((await import('node:fs')).readFileSync(S + '/qa26.json')); doc.wallet.tut = 5; doc.wallet.tutV = 2; delete doc.wallet.tutIn; doc.rev = 1;
 (await import('node:fs')).writeFileSync(S + '/rd.json', JSON.stringify(doc));
 del('i-qarg/qa-x'); put('boards/qarg', S + '/rb.json'); put('i-qarg/qa-x', S + '/rd.json');
 const port = 9370, chrome = spawn('google-chrome', ['--headless=new', '--password-store=basic', '--no-sandbox', '--use-angle=swiftshader', `--remote-debugging-port=${port}`, `--user-data-dir=/tmp/cdp-rg-${Date.now()}`, '--window-size=1400,900', 'about:blank'], { stdio: 'ignore' });
@@ -60,7 +60,9 @@ await sleep(4000); { const fs0 = await ev(`JSON.stringify(__isles.festState)`); 
 // panel, cards, world
 await ev(`document.getElementById('d-home').click()`); await sleep(500); check('home panel', await ev(`!document.getElementById('panel').hidden && document.querySelectorAll('#panel .stat').length === 3`)); await shot('home');
 await ev(`document.querySelector('#panel .xb').click()`); await sleep(300);
-await ev(`document.getElementById('d-build').click()`); await sleep(800); check('request cards', (await ev(`document.querySelectorAll('#cards .rcard').length`)) >= 2); await ev(`document.getElementById('cards').click()`); await sleep(300);
+check('wants over the bar', (await ev(`document.querySelectorAll('#wants .want').length`)) >= 2);
+await ev(`document.querySelector('#wants .want').click()`); await sleep(500); check('a face opens the bar', await ev(`__isles.S.buildMode && !!__isles.S.card && !document.getElementById('bgo').hidden`), await ev(`document.getElementById('bgo').textContent + ' ' + JSON.stringify(__isles.S.spot)`));
+await ev(`document.getElementById('bx').click()`); await sleep(300); check('the bar closes', !(await ev(`__isles.S.buildMode`)));
 await ev(`document.getElementById('d-world').click()`); await sleep(2000); check('world spots', (await ev(`document.querySelectorAll('#spots .spot, #spots .bubble').length`)) > 0); await shot('world');
 // a new archipelago: a bad name is refused before anything is saved
 await ev(`document.getElementById('wnew').click()`); await sleep(300); await click(700, 450); await sleep(500);

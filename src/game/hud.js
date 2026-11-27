@@ -10,15 +10,15 @@ import { G, boatPlan } from './model.js';
 import { save } from './persist.js';
 import { toScreen, scrollToSlot } from './camera.js';
 import { showHome, closePanel } from './panel.js';
-import { setBuildMode, buildHint, openCards } from './build.js';
+import { setBuildMode } from './build.js';
 import { closeInside } from './shop.js';
 
 /** The pixel icon for each kind of guest. */
 export const NEED_ICON = { food: 'food', cafe: 'cafe', shop: 'bag', fun: 'heart', rest: 'bed' };
 
 let toastT = 0;
-/** A line at the bottom; in build mode it goes back to the build hint after `ms`. */
-export function toast(text, ms) { const t = $('toast'); t.textContent = text; t.hidden = !text; clearTimeout(toastT); if (ms) toastT = setTimeout(() => { t.hidden = !S.buildMode; if (S.buildMode) t.textContent = buildHint(); }, ms); }
+/** A line over the bar, gone after `ms`. */
+export function toast(text, ms) { const t = $('toast'); t.textContent = text; t.hidden = !text; clearTimeout(toastT); if (ms) toastT = setTimeout(() => { t.hidden = true; }, ms); }
 let celebT = 0;
 /** Words and an icon drop in at the top centre and fade: no plate, no dimming, nothing to press. */
 export function celebrate(title, sub) {
@@ -80,8 +80,8 @@ export function flyIcon(name, [x0, y0], target, size = 32) {
   f.animate([{ transform: `translate(${x0 - size / 2}px,${y0 - size / 2}px) scale(.7)` }, { transform: `translate(${(x0 + x1) / 2}px,${Math.min(y0, y1) - 80}px) scale(1.5) rotate(-12deg)`, offset: .45 }, { transform: `translate(${x1}px,${y1}px) scale(.8)` }], { duration: 750, easing: 'cubic-bezier(.4,0,.6,1)' })
     .finished.then(() => { f.remove(); target.animate([{ transform: 'scale(1)' }, { transform: 'scale(1.25) rotate(-4deg)' }, { transform: 'scale(1)' }], { duration: 320, easing: 'cubic-bezier(.2,1.6,.4,1)' }); });
 }
-/** A new 🎫 flies from the ticket chip into the 짓기 button: that is where it is spent. */
-function flyTicket() { const r = document.querySelector('#who .tk')?.getBoundingClientRect(); if (r?.width) flyIcon('ticket', [r.left + 16, r.top + 16], $('d-build')); }
+/** A new 🎫 flies from my island's name down to the bar: that is where it is spent. */
+function flyTicket() { const r = $('who').getBoundingClientRect(); if (r.width && !$('ask').hidden) flyIcon('ticket', [r.left + 30, r.top + 30], $('pmt')); }
 export function markHome() { const b = $('d-home'); if (!b.querySelector('.badge')) b.append(el('span', { class: 'badge' }, '!')); }
 function dockState() { const auto = !!S.myDoc && !!S.myDoc.wallet.autoInvest; $('d-auto').classList.toggle('on', auto); $('d-auto-t').textContent = '자동'; $('d-auto').hidden = !S.myDoc; }
 
@@ -93,17 +93,14 @@ export function hud() {
     shownCoins = coins; $('wallet').textContent = coins == null ? '—' : coins.toLocaleString('ko-KR'); }
   const t = performance.now(); while (earned.length && earned[0][0] < t - 60000) earned.shift();
   const per = earned.reduce((a, e) => a + e[1], 0); $('rate').textContent = myDoc && per ? `+${per}/분` : '';
-  if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), p = Math.min(1, (w.served - w.prevAt) / Math.max(1, w.nextAt - w.prevAt));
-    // the ticket fills where it is shown: one notch a guest, up to the next 🎫 (the level ring is just the level)
-    const need = Math.max(1, w.nextAt - w.prevAt), notches = Math.min(need, 12), lit = Math.floor(p * notches + 1e-6), got = shownPermits != null && w.permits > shownPermits;
-    const tk = el('span', { class: 'tk' + (got ? ' got' : '') }, iconEl('ticket', 24, ''), String(w.permits),
-      el('span', { class: 'notch' }, Array.from({ length: notches }, (_, i) => el('i', { class: i < lit ? 'on' : '' }))));
-    shownPermits = w.permits; if (got) setTimeout(() => flyTicket(), 50);
-    $('who').replaceChildren(el('span', { class: 'lvr', style: '--p:1' }, el('b', {}, String(lv + 1))),
-      el('span', { class: 'nm' }, (S.boardName || '한 줄 군도'), el('small', {}, `${mySlot}번 섬 · ${LEVELS[lv].name}`)), tk);
-    $('who').title = `다음 허가증까지 손님 ${w.nextAt - w.served}명`;
-    const bt = $('d-build'); bt.querySelector('.badge')?.remove(); if (w.permits > 0) bt.append(el('span', { class: 'badge' }, String(w.permits))); bt.classList.toggle('ready', w.permits > 0 && !S.buildMode);
-  } else { $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, S.boardName || '한 줄 군도', el('small', {}, '섬 고르기'))); }
+  if (mySlot && myDoc) { const w = G(), lv = levelOf(w.served), next = LEVELS[lv + 1], lp = next ? (w.served - LEVELS[lv].at) / (next.at - LEVELS[lv].at) : 1;
+    // the ring is the island's level; the line under the name says how many guests until the next 🎫; the 🎫 count sits by the coins
+    const got = shownPermits != null && w.permits > shownPermits; shownPermits = w.permits; if (got) setTimeout(() => flyTicket(), 50);
+    $('who').replaceChildren(el('span', { class: 'lvr', style: `--p:${Math.max(.04, Math.min(1, lp)).toFixed(3)}` }, el('b', {}, String(lv + 1))),
+      el('span', { class: 'nm' }, (S.boardName || '한 줄 군도'), el('small', {}, '다음 ', iconEl('ticket', 14, ''), `까지 손님 ${Math.max(0, w.nextAt - w.served)}명`)));
+    $('who').title = next ? `${LEVELS[lv + 1].name}까지 손님 ${next.at - w.served}명` : LEVELS[lv].name;
+    const pm = $('pmt'); pm.replaceChildren(iconEl('ticket', 22, ''), String(w.permits)); pm.classList.toggle('none', w.permits <= 0); if (got) { pm.classList.remove('got'); void pm.offsetWidth; pm.classList.add('got'); }
+  } else { $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, S.boardName || '한 줄 군도', el('small', {}, '섬 고르기'))); $('pmt').replaceChildren(); }
   const B = $('boat');
   if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot && b.state !== 'out');
     const cd = Math.ceil(S.callReady - t / 1000), can = bp.shops && !docked && cd <= 0;
@@ -125,7 +122,6 @@ export function initHud() {
   $('boat').addEventListener('click', () => {
     if (!callBoat()) return;
   });
-  $('d-build').onclick = () => { if (!S.mySlot) return showHome(); if (S.buildMode) return setBuildMode(false); openCards(); };
   $('d-home').onclick = () => { $('d-home').querySelector('.badge')?.remove(); setBuildMode(false); if ($('panel').hidden || S.current) showHome(); else closePanel(); };   // open my island; a second press closes it
   $('d-auto').onclick = () => { if (!S.myDoc || !canWrite()) return; S.myDoc.wallet.autoInvest = !S.myDoc.wallet.autoInvest; save(true); dockState(); toast(!S.myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
   $('festp').onclick = () => { if (S.watching) closeInside(); scrollToSlot(S.mySlot); };
