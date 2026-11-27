@@ -55,7 +55,8 @@
     sample: async (input, opts = {}) => {
       const prompt = typeof input === 'string' ? input : input.map(m => m.content).join('\n\n');
       const ctl = new AbortController(); opts.signal?.addEventListener('abort', () => ctl.abort());
-      let idle; const wake = () => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), IDLE_MS); }; wake();
+      // the first words may wait for a place in the server's line (90 s); after that, 45 s of silence ends it
+      let idle; const wake = (ms = IDLE_MS) => { clearTimeout(idle); idle = setTimeout(() => ctl.abort(), ms); }; wake(90000);
       try {
         const r = await fetch('/api/sample', { method: 'POST', headers: { 'x-isles': '1', 'content-type': 'application/json' }, body: JSON.stringify({ prompt, kind: opts.purpose ?? 'build' }), signal: ctl.signal });
         if (!r.ok) { const v = await r.json().catch(() => null); throw { code: r.status === 429 ? (v?.error === 'rate_limited' ? 'rate_limited' : 'daily_limit') : r.status === 503 ? 'rate_limited' : 'unavailable', message: v?.error }; }

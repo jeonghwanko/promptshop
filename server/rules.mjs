@@ -6,9 +6,24 @@
 //   log/<board>~<uid>       the funnel log: only its owner, update only.
 import { bad } from '../src/game/rules.js';
 // Sizes are of the doc as it will be stored (an update is merged first), so many small updates cannot grow a doc without end.
-export const MAX_DOC = 128 * 1024, MAX_LOG = 64 * 1024, MAX_BOARD = 2 * 1024, BOARDS_PER_PLAYER = 5;
+export const MAX_DOC = 128 * 1024, MAX_LOG = 8 * 1024, MAX_BOARD = 2 * 1024, BOARDS_PER_PLAYER = 10, MAX_BUILDINGS = 24;
 const SUMMARY = new Set(['n', 'bld', 'users']), BOARD_NEW = new Set(['name', 'lat', 'lng', 'owner', 'at', 'n', 'bld', 'users']);
 const ISLAND = new Set(['slot', 'at', 'gap', 'land', 'plots', 'half', 'wallet', 'rev', 'wb', 'hb', 'term', 'by', 'ack']);
+const obj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+const fin = (v) => typeof v === 'number' && Number.isFinite(v);
+/** An island as every member's page reads it: one with a broken building would break the board for all of them. */
+function islandBad(d) {
+  if ('slot' in d && !(Number.isInteger(d.slot) && d.slot >= 1 && d.slot <= 10)) return 'bad island';
+  for (const k of ['at', 'gap', 'hb', 'rev', 'term', 'ack']) if (k in d && d[k] !== null && !fin(d[k])) return 'bad ' + k;
+  for (const k of ['by', 'wb']) if (k in d && d[k] !== null && !(typeof d[k] === 'string' && d[k].length <= 40)) return 'bad ' + k;
+  if ('land' in d && !(Number.isInteger(d.land) && d.land >= 0 && d.land <= 4)) return 'bad land';
+  for (const k of ['plots', 'half', 'wallet']) if (k in d && !obj(d[k])) return 'bad ' + k;
+  if (d.plots) {
+    const ps = Object.values(d.plots); if (ps.length > MAX_BUILDINGS) return 'too many buildings';
+    for (const p of ps) if (!obj(p) || !fin(p.x) || !fin(p.z) || !['S', 'M', 'L'].includes(p.size) || ('b' in p && !(obj(p.b) && obj(p.b.input)))) return 'bad building';
+  }
+  return null;
+}
 /** A new board carries its summary from the start, so the world map never has to read its islands to count them. */
 const SUMMARY_ALL = (b) => 'n' in b && 'bld' in b && 'users' in b;
 const num = (v, lo, hi) => typeof v === 'number' && Number.isFinite(v) && v >= lo && v <= hi;
@@ -42,6 +57,7 @@ export function allowWrite(op, col, id, data, ctx) {
     if (tooBig(MAX_DOC)) return 'too big';
     if (op === 'delete') return null;
     if (!Object.keys(data ?? {}).every(k => ISLAND.has(k))) return 'unknown field';
+    { const why = islandBad(after); if (why) return why; }
     const cur = store.get(col, id);
     if (!cur) {   // moving in: a way in, and a free island
       if (op !== 'set') return 'no island yet';
@@ -58,9 +74,9 @@ export function allowWrite(op, col, id, data, ctx) {
     if (!/^[a-z0-9]{3,24}$/.test(id) || id === 'main') return 'bad board id';
     if (!cur) {
       if (op !== 'set' || data?.owner !== uid || !Object.keys(data).every(k => BOARD_NEW.has(k)) || !SUMMARY_ALL(data)) return 'bad new board';
+      const why = boardBad(data); if (why) return why;   // checked first: a refused name does not use up the day
       if (ctx.boardsOf(uid) >= BOARDS_PER_PLAYER) return 'too many boards';
-      if (!ctx.mayMakeBoard()) return 'too many boards today';
-      return boardBad(data);
+      return ctx.spend('board') ? null : 'too many boards today';
     }
     if (op !== 'update') return 'not allowed';
     const keys = Object.keys(data ?? {});
@@ -71,7 +87,8 @@ export function allowWrite(op, col, id, data, ctx) {
   if (col === 'log') {
     const m = /^([a-z0-9]{3,24})~(.+)$/.exec(id);
     if (!m || m[2] !== uid || op === 'delete' || tooBig(MAX_LOG)) return 'not your log';
-    return m[1] === 'main' || store.get('boards', m[1]) ? null : 'no such board';
+    if (m[1] !== 'main' && !store.get('boards', m[1])) return 'no such board';
+    return store.get('log', id) || ctx.spend('log') ? null : 'too many logs today';   // a fresh cookie is free: new logs are counted by address
   }
   return 'not allowed';
 }

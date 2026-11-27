@@ -339,3 +339,5 @@ body:has(.cards:not([hidden])) :is(.guide, .garrow), body:has(.world:not([hidden
 }
 /* a toast while 끼룩이 talks goes to the top, not under its bubble */
 body:has(.guide:not([hidden]):not(.min)) .toast { top:112px; bottom:auto; }
+/* a phone on its side (wide but short): the panel takes the height there is, down to the dock */
+@media (max-height:560px) and (min-width:761px) { .panel { top:8px; max-height:calc(100vh - 110px); } }

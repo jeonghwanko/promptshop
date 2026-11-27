@@ -20,7 +20,7 @@ import { setBuildMode, startExtend } from './build.js';
 import { startMove } from './move.js';
 
 /** Phones: the cut-away takes the screen's width above a tray of actions at the bottom (side by side there is no room). */
-const narrow = () => innerWidth < 760;
+const narrow = () => innerWidth <= 760;   // the same line as the CSS's max-width:760px
 export function openShop(key) {
   const p = allPlots().find(x => x.key === key); if (!p?.b) return;
   if (S.watching) closeInside(); setBuildMode(false); closePanel();
@@ -136,4 +136,9 @@ export function stepInside(dt) {
 export function initShop() {
   $('shopwrap').addEventListener('click', (e) => { if (e.target === $('shopwrap')) closeInside(); });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });
+  // the phone turned or the window changed: the cut-away was sized for the old screen, so it opens again for this one
+  let t = 0, w0 = innerWidth, h0 = innerHeight;
+  addEventListener('resize', () => { clearTimeout(t); t = setTimeout(() => {
+    const k = S.watching?.key; if (!k || S.watching.extending || (Math.abs(innerWidth - w0) < 40 && Math.abs(innerHeight - h0) < 120)) return;   // a phone keyboard alone does not count
+    w0 = innerWidth; h0 = innerHeight; closeInside(); setTimeout(() => openShop(k), 450); }, 250); });
 }

@@ -129,7 +129,9 @@ export function startBuild(x, z, door) {
       const c = check(b.input, { broken, line }); for (const f of c.fixed) note('수선', f);
       const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
       if (problems.length) { note('다시', `남은 문제 ${problems.length}개`); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
-        await sample(revisePrompt(line, raw, problems), { purpose: 'revise', modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); check(b.input, { line }); }
+        // the fix is a bonus: if it fails (the line, a timeout), the building from the first answer still stands
+        try { await sample(revisePrompt(line, raw, problems), { purpose: 'revise', modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); } catch { note('다시', '그대로 지을게요'); }
+        check(b.input, { line }); }
       if (!b.input) throw { code: 'nothing' };
       fitToLot(b.input, n); const s = normalize(b.input);
       if (bad(s.name)) { err.textContent = '그 이름으로는 세울 수 없어요.'; S.building = null; go.disabled = false; return; }

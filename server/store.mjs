@@ -40,6 +40,11 @@ export function openStore(file) {
     remove: (col, id) => write(col, id, null),
     count: (col) => s.count.get(col).n,
     all: (col) => Object.fromEntries(s.all.all(col).map(r => [r.id, parse(r.data)])),
+    /** The same as JSON text built from the stored text (nothing parsed): { text, n }. */
+    sinceText: (col, after) => {
+      const rows = s.since.all(col, after), ver = rows.length ? rows[rows.length - 1].ver : Math.max(after, +(s.colVer.get(col)?.v ?? 0));
+      return { n: rows.length, text: `{"docs":[${rows.map(r => `{"id":${JSON.stringify(r.id)},"data":${r.data ?? 'null'}}`).join(',')}],"ver":${ver}}` };
+    },
     /** Changes in a collection after `after`: [{ id, data|null }], and the collection's latest number. */
     since: (col, after) => { const rows = s.since.all(col, after); return { docs: rows.map(r => ({ id: r.id, data: parse(r.data) })), ver: rows.length ? rows[rows.length - 1].ver : Math.max(after, +(s.colVer.get(col)?.v ?? 0)) }; },
     onChange: (fn) => { listeners.add(fn); return () => listeners.delete(fn); },

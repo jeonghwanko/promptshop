@@ -1,12 +1,25 @@
 // Saving my island and loading the board: one doc per owner in the board's collection.
 // One tab writes an island at a time (lease.js): the newest tab takes over, the older one saves once more and watches.
-import { GAP } from '../v2/isles.js';
+import { GAP, PLOT } from '../v2/isles.js';
+import { normalize } from '../v2/spec.js';
 import { ISLES_SEED } from '../../examples/isles-seed.js';
 import { moveWithIsland, migrateLayout } from './migrate.js';
 import { step, SETTLE_MS, STALE_MS, HEARTBEAT_MS } from './lease.js';
 import { S, db, user, me, BOARD, COL, now, SHOWCASE } from './state.js';
 import { hooks, allPlots, rebuild } from './model.js';
 
+const isObj = (v) => v !== null && typeof v === 'object' && !Array.isArray(v);
+/** Someone's island as stored, minus whatever would throw when drawn (the server checks shapes; old or odd docs may slip by):
+ *  one broken building must not break the board for everyone who looks at it. */
+function cleanDoc(raw) {
+  const plots = {};
+  for (const [k, p] of Object.entries(isObj(raw.plots) ? raw.plots : {})) {
+    if (!isObj(p) || !Number.isFinite(p.x) || !Number.isFinite(p.z) || !PLOT[p.size]) continue;
+    if ('b' in p) { try { if (!isObj(p.b) || !normalize(p.b.input)) continue; } catch { continue; } }
+    plots[k] = p;
+  }
+  return { ...raw, plots, half: isObj(raw.half) ? raw.half : {}, wallet: isObj(raw.wallet) ? raw.wallet : {} };
+}
 /** This page's own mark: which tab holds the island. */
 export const WRITER = Math.random().toString(36).slice(2, 10);
 /** Removed buildings of other owners (a board owner's demolish), kept in one doc of the board's collection. */
@@ -68,7 +81,7 @@ const T0 = Date.now();
 export function track(event, data = {}) {
   if (!db || !me) return;
   const ref = db.doc(`log/${BOARD}~${me}`), entry = { [`${Date.now()}_${event}`]: { ...data, s: Math.round((Date.now() - T0) / 1000) } };
-  ref.update(entry).catch(() => ref.set(entry).catch(() => {}));
+  ref.update(entry).catch(() => {});   // the server makes the doc on the first update; a set here would wipe the log
 }
 /** Friends' names: asked when someone new is on the board, and once a minute for renames — not on every save of every friend. */
 let namesAt = 0;
@@ -125,6 +138,8 @@ export function initPersist({ onError, onRefund }) {
   // the holder says it is still there, so a new tab waits for its answer instead of taking over at once
   setInterval(() => { if (lease.role !== 'live' || now() - lastSave < HEARTBEAT_MS) return; if (S.dirty) save(true); else { lastSave = now(); myRef().update({ hb: Date.now() }).catch(() => {}); } }, 2000);
   // leaving: save what is left and let go, so the next page (a reload) plays at once
+  // a phone sends a page to the background and may kill it there without a pagehide: save as it goes
+  addEventListener('visibilitychange', () => { if (document.visibilityState === 'hidden') save(true); });
   addEventListener('pagehide', () => {   // keepalive: the request outlives the page (the browser allows 64 KB; past that, just let go)
     if (lease.role !== 'live' || !S.myDoc || !db || !me) return;
     const all = { ...dataOf(S.myDoc), by: null };
@@ -138,7 +153,7 @@ export function initPersist({ onError, onRefund }) {
     for (const d of snap.docs) {
       if (d.id === MOD) { marks = d.data(); continue; }
       if (d.id.startsWith('_')) continue;
-      const raw = d.data() ?? {}, doc = migrateLayout(moveWithIsland(raw));
+      let raw, doc; try { raw = cleanDoc(d.data() ?? {}); doc = migrateLayout(moveWithIsland(raw)); } catch { continue; }   // a doc that still breaks: left out
       if (d.id === me && doc.gap === GAP && raw.gap !== GAP) doc._gapMoved = true;   // islands moved apart: save the new places
       S.docs.set(d.id, doc);
     }

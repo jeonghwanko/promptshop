@@ -35,7 +35,8 @@ const pick = (a) => a[crypto.randomInt(a.length)];
 function session(req, res, { make = true } = {}) {
   const c = /(?:^|;\s*)sid=([\w-]+)\.([\w-]+)/.exec(req.headers.cookie ?? '');
   const uid = c && sign(c[1]) === c[2] ? c[1] : crypto.randomBytes(12).toString('base64url').replace(/[-_]/g, 'x');
-  if (make) store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at) VALUES (?, ?, ?)`).run(uid, `${pick(ADJ)} ${pick(ANIMAL)}`, Date.now());
+  // the row comes with the first API call that brings back the cookie the page was given (a request with no cookie makes nothing)
+  if (make && c && uid === c[1]) store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at) VALUES (?, ?, ?)`).run(uid, `${pick(ADJ)} ${pick(ANIMAL)}`, Date.now());
   if (c && uid === c[1]) return uid;
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   res.setHeader('set-cookie', `sid=${uid}.${sign(uid)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${400 * 86400}${secure}`);
@@ -53,13 +54,26 @@ function netOf(ip) {
   const full = [...h, ...Array(Math.max(0, 8 - h.length - t.length)).fill('0'), ...t];
   return full.slice(0, 4).map(x => (x || '0').toLowerCase()).join(':') + '::/64';
 }
-// new boards per address per day: a fresh cookie is free, so the five-a-player limit alone does not stop a flood
-const BOARDS_PER_ADDRESS = 10, madeBoards = new Map();   // "address day" → count
-setInterval(() => { const d = new Date().toISOString().slice(0, 10); for (const k of madeBoards.keys()) if (!k.endsWith(d)) madeBoards.delete(k); }, 3600e3).unref();
+// What one address may make in a (Korean) day — a fresh cookie is free, so per-player limits alone do not stop a flood —
+// and what everyone together may make. Kept in SQLite, so a restart does not reset them.
+const QUOTA = { board: { address: 10, all: 2000 }, log: { address: 40, all: 20000 } };
+store.sql.exec(`CREATE TABLE IF NOT EXISTS quota (k TEXT PRIMARY KEY, n INTEGER NOT NULL)`);
+const dayKST = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice(0, 10);
+/** Use one of `kind` for this address today; false when its day (or everyone's) is used up. */
+function spendFor(ip, kind) {
+  const q = QUOTA[kind], d = dayKST(), mine = `${kind}|${ip}|${d}`, all = `${kind}|*|${d}`, get = (k) => store.sql.prepare(`SELECT n FROM quota WHERE k = ?`).get(k)?.n ?? 0;
+  if (get(mine) >= q.address || get(all) >= q.all) return false;
+  const up = store.sql.prepare(`INSERT INTO quota (k, n) VALUES (?, 1) ON CONFLICT(k) DO UPDATE SET n = n + 1`); up.run(mine); up.run(all); return true;
+}
+setInterval(() => store.sql.prepare(`DELETE FROM quota WHERE k NOT LIKE ?`).run(`%|${dayKST()}`), 3600e3).unref();   // yesterday's counts
+// Claude calls running per address: one at a time, so one visitor cannot hold every place in the CLI's line
+const calling = new Map();
 
 // ---------- invites: a token for one board, 14 days, 9 friends ----------
 const INVITE_DAYS = 14, INVITE_USES = +(process.env.INVITE_USES ?? 9);
 function makeInvite(board, uid) {
+  const live = store.sql.prepare(`SELECT token FROM invites WHERE board = ? AND uid = ? AND exp > ? AND uses < ? ORDER BY exp DESC LIMIT 1`).get(board, uid, Date.now() + 86400e3, INVITE_USES);
+  if (live) return live.token;   // the one I made earlier still has days and places left
   const token = crypto.randomBytes(9).toString('base64url');
   store.sql.prepare(`INSERT INTO invites (token, board, uid, exp, uses) VALUES (?, ?, ?, ?, 0)`).run(token, board, uid, Date.now() + INVITE_DAYS * 86400e3);
   return token;
@@ -118,8 +132,12 @@ function serveFile(req, res, f, type) {
 
 process.on('unhandledRejection', (e) => console.error('unhandled', e));
 http.createServer(async (req, res) => {
-  const url = new URL(req.url, 'http://x'), p = url.pathname;
+  res.setTimeout(60e3, () => res.destroy());   // a reader that stops reading does not keep its answer in memory for ever
+  let url, p;
   try {
+    // nginx and Node must see the same path, or a request could reach /api/ past nginx's limits: no backslashes, no leading //
+    if (req.url.includes('\\') || req.url.startsWith('//')) { res.writeHead(400); return res.end(); }
+    url = new URL(req.url, 'http://x'); p = url.pathname;
     if (p === '/' || p === '/isles.html') { session(req, res, { make: false }); res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-cache' }); return res.end(page(url)); }
     if (p.startsWith('/og/')) {
       const f = p === '/og/default.png' ? OG_DEFAULT : path.join(DATA, 'og', path.basename(p)); if (!/^\/og\/[a-z0-9]{3,24}\.png$/.test(p) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); }
@@ -143,9 +161,9 @@ http.createServer(async (req, res) => {
     if (p.startsWith('/api/col/')) {   // what changed in a collection after ?after=n; with ?wait=1 it waits up to 25 s for a change
       const col = decodeURIComponent(p.slice(9)), after = +(url.searchParams.get('after') ?? 0);
       if (!readable(col)) return json(res, { error: 'not readable' }, 403);
-      let out = store.since(col, after);
-      if (!out.docs.length && url.searchParams.get('wait')) { await waitFor(col, 25000); out = store.since(col, after); }
-      return json(res, out);
+      let out = store.sinceText(col, after);
+      if (!out.n && url.searchParams.get('wait')) { await waitFor(col, 25000); out = store.sinceText(col, after); }
+      res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); return res.end(out.text);
     }
     if (p.startsWith('/api/doc/')) {
       const [col, id] = p.slice(9).split('/').map(decodeURIComponent); if (!col || !id) return json(res, { error: 'bad path' }, 400);
@@ -155,27 +173,30 @@ http.createServer(async (req, res) => {
       const data = op === 'delete' ? null : JSON.parse((await body(req)).toString() || 'null');
       if (op !== 'delete' && (typeof data !== 'object' || data === null || Array.isArray(data))) return json(res, { error: 'bad data' }, 400);
       const token = req.headers['x-invite'];
-            const mk = `${ipOf(req)} ${new Date().toISOString().slice(0, 10)}`;
       const why = allowWrite(op, col, id, data, { store, uid,
-        boardsOf: (u) => store.sql.prepare(`SELECT COUNT(*) AS n FROM docs WHERE col = 'boards' AND json_extract(data, '$.owner') = ? AND json_extract(data, '$.n') > 0`).get(u).n,   // ones nobody moved into do not count against their maker
-        mayMakeBoard: () => { const n = madeBoards.get(mk) ?? 0; if (n >= BOARDS_PER_ADDRESS) return false; madeBoards.set(mk, n + 1); return true; },
+        boardsOf: (u) => store.sql.prepare(`SELECT COUNT(*) AS n FROM docs WHERE col = 'boards' AND json_extract(data, '$.owner') = ?`).get(u).n,
+        spend: (kind) => spendFor(ipOf(req), kind),
         invite: (b) => inviteOk(token, b), useInvite: (b) => store.sql.prepare(`UPDATE invites SET uses = uses + 1 WHERE token = ? AND board = ?`).run(token, b) });
       if (why) return json(res, { error: why }, 403);
       if (op === 'set') store.set(col, id, data); else if (op === 'update') store.update(col, id, data); else store.remove(col, id);
       return json(res, { ok: true });   // the page has what it wrote; sending the whole doc back cost a parse and a copy per save
     }
     if (p === '/api/invite' && req.method === 'POST') {
+      if (tooFast(uid)) return json(res, { error: 'too many writes' }, 429);
       const { board } = JSON.parse(await body(req, 2000)); if (!board || board === 'main' || !isMember(board, uid)) return json(res, { error: 'not a member' }, 403);
       return json(res, { token: makeInvite(board, uid), days: INVITE_DAYS, uses: INVITE_USES });
     }
     if (p.startsWith('/api/thumb/') && req.method === 'POST') {   // the archipelago's picture for link previews, from a member's page
+      if (tooFast(uid)) return json(res, { error: 'too many writes' }, 429);
       const board = p.slice(11); if (!/^[a-z0-9]{3,24}$/.test(board) || !isMember(board, uid)) return json(res, { error: 'not a member' }, 403);
       const png = await body(req, 400 * 1024); if (png.subarray(1, 4).toString() !== 'PNG') return json(res, { error: 'not a png' }, 400);
       fs.writeFileSync(path.join(DATA, 'og', board + '.png'), png); return json(res, { ok: true });
     }
     if (p === '/api/sample' && req.method === 'POST') {
       const { prompt, kind } = JSON.parse((await body(req, 200 * 1024)).toString());
-      const call = admit(store, uid, kind, ipOf(req)); if (call.no) return json(res, { error: call.no.code }, call.no.status);
+      const ip = ipOf(req); if (calling.get(ip)) return json(res, { error: 'rate_limited' }, 429);
+      const call = admit(store, uid, kind, ip); if (call.no) return json(res, { error: call.no.code }, call.no.status);
+      calling.set(ip, 1); res.on('close', () => calling.delete(ip));
       return await stream(prompt, res, req, call.refund);
     }
     return json(res, { error: 'not found' }, 404);

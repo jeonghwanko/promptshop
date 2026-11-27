@@ -2,7 +2,7 @@
 // who may write what, daily Claude calls, link previews, and changes arriving by long poll. Starts its own server on a
 // throwaway data folder with Claude answers faked (SAMPLE=echo). Usage: node scripts/check-site.mjs
 import { spawn } from 'node:child_process';
-import fs from 'node:fs'; import os from 'node:os'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
+import fs from 'node:fs'; import http from 'node:http'; import os from 'node:os'; import path from 'node:path'; import { fileURLToPath } from 'node:url';
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..'), dir = fs.mkdtempSync(path.join(os.tmpdir(), 'site-check-')), PORT = 5391;
 const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, 'server/main.mjs')], { env: { ...process.env, PORT: String(PORT), DATA_DIR: dir, SAMPLE: 'echo', CLAUDE_PER_USER: '5', CLAUDE_PER_IP: '8', INVITE_USES: '3' }, stdio: ['ignore', 'pipe', 'inherit'] });
 process.on('exit', () => { try { srv.kill(); } catch {} fs.rmSync(dir, { recursive: true, force: true }); });
@@ -14,6 +14,7 @@ const check = (name, ok, info = '') => { console.log(ok ? 'PASS' : 'FAIL', name,
 function player() {
   let cookie = '';
   const go = async (p, { method = 'GET', body, headers = {} } = {}) => {
+    if (!cookie && p !== '/') await go('/');   // like a browser: the page first (it hands out the cookie)
     const r = await fetch(base + p, { method, body, headers: { cookie, 'x-isles': '1', ...(body && typeof body === 'string' ? { 'content-type': 'application/json' } : {}), ...headers } });
     const sc = r.headers.get('set-cookie'); if (sc) cookie = sc.split(';')[0];
     const t = await r.text(); let v = t; try { v = JSON.parse(t); } catch {}
@@ -60,8 +61,9 @@ check("not another's log", (await B.patch(`log/${board}~${meA.uid}`, { '1_arrive
 const big = (n) => 'x'.repeat(n * 1024);
 check('a save answers short', (await B.patch(`i-${board}/${meB.uid}`, { wallet: { coins: 99 } })).text === '{"ok":true}');
 check('island: unknown field refused', (await B.patch(`i-${board}/${meB.uid}`, { evil: 1 })).status === 403);
-check('island: size counts the merged doc', (await B.patch(`i-${board}/${meB.uid}`, { plots: { a: big(100) } })).status === 200 && (await B.patch(`i-${board}/${meB.uid}`, { half: { a: big(40) } })).status === 403);
-await B.patch(`i-${board}/${meB.uid}`, { plots: {} });
+check('island: size counts the merged doc', (await B.patch(`i-${board}/${meB.uid}`, { half: { a: big(100) } })).status === 200 && (await B.patch(`i-${board}/${meB.uid}`, { wallet: { a: big(40) } })).status === 403);
+check('island: over the limit, a write that does not grow it still lands', (await B.patch(`i-${board}/${meB.uid}`, { hb: 1 })).status === 200);
+await B.patch(`i-${board}/${meB.uid}`, { half: {} });
 check('board: a summary that would break the map is refused', (await B.patch('boards/' + board, { users: 1 })).status === 403 && (await B.patch('boards/' + board, { n: 'x' })).status === 403);
 check('board: bad name refused', (await A.put('boards/bad' + board.slice(1), { name: '시발', lat: 37, lng: 127, owner: meA.uid, at: 1, n: 0, bld: 0, users: [] })).status === 403);
 check('board: bad place refused', (await A.put('boards/bad' + board.slice(1), { name: 'ok', lat: 999, lng: 127, owner: meA.uid, at: 1 })).status === 403);
@@ -70,11 +72,25 @@ check('board: a new board carries its summary', (await A.put('boards/ns' + board
 { const Q = player(), q = (await Q.go('/api/me')).v.uid, qb = 'q' + board.slice(1);
   await Q.put('boards/' + qb, { name: 'Q', lat: 1, lng: 1, owner: q, at: 1, n: 0, bld: 0, users: [] });
   check('island number must be whole', (await Q.put(`i-${qb}/${q}`, { ...island(3), slot: 1.5 })).status === 403 && (await Q.put(`i-${qb}/${q}`, island(3))).status === 200); }
-// boards nobody lives in do not count against their maker, but one address makes at most 10 a day (3 counted above: A's board, the bad name, Q's board)
+// boards nobody lives in do not count against their maker, but one address makes at most 10 a day (2 counted above: A's board and Q's; a refused one does not count)
 { const P = player(), u = (await P.go('/api/me')).v.uid; let made = 0; for (let i = 0; i < 9; i++) if ((await P.put(`boards/m${i}${board}`, { name: '군도', lat: 1, lng: 1, owner: u, at: 1, n: 0, bld: 0, users: [] })).status === 200) made++;
-  check('boards a day per address', made === 7, `${made} made`); }
+  check('boards a day per address', made === 8, `${made} made`); }
 // the funnel log: exactly <board>~<me>, for a board that exists
+{ const L = player(); let n = 0; for (let i = 0; i < 45; i++) { const P = player(), u = (await P.go('/api/me')).v.uid; if ((await P.patch(`log/${board}~${u}`, { a: 1 })).status === 200) n++; }
+  check('new logs per address a day', n <= 40 && n >= 30, `${n} made`); }
 check('log: any other name is refused', (await B.patch(`log/x1~${meB.uid}`, { a: 1 })).status === 403 && (await B.patch(`log/zzzzzz~${meB.uid}`, { a: 1 })).status === 403);
+// island values the board's pages draw: a broken building would break the board for everyone
+check('island: a broken building is refused', (await B.patch(`i-${board}/${meB.uid}`, { plots: { a: null } })).status === 403 && (await B.patch(`i-${board}/${meB.uid}`, { plots: { a: { x: 1, z: 1, size: 'S', b: { input: null } } } })).status === 403);
+check('island: a building that draws is fine', (await B.patch(`i-${board}/${meB.uid}`, { plots: { a: { x: 1, z: 1, size: 'S', b: { input: { type: 'cafe' } } } } })).status === 200);
+check('island: bad land and coins holder refused', (await B.patch(`i-${board}/${meB.uid}`, { land: 99 })).status === 403 && (await B.patch(`i-${board}/${meB.uid}`, { wallet: 5 })).status === 403);
+await B.patch(`i-${board}/${meB.uid}`, { plots: {} });
+// paths nginx and Node would read differently
+{ const raw = (p) => new Promise(r => (http.get({ host: '127.0.0.1', port: PORT, path: p }, (x) => { x.resume(); r(x.statusCode); })).on('error', () => r(0)));   // fetch would tidy the path first
+  check('odd paths refused', (await raw('/x\\..\\api/me')) === 400 && (await raw('//api/me')) === 400, `${await raw('/x\\..\\api/me')} ${await raw('//api/me')}`); }
+// no cookie, no player row
+{ const r = await fetch(base + '/api/me', { headers: { 'x-isles': '1' } }); check('a request without a cookie makes no player', (await r.json()).name === null); }
+// a member's invite link stays the same while it has days and places left
+{ const t1 = (await B.go('/api/invite', { method: 'POST', body: JSON.stringify({ board }) })).v.token, t2 = (await B.go('/api/invite', { method: 'POST', body: JSON.stringify({ board }) })).v.token; check('invite token reused', !!t1 && t1 === t2); }
 check('a write without the page header is refused', (await fetch(base + `/api/doc/i-${board}/x`, { method: 'PUT', body: '{}' })).status === 400);
 // the token lets in nine friends at most
 let used = 1; for (let s = 4; s <= 10; s++) { const P = player(), u = (await P.go('/api/me')).v.uid; if ((await P.put(`i-${board}/${u}`, island(s), { 'x-invite': tok })).status === 200) used++; }
