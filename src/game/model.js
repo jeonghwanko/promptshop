@@ -46,7 +46,7 @@ export const helpersOf = (p) => (p.owner === me && S.myDoc?.plots[p.key] ? S.myD
 export const levelsOf = (p) => (p.owner === me && S.myDoc?.plots[p.key] ? (S.myDoc.plots[p.key].lv ??= {}) : p.lv) ?? {};
 export const starsInfo = (p) => starsOf(fixturesOf(p), ownedOf(p), levelsOf(p));
 export const starText = (n) => '★'.repeat(n) + '☆'.repeat(5 - n);
-export const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, helpersOf(p), levelsOf(p));
+export const ratesOf = (p) => shopRates(fixturesOf(p), ownedOf(p), (BASE_COIN[p.size] ?? 1) + (p.look ?? 0), helpersOf(p), levelsOf(p));   // each front tier: a coin more a guest
 /** The plot's kind of guest, or undefined for a building that serves nobody. */
 export const servesOf = (p) => { const n = normalize(p.b.input); return roleOf(n.type, n.levels).serves; };
 /** Tiles under any building (and every island's power plant and water tank), except the ones under the buildings named in `skip`. */

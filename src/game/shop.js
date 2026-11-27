@@ -7,7 +7,7 @@ import { roleOf } from '../v2/townsim.js';
 import { InsideView } from '../v2/insideview.js';
 import { shopRates, bestNext, FIX_INFO, FIX_ROLE, nextUp, costOf, flowCaps, LV_MAX, upgradeCost } from '../v2/inside.js';
 import { iconEl } from '../ui/icons.js';
-import { BASE_COIN, HELPER_MAX, helperCost, UTIL, fixUse } from './rules.js';
+import { BASE_COIN, HELPER_MAX, helperCost, UTIL, fixUse, LOOKS, lookCost } from './rules.js';
 import { $, el } from './ui.js';
 import { S, me, pr, map, earned, canWrite } from './state.js';
 import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, rebuild, shortOf } from './model.js';
@@ -85,7 +85,7 @@ export function placeActs() {
   a.style.left = Math.min(innerWidth - 240, cx + s0.offsetWidth / 2 + 16) + 'px'; a.style.top = Math.max(150, Math.min(innerHeight - 160, cy)) + 'px';
 }
 function shopActions(w, p) {
-  const fx = fixturesOf(p), own = ownedOf(p), base = BASE_COIN[p.size] ?? 1, lv = levelsOf(p), h = helpersOf(p), coins = S.myDoc.wallet.coins, out = [];
+  const fx = fixturesOf(p), own = ownedOf(p), base = (BASE_COIN[p.size] ?? 1) + (p.look ?? 0), lv = levelsOf(p), h = helpersOf(p), coins = S.myDoc.wallet.coins, out = [];
   const caps = (o, l, hh) => flowCaps(fx, o, base, hh ?? h, l ?? lv), sup = w.supply ?? Infinity, now0 = caps(own);
   const gain = (b) => Math.min(b.gpm, sup) - Math.min(now0.gpm, sup);
   const popTxt = (b) => { const d = gain(b); return d > .05 ? `+${d.toFixed(1)}명/분` : b.price > now0.price ? `+${b.price - now0.price}동전` : ''; };
@@ -99,6 +99,10 @@ function shopActions(w, p) {
   // the best level-up
   let best = null; for (const j of own) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const b = caps(own, { ...lv, [j]: L + 1 }), c = upgradeCost(fx[j].kind, L), v = (Math.max(0, gain(b)) + (b.price - now0.price) * .5 + .01) / c; if (!best || v > best.v) best = { j, L, c, v, b }; }
   if (best) out.push({ icon: 'up', title: `${FIX_INFO[fx[best.j].kind]?.[0] ?? fx[best.j].kind} Lv${best.L + 1}`, sub: gainTxt(best.b, '손님이 줄 설 때 빨라져요'), use: lvUse(fx[best.j].kind, best.L), cost: best.c, ok: coins >= best.c, hi: best.j, run: () => { if (w.view.upgradeIndex(best.j)) w.view.thud(best.j, `Lv${best.L + 1}! ${popTxt(best.b)}`, 'up'); } });
+  // the shop's front, one tier at a time: seen on the map, a coin more a guest
+  { const look = S.myDoc.plots[p.key]?.look ?? 0;
+    if (look < LOOKS.length) { const c = lookCost(p.size, look); out.push({ icon: 'star', title: `꾸미기 · ${LOOKS[look]}`, sub: '한 명 +1동전 · 지도에서 보여요', cost: c, ok: coins >= c, run: () => {
+      if (S.myDoc.wallet.coins < c || !canWrite()) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].look = look + 1; S.dirty = true; rebuild(); save(true); w.actKey = ''; toast(`${LOOKS[look]} 완료 · 지도에서 보여요`, 2500); } }); } }
   // a helper, when ordering is what holds guests up and the shop is full
   if (i === undefined && now0.order <= now0.seat && h < HELPER_MAX) { const c = helperCost(h); out.push({ icon: 'helper', title: '알바 뽑기', sub: gainTxt(caps(own, lv, h + 1)), cost: c, ok: coins >= c, run: () => { if (S.myDoc.wallet.coins < c) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); toast('알바가 왔어요!', 1200); } }); }
   // one more floor, when every piece is in

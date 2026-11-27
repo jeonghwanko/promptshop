@@ -17,6 +17,10 @@ export const INVITE_AT = { level: 3, shops: 6 };   // 번화가 and six building
 // ---------- the vault: the island trades while nobody plays (vault.js) ----------
 export const VAULT = { share: .05, hours: 8, minMinutes: 10 };   // a twentieth of the live pace, net of the bill; at most eight hours; nothing under ten minutes
 
+// ---------- a shop's front, bought tier by tier (exterior.js draws it from the plot's look): each tier brings a coin more a guest ----------
+export const LOOKS = ['꽃 화단', '줄무늬 차양', '간판 전구', '파라솔 테라스'];
+export const lookCost = (size, tier) => Math.round({ S: 60, M: 120, L: 240 }[size] ?? 120) * 20 * 4 ** tier;   // M: 2,400 · 9,600 · 38,400 · 153,600
+
 // ---------- land ----------
 export const MAX_PLOTS = 8, PLOTS_PER_LAND = 3;
 export const LAND_COST = [1600, 4000, 9000, 18000], LAND_LEVEL = [0, 1, 2, 3];   // ×20 (2026-11-28: days, not minutes)   // per widening step: its price, the island level it needs

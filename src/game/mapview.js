@@ -4,6 +4,7 @@ import { join } from './panel.js';
 import { SLOTS, centerOf, PLOT, dockOf, neighbours, bridgeTiles, placePlot } from '../v2/isles.js';
 import { BRIDGE } from './rules.js';
 import { renderView, stampSign } from '../v2/render.js';
+import { normalize } from '../v2/spec.js';
 import { drawWaves } from '../v2/ground.js';
 import { drawVault } from './vault.js';
 import { drawGuest } from './special.js';
@@ -29,8 +30,8 @@ function chunky({ canvas: c, anchor, sign }) {
 }
 const sprites = new Map();
 function sprite(p) {
-  const k = p.key + ':' + p.b.at, s = sprites.get(p.key); if (s && s.k === k) return s;
-  try { const { canvas, anchor } = chunky(renderView(p.b.input, 'ext', { res: .5 })), alpha = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
+  const k = p.key + ':' + p.b.at + ':' + (p.look ?? 0), s = sprites.get(p.key); if (s && s.k === k) return s;
+  try { const spec = normalize(p.b.input); spec.look = p.look ?? 0; const { canvas, anchor } = chunky(renderView(spec, 'ext', { res: .5 })), alpha = canvas.getContext('2d').getImageData(0, 0, canvas.width, canvas.height).data;
     // the roof's top: the first painted row near the building's middle (the picture has room above it, and props stand to the sides)
     const W = canvas.width, x0 = Math.max(0, Math.round(anchor.x - W / 10)), x1 = Math.min(W, Math.round(anchor.x + W / 10)), painted = (y) => { for (let x = x0; x < x1; x++) if (alpha[(y * W + x) * 4 + 3] > 40) return true; return false; };
     let top = 0; while (top < canvas.height - 1 && !painted(top)) top++;

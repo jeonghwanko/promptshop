@@ -348,6 +348,20 @@ export function buildExterior(spec, section) {
     }
   }
 
+  // ---------- shop-front look, bought tier by tier (1 flower bed · 2 awning and bench · 3 bulbs round the sign · 4 a terrace) ----------
+  { const T = spec.look ?? 0; enter('look');
+    if (T >= 1) { box(mw * .86, .2, .22, mat('#8a5a3c'), fx, 0, fz + .2); box(mw * .84, .06, .2, mat('#4fa04a'), fx, .2, fz + .2);
+      for (let k = 0; k < Math.round(mw * 6); k++) ball(.1, glow(['#ff7aa8', '#ffc94a', '#fff8ea'][k % 3]), fx - mw * .4 + k * (mw * .8) / Math.max(1, Math.round(mw * 6) - 1), .34, fz + .2 + (k % 2 ? .05 : -.05)); }
+    if (T >= 2) { const aw = new THREE.Mesh(new THREE.PlaneGeometry(mw + .2, .75), mat(0xffffff, { map: stripes(accent, '#fff8ea'), alphaTest: .5, side: THREE.DoubleSide })); aw.rotation.x = -1.0; const g = new THREE.Group(); g.add(aw); g.position.set(fx, plinthH + GH + .32, fz + .36); add(g);
+      box(.9, .06, .3, mat('#c98a4e'), fx + mw / 2 + .55, .36, fz + .15); for (const q of [-1, 1]) box(.06, .36, .26, mat('#8a5a3c'), fx + mw / 2 + .55 + q * .38, 0, fz + .15); }
+    if (T >= 3 && root.userData.sign) { const sg = root.userData.sign, r = .72 * 1.85 / 2 + .1; for (let k = 0; k < 16; k++) { const a = k / 16 * Math.PI * 2, c = Math.cos(a), s2 = Math.sin(a), m = Math.max(Math.abs(c), Math.abs(s2));
+        ball(.09, glow(k % 2 ? '#ffd166' : '#fff3c4'), sg.x + (sg.face === 'side' ? 0 : c / m * r), sg.y + s2 / m * r, sg.z + (sg.face === 'side' ? c / m * r : .02)); }
+      const ty = (main.top ?? gy + 2) - .05; for (let k = 0; k <= 10; k++) ball(.08, glow(k % 2 ? '#ffd166' : '#ff9a62'), fx - mw / 2 + k * mw / 10, ty - Math.sin(k / 10 * Math.PI) * .12, fz + .08); }
+    if (T >= 4) { const dz = fz + 1.05; box(mw + .6, .08, 1.1, mat('#c98a4e'), fx, 0, dz); for (let k = 0; k < 6; k++) box(mw + .6, .081, .02, mat('#a8703e'), fx, 0, dz - .5 + k * .2);
+      for (const q of [-1, 1]) { const x = fx + q * mw * .3; cyl(.2, .2, .04, mat('#fff8ea'), x, .5, dz, 10); cyl(.03, .03, .5, mat('#8a5a3c'), x, .08, dz, 6); cyl(.02, .02, 1.1, mat('#fff8ea'), x, .5, dz, 4);
+        const c = new THREE.Mesh(new THREE.ConeGeometry(.45, .22, 8), mat(q < 0 ? '#ef5a4a' : '#ffc94a')); c.position.set(x, 1.6, dz); add(c);
+        for (const t of [-1, 1]) cyl(.08, .08, .3, mat('#3d9ee0'), x + t * .32, .08, dz, 8); } } }
+
   // ---------- small props along the front ----------
   spec.props.forEach((p, i) => {
     enter('prop:' + i);
