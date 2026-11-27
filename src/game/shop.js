@@ -63,6 +63,7 @@ function openInside(key) {   // the cut-away in place, over the zoomed map (open
   S.watching = { key, view, mine: mineP, earned: 0, ins: [], outs: [], losts: [], lost0: 0, inPlace: true, actKey: '' };
   if (mineP && myDoc.wallet.tutIn === undefined) myDoc.wallet.tutIn = 0;   // the first time inside a shop of mine: the inside guide
   $('shopstage').replaceChildren(view.el); $('shopwrap').hidden = false; document.body.classList.add('inshop');
+  { const nn = normalize(p.b.input); $('sname').textContent = nn.name || TYPE_KO[nn.type] || '건물'; $('ssub').textContent = `${p.owner === me ? '' : nameOf(p.owner) + '의 가게 · '}${nn.levels}층 · ${TYPE_KO[nn.type] ?? ''}`; $('shophead').hidden = false; }   // top left: back, and which building this is
   view.onFloorChange = () => placeActs(); placeActs(); rebuild(); guide();   // the first time inside, the guide's inside steps start here
 }
 /** The roof settles back, the camera steps away. Guests still inside pay on the way out. */
@@ -70,7 +71,7 @@ export function closeInside() {
   const w = S.watching; if (!w) return;
   const left = w.view.sim.people.filter(q => q.state !== 'out').length;
   if (w.mine && left) { S.myDoc.wallet.coins += left * w.view.sim.price; S.dirty = true; }
-  S.watching = null; $('shopwrap').hidden = true; document.body.classList.remove('inshop'); $('shopstage').replaceChildren(); map.style.transform = '';
+  S.watching = null; $('shopwrap').hidden = true; $('shophead').hidden = true; document.body.classList.remove('inshop'); $('shopstage').replaceChildren(); map.style.transform = '';
   if (S.zoomShop) S.zoomShop.dir = -1;
   if (S.camBefore) { const c = S.camBefore; S.camBefore = null;
     if (c.zoom !== S.zoom) { map.style.transition = 'none'; requestAnimationFrame(() => requestAnimationFrame(() => { map.style.transition = ''; })); }
@@ -125,7 +126,7 @@ export function renderActs(w, p) {
       b.onclick = (e) => { e.stopPropagation(); why(b, { icon: 'coin', title: `동전 ${(a.cost - coins).toLocaleString('ko-KR')}개 더`, gauge: [coins, a.cost] }); };   // (it fills as coins come in; no other button here)
     } else { b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; }; }
     if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
-    return b; }), el('button', { class: 'act close', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, '✕ 닫기'));
+    return b; }));   // (closing is the back button at the top left, or Esc)
   placeActs();
 }
 /** Run the open shop for one frame: its guests, who pays, where it is slow, and the buttons beside it. */
@@ -152,6 +153,7 @@ export function stepInside(dt) {
   if (w.mine && p) w.view.suggest = new Set(bestNext(fixturesOf(p), ownedOf(p), BASE_COIN[p.size] ?? 1, p.b.input.order, helpersOf(p), levelsOf(p)));   // what raises income most: its price tag bobs
 }
 export function initShop() {
+  $('sback').replaceChildren(iconEl('back', 28, '')); $('sback').onclick = (e) => { e.stopPropagation(); closeInside(); };
   $('shopwrap').addEventListener('click', (e) => { if (e.target === $('shopwrap')) closeInside(); });
   addEventListener('keydown', (e) => { if (e.key === 'Escape') closeInside(); });
   // the phone turned (portrait ↔ landscape): the cut-away was sized for the other shape, so it opens again for this one.

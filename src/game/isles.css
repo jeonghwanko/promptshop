@@ -293,7 +293,7 @@ body:has(.world:not([hidden])) :is(.guide, .garrow) { display:none; }
 /* the request cards: a hand at the bottom, the island and its waiting guests in sight above */
 /* phones: the gull smaller, the shop's actions as a tray at the bottom, a lighter dock while choosing a spot */
 @media (max-width:760px) {
-  body.inshop .guide { top:56px; bottom:auto; }
+  body.inshop .guide { top:84px; bottom:auto; }   /* (under the back button and name) */
   .shopacts { left:8px !important; right:8px; top:auto !important; bottom:10px; transform:none; display:grid; grid-template-columns:1fr 1fr; gap:6px; }
   .shopacts .act { min-width:0; padding:6px 8px 6px 6px; gap:6px; font-size:14px; } .shopacts .act small { font-size:11px; } .shopacts .act .pxi { width:26px; height:26px; }
   .shopacts .act.close { position:fixed; top:12px; left:12px; }
@@ -569,3 +569,11 @@ body[data-tut="1"] .want.cancel, body[data-tut="2"] .want.cancel { display:none;
 .ask.choosing .want.on { box-shadow:0 0 0 3px #ffd166, 0 4px 0 rgba(20,30,40,.35); }
 
 .bar .bsize button.short { opacity:.45; }
+
+/* inside a shop: top left, a back button and which building this is (the island plate steps aside) */
+.shophead { position:fixed; z-index:40; top:calc(12px + env(safe-area-inset-top, 0px)); left:max(12px, env(safe-area-inset-left, 0px)); display:flex; align-items:center; gap:10px; padding:6px 16px 6px 6px; border-radius:30px; background:rgba(46,36,26,.88); color:#fbf1dc; box-shadow:0 4px 0 rgba(20,30,40,.35); }
+.shophead[hidden] { display:none; }
+.shophead .sback { width:44px; height:44px; padding:0; border-radius:50%; background:#fbf1dc; display:grid; place-items:center; box-shadow:inset 0 -3px 0 rgba(0,0,0,.18); }
+.shophead .sback img { width:28px; height:28px; image-rendering:pixelated; filter:brightness(.25); }
+.shophead .sn { display:flex; flex-direction:column; line-height:1.15; } .shophead b { font:400 20px var(--f-disp); } .shophead small { font:400 13px var(--f-disp); color:#c9b99a; }
+body.inshop .hud.tl { display:none !important; }

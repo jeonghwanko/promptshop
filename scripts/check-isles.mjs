@@ -38,7 +38,8 @@ await ev(`document.querySelector('#gbtns .gold')?.click()`); await sleep(500); a
 const acts = await ev(`document.querySelectorAll('#shopacts .act').length`); check('action buttons', acts >= 2, acts); await shot('shop');
 const c0 = await ev(`__isles.myDoc.wallet.coins`); await ev(`document.querySelector('#shopacts .act.buy')?.click()`); await sleep(1200);
 check('buy spends coins', (await ev(`__isles.myDoc.wallet.coins`)) < c0, `${c0} → ${await ev(`__isles.myDoc.wallet.coins`)}`);
-await ev(`document.querySelector('#shopacts .act.close')?.click()`); await sleep(800); check('shop closed', !(await ev(`!!__isles.watching`)));
+check('shop head names the building', (await ev(`document.getElementById('shophead').hidden ? '' : document.getElementById('sname').textContent`)).length > 0, await ev(`document.getElementById('sname').textContent`));
+await ev(`document.querySelector('#sback')?.click()`); await sleep(800); check('back closes the shop', !(await ev(`!!__isles.watching`)));
 await ev(`document.querySelector('#gbtns .gold')?.click()`); await sleep(400);
 // a two-floor shop: floors switch without resizing
 await ev(`__isles.openShop('1_13_16')`); await sleep(1800);

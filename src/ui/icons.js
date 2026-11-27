@@ -7,6 +7,7 @@ const PAL = {
 };
 const OUT = '#2b1e15';
 const I = {
+  back: ['..............', '..............', '.....W........', '....WW........', '...WWW........', '..WWWWWWWWWW..', '.WWWWWWWWWWW..', '..WWWWWWWWWW..', '...WWW........', '....WW........', '.....W........', '..............', '..............', '..............'],
   bolt: ['.......YYYy...', '......YYYy....', '.....YYYy.....', '....YYYy......', '...YYYy.......', '..YYYYYYYYy...', '...yyYYYYy....', '.....YYYy.....', '....YYYy......', '...YYYy.......', '..YYy.........', '.Yy...........', '..............', '..............'],
   drop: ['......B.......', '.....BBB......', '.....BBB......', '....BBBBB.....', '...BBBBBBB....', '...BLBBBBB....', '..BBLBBBBBB...', '..BLBBBBBBB...', '..BLBBBBBBb...', '..BBBBBBBBb...', '...BBBBBBb....', '....bbbbb.....', '..............', '..............'],
   coin: ['....yyyyyy....', '..yyYYYYYYyy..', '.yYYWWYYYYYYy.', '.yYWYYyyyyYYy.', 'yYYWYyYYYYyYYy', 'yYYYyYYYYYYYYy', 'yYYYyYYYYYYYYy', 'yYYYyYYYYYYYYy', 'yYYYyYYYYYyYYy', '.yYYYyyyyyYYy.', '.yYYYYYYYYYYy.', '..yyYYYYYYyy..', '....yyyyyy....', '..............'],
