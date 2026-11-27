@@ -85,8 +85,11 @@ function moreList(anchor) {
 }
 /** The free spot for a building of this size nearest my island's centre (null: none fits). */
 function autoSpot() {
-  const n = PLOT[S.size], taken = takenSet(), [cx, cz] = centerOf(S.mySlot); let best = null, bd = 1e9;
-  for (const [x, z] of tilesOf(S.mySlot)) { const d = Math.hypot(x + n / 2 - cx, z + n / 2 - cz); if (d >= bd) continue; const door = placePlot(S.world, S.mySlot, x, z, n, taken); if (door) { best = { x, z, door }; bd = d; } }
+  // near the middle, but a little apart from what stands already (always the nearest lot packed the island's one side and left the rest bare)
+  const n = PLOT[S.size], taken = takenSet(), [cx, cz] = centerOf(S.mySlot), mine = allPlots().filter(p => p.slot === S.mySlot && p.b);
+  const apart = (x, z) => mine.length ? Math.min(4, ...mine.map(p => Math.hypot(x + n / 2 - p.x - PLOT[p.size] / 2, z + n / 2 - p.z - PLOT[p.size] / 2) - (n + PLOT[p.size]) / 2)) : 0;
+  let best = null, bd = 1e9;
+  for (const [x, z] of tilesOf(S.mySlot)) { const d = Math.hypot(x + n / 2 - cx, z + n / 2 - cz) - .9 * apart(x, z); if (d >= bd) continue; const door = placePlot(S.world, S.mySlot, x, z, n, taken); if (door) { best = { x, z, door }; bd = d; } }
   return best;
 }
 const spotFits = (s) => s && !!placePlot(S.world, S.mySlot, s.x, s.z, PLOT[S.size], takenSet());
