@@ -1,0 +1,11 @@
+# Daily snapshot of the game's data (server/backup.mjs). Copy with the .timer to /etc/systemd/system/, then:
+# systemctl daemon-reload && systemctl enable --now we-oddbout-backup.timer
+[Unit]
+Description=we.oddbout.com data backup
+
+[Service]
+Type=oneshot
+User=ubuntu
+WorkingDirectory=/opt/we-oddbout/current
+Environment=DATA_DIR=/opt/we-oddbout/data BACKUP_DIR=/opt/we-oddbout/backups BACKUP_KEEP=14
+ExecStart=/opt/we-oddbout/bin/node --disable-warning=ExperimentalWarning server/backup.mjs

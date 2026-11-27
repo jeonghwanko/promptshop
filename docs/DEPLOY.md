@@ -42,6 +42,12 @@ Do this only when the owner asks for it.
 
 An update is a new release folder, a new `current` link and `systemctl restart we-oddbout`. `DATA_DIR` stays where it is. `scripts/release.sh` does all of it for the committed HEAD and prints the way back.
 
+## Backups
+
+- **On the VM.** `deploy/we-oddbout-backup.timer` runs `server/backup.mjs` daily at 04:30 KST. It writes `/opt/we-oddbout/backups/isles-<day>.db.gz` (checked with `PRAGMA integrity_check`), the session `secret` and the `og/` pictures, and keeps 14 days. Install: copy the `.service` and `.timer` to `/etc/systemd/system/`, then `systemctl daemon-reload && systemctl enable --now we-oddbout-backup.timer`.
+- **Off the VM.** `scripts/pull-backup.sh` copies them to `~/backups/we-oddbout/` on the machine that runs it and keeps 60 days. This machine's crontab runs it daily at 05:00 KST.
+- **Restore.** Stop the service, `gunzip -c isles-<day>.db.gz > /opt/we-oddbout/data/isles.db`, delete `isles.db-wal` and `isles.db-shm` there, put `secret` back in `/opt/we-oddbout/data/` (without it every player loses their island), then start the service.
+
 ## Speed
 
 - **Compression.** nginx gzips JS, CSS and JSON for this site (`deploy/we.oddbout.com.nginx`).
@@ -54,4 +60,3 @@ An update is a new release folder, a new `current` link and `systemctl restart w
 - Linking a Google account, to keep an island on another device.
 - Renaming a player. The server has `POST /api/name`; the game has no button for it yet.
 - A better default preview picture than the README's.
-- Backups of `isles.db`.
