@@ -8,7 +8,7 @@ import { renderView } from '../v2/render.js';
 import { iconEl } from '../ui/icons.js';
 import { START_COINS, BRIDGE, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, LEVELS, levelOf } from './rules.js';
 import { $, el, xbtn } from './ui.js';
-import { S, db, me, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
+import { S, db, me, site, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild } from './model.js';
 import { save, createMine, removeOthers, track } from './persist.js';
 import { scrollToSlot, startZoom, applyZoom } from './camera.js';
@@ -78,8 +78,27 @@ export function showHome(msg) {
   show(el('h2', {}, `${mySlot}번 섬 `, el('small', {}, `Lv.${lv + 1} ${LEVELS[lv].name}`)),
     el('div', { class: 'card tile' }, iconEl('ticket', 40, ''), el('span', { class: 'tt' }, el('b', {}, `허가증 ${w.permits}`), el('div', { class: 'lvbar' }, Object.assign(el('i'), { style: `width:${pct}%` })), el('small', {}, `손님 ${w.nextAt - w.served}명 더`))),
     el('div', { class: 'stats3' }, stat('people', w.served.toLocaleString('ko-KR'), '받은 손님'), stat('boat', bp.shops ? `${bp.every}초` : '—', bp.shops ? `${bp.people}명씩` : '가게 없음'), stat('door', `${mine}/${maxPlots()}`, '건물')),
-    landCard(), msg ? el('div', { class: 'err' }, msg) : null,
+    landCard(), nameCard(), msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃'), el('div', { class: 'nb' }, bridges.filter(x => x.tagName === 'SPAN')), ...bridges.filter(x => x.tagName !== 'SPAN'), inviteCard());
+}
+/** The name my friends see (the hosted game starts everyone with one like "느긋한 수달"): tap to change it. */
+function nameCard() {
+  if (!site?.rename) return null;
+  const nm = el('b', {}, '…'), err = el('small', { class: 'err' }), tt = el('span', { class: 'tt' }, el('small', {}, '친구들이 보는 내 이름'), nm, err);
+  const edit = el('button', { class: 'ghost' }, '바꾸기'), card = el('div', { class: 'card tile' }, iconEl('people', 40, ''), tt, edit);
+  site.me().then(v => { nm.textContent = v.name; }).catch(() => { nm.textContent = '—'; });
+  edit.onclick = () => {
+    const input = el('input', { type: 'text', maxlength: '12', value: nm.textContent === '…' ? '' : nm.textContent }), ok = el('button', { class: 'gold' }, '저장');
+    const saveName = async () => {
+      const v = input.value.trim(); if (!v) { err.textContent = '이름을 써 주세요'; return; }
+      ok.disabled = true; err.textContent = '';
+      try { const r = await site.rename(v); nm.textContent = r.name; card.replaceChildren(iconEl('people', 40, ''), tt, edit); toast(`이제 ${r.name}(이)예요`, 1600); }
+      catch { err.textContent = '그 이름은 쓸 수 없어요'; ok.disabled = false; }
+    };
+    ok.onclick = saveName; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') saveName(); });
+    card.replaceChildren(iconEl('people', 40, ''), el('span', { class: 'tt' }, input, err), ok); input.focus(); input.select();
+  };
+  return card;
 }
 async function join(s) {
   if (S.owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');

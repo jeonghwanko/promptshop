@@ -19,8 +19,8 @@ const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +(process.env.PORT ?? 5310), DATA = path.resolve(process.env.DATA_DIR ?? path.join(root, 'server-data'));
 const ORIGIN = process.env.SITE_ORIGIN ?? 'https://we.oddbout.com';
 fs.mkdirSync(path.join(DATA, 'og'), { recursive: true });
-// the picture for links without a board (the showcase): the archipelago from the README until a better one is made
-if (!fs.existsSync(path.join(DATA, 'og', 'default.png'))) fs.copyFileSync(path.join(root, 'docs/img/isles.png'), path.join(DATA, 'og', 'default.png'));
+// the picture for links without a board (or a board with no picture yet) ships with the release
+const OG_DEFAULT = path.join(root, 'docs/img/og.png');
 const store = openStore(path.join(DATA, 'isles.db'));
 const SECRET = process.env.SESSION_SECRET ?? (() => { const f = path.join(DATA, 'secret'); if (!fs.existsSync(f)) fs.writeFileSync(f, crypto.randomBytes(32).toString('hex'), { mode: 0o600 }); return fs.readFileSync(f, 'utf8').trim(); })();
 const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('base64url').slice(0, 32);
@@ -96,7 +96,7 @@ http.createServer(async (req, res) => {
   try {
     if (p === '/' || p === '/isles.html') { session(req, res, { make: false }); res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-cache' }); return res.end(page(url)); }
     if (p.startsWith('/og/')) {
-      const f = path.join(DATA, 'og', path.basename(p)); if (!/^\/og\/[a-z0-9]{3,24}\.png$/.test(p) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); }
+      const f = p === '/og/default.png' ? OG_DEFAULT : path.join(DATA, 'og', path.basename(p)); if (!/^\/og\/[a-z0-9]{3,24}\.png$/.test(p) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); }
       res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=300' }); return fs.createReadStream(f).pipe(res);
     }
     if (PUBLIC.some(r => r.test(p))) {
