@@ -83,6 +83,15 @@ export function track(event, data = {}) {
   const ref = db.doc(`log/${BOARD}~${me}`), entry = { [`${Date.now()}_${event}`]: { ...data, s: Math.round((Date.now() - T0) / 1000) } };
   ref.update(entry).catch(() => {});   // the server makes the doc on the first update; a set here would wipe the log
 }
+/** A session on my island (scripts/retention.mjs): `<start>_session` says how long since I last played; `<start>_alive` is rewritten
+ *  every two minutes while the page is in view, so one key per session carries its length (the log does not grow with play time). */
+let sessionAt = 0, beatT = 0;
+export function sessionStart(gapMin) {
+  if (!db || !me || sessionAt) return; sessionAt = Date.now();
+  track('session', { gap: gapMin == null ? null : Math.round(gapMin) });
+  const beat = () => { if (document.hidden) return; db.doc(`log/${BOARD}~${me}`).update({ [`${sessionAt}_alive`]: { s: Math.round((Date.now() - sessionAt) / 1000) } }).catch(() => {}); };
+  beatT = setInterval(beat, 120e3); addEventListener('pagehide', beat);
+}
 /** Friends' names: asked when someone new is on the board, and once a minute for renames — not on every save of every friend. */
 let namesAt = 0;
 async function resolveNames() {

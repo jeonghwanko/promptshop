@@ -20,7 +20,7 @@ import { S, me, sample, pr, sim, now, canWrite, splash, nextBoat } from './state
 import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf, shortOf } from './model.js';
 import { noSupply, pipeCost } from './utility.js';
 import { stakeSite, dustSite, hookDrop } from './mapfx.js';
-import { save } from './persist.js';
+import { save, track } from './persist.js';
 import { scrollToSlot, scrollToPoint, toScreen } from './camera.js';
 import { logOpen, logStep, logNote, logDone, logFail, logDrop } from './buildlog.js';
 import { opened } from './reveal.js';
@@ -258,6 +258,7 @@ async function build() {
     if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!'), lit + 3400); }
     else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), lit + 3400);
     logDone(seen, s, tutOn());
+    track('build', { type: s.type, size: S.myDoc.plots[key]?.size, n: Object.values(S.myDoc.plots).filter(q => q.b).length, answered: !!answered });
     done(); setTimeout(() => tutEvent('built'), lit + 600);
     rebuild(); await save(true);
   } catch (e) { logFail(failText(e, '짓지 못했어요')); S.building = null; stakeSite(null); S.current?.kind === 'build' && (S.current = null); input.value = line; setBuildMode(true); say(failText(e, '짓지 못했어요. 다시 눌러 주세요.')); }

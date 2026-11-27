@@ -10,7 +10,7 @@ import { dockOf, centerOf } from '../v2/isles.js';
 import { S, pr, g, canWrite, site, BOARD } from './state.js';
 import { G, myPlots } from './model.js';
 import { liveRate } from './vault.js';
-import { save } from './persist.js';
+import { save, track } from './persist.js';
 import { toast, flyCoinNow } from './hud.js';
 import { tutOn } from './guide.js';
 import { openAt, suggestSpot } from './build.js';
@@ -59,10 +59,10 @@ export function guestAt(sx, sy) { if (!shown()) return false; const [px, py] = s
 /** The guest's window: who they are, what they look for, and one button (take them in, or build it). */
 export function openGuest() {
   if (!shown()) return false; document.getElementById('why')?.remove();
-  const m = match(), c = reward();
+  const m = match(), c = reward(); track('guest_open', { type: guest.type, by: guest.by, match: !!m });
   const btn = m
     ? el('button', { class: 'gold', on: { click: () => { welcome(m, c); close(); } } }, '맞이하기 · 엽서 + ', iconEl('coin', 18, ''), c.toLocaleString('ko-KR'))
-    : el('button', { class: 'gold', on: { click: () => { close(); openAt(suggestSpot()); setTimeout(() => { const i = $('line'); if (i) i.value = guest.line; }, 60); } } }, '지으러 가기');
+    : el('button', { class: 'gold', on: { click: () => { close(); track('guest_build', { type: guest.type }); openAt(suggestSpot()); setTimeout(() => { const i = $('line'); if (i) i.value = guest.line; }, 60); } } }, '지으러 가기');
   btn.disabled = !canWrite();
   const box = el('div', { class: 'why plant', id: 'why', on: { pointerdown: (e) => e.stopPropagation() } },
     el('div', { class: 'row' }, iconEl('star', 22, ''), el('b', {}, `오늘의 손님 · ${guest.name}`)),
@@ -80,7 +80,7 @@ export function openGuest() {
 function welcome(p, c) {
   if (!canWrite()) return; const w = G();
   w.coins += c; w.special = guest.day; w.cards = [...(w.cards ?? []), { day: guest.day, name: guest.name, card: guest.card, type: guest.type, shop: p.key }].slice(-60);
-  S.dirty = true; save(true);
+  S.dirty = true; save(true); track('guest_welcome', { type: guest.type, shop: typeOf(p), coins: c });
   for (let i = 0; i < 7; i++) setTimeout(() => flyCoinNow('@guest'), i * 80);
   toast(`${guest.name} · ‘${guest.card}’ 두고 갔어요 · +${c.toLocaleString('ko-KR')}동전`, 4500);
 }

@@ -6,7 +6,7 @@ import { renderVoxels } from '../v2/render.js';
 import { dockOf, centerOf } from '../v2/isles.js';
 import { S, pr, g, canWrite } from './state.js';
 import { hooks, G, islandShops, ratesOf, boatPlan, myUse, myPlots } from './model.js';
-import { save } from './persist.js';
+import { save, track } from './persist.js';
 import { toast, flyCoinNow } from './hud.js';
 
 /** What my island makes in a minute when played: guests that come and get served, their coins, the bill. */
@@ -73,8 +73,9 @@ export function openVault() {
   const w = G(), v = w.vault, lv0 = levelOf(w.served ?? 0);
   w.coins += v.coins; w.served = (w.served ?? 0) + v.served; delete w.vault; S.dirty = true; save(true);
   for (let i = 0; i < 9; i++) setTimeout(() => flyCoinNow('@vault'), i * 70);
+  track('vault_open', { coins: v.coins, min: v.min, served: v.served });
   const h = v.min >= 60 ? `${Math.round(v.min / 60)}시간` : `${v.min}분`;
   toast(`자리 비운 ${h} 동안 손님 ${v.served.toLocaleString('ko-KR')}명 · +${v.coins.toLocaleString('ko-KR')}동전`, 4000);
-  const lv = levelOf(w.served); if (lv > lv0) setTimeout(() => hooks.celebrate(`${LEVELS[lv].name}로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : `섬이 ${LEVELS[lv].name}가 됐어요`), 1200);
+  const lv = levelOf(w.served); if (lv > lv0) track('level', { lv, by: 'vault' }); if (lv > lv0) setTimeout(() => hooks.celebrate(`${LEVELS[lv].name}로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : `섬이 ${LEVELS[lv].name}가 됐어요`), 1200);
   return true;
 }

@@ -65,7 +65,7 @@ export function boatPlan(slot) { const shops = islandShops(slot); return boatPla
 export function G() { const w = S.myDoc.wallet; w.served ??= 0; return w; }
 export function countGuest() {
   const w = G(), lv0 = levelOf(w.served ?? 0); w.served = (w.served ?? 0) + 1; S.dirty = true;
-  const lv = levelOf(w.served); if (lv > lv0) setTimeout(() => hooks.celebrate(`${LEVELS[lv].name}로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : `섬이 ${LEVELS[lv].name}가 됐어요`), 1600);
+  const lv = levelOf(w.served); if (lv > lv0) hooks.tracked?.('level', { lv }); if (lv > lv0) setTimeout(() => hooks.celebrate(`${LEVELS[lv].name}로 성장!`, lv < 3 ? `이제 ${LEVELS[lv].size} 크기 건물을 지을 수 있어요` : `섬이 ${LEVELS[lv].name}가 됐어요`), 1600);
 }
 
 // ---------- power and water ----------

@@ -12,7 +12,7 @@ import { $, el } from './ui.js';
 import { S, me, pr, map, earned, canWrite } from './state.js';
 import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText, ratesOf, boatPlan, nameOf, rebuild, shortOf } from './model.js';
 import { noSupply } from './utility.js';
-import { save } from './persist.js';
+import { save, track } from './persist.js';
 import { applyZoom } from './camera.js';
 import { toast, why, flyIcon } from './hud.js';
 import { guide, tutEvent, tutInEvent } from './guide.js';
@@ -102,7 +102,7 @@ function shopActions(w, p) {
   // the shop's front, one tier at a time: seen on the map, a coin more a guest
   { const look = S.myDoc.plots[p.key]?.look ?? 0;
     if (look < LOOKS.length) { const c = lookCost(p.size, look); out.push({ icon: 'star', title: `꾸미기 · ${LOOKS[look]}`, sub: '한 명 +1동전 · 지도에서 보여요', cost: c, ok: coins >= c, run: () => {
-      if (S.myDoc.wallet.coins < c || !canWrite()) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].look = look + 1; S.dirty = true; rebuild(); save(true); w.actKey = ''; toast(`${LOOKS[look]} 완료 · 지도에서 보여요`, 2500); } }); } }
+      if (S.myDoc.wallet.coins < c || !canWrite()) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].look = look + 1; S.dirty = true; rebuild(); save(true); track('look_buy', { tier: look + 1, size: p.size, cost: c }); w.actKey = ''; toast(`${LOOKS[look]} 완료 · 지도에서 보여요`, 2500); } }); } }
   // a helper, when ordering is what holds guests up and the shop is full
   if (i === undefined && now0.order <= now0.seat && h < HELPER_MAX) { const c = helperCost(h); out.push({ icon: 'helper', title: '알바 뽑기', sub: gainTxt(caps(own, lv, h + 1)), cost: c, ok: coins >= c, run: () => { if (S.myDoc.wallet.coins < c) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); toast('알바가 왔어요!', 1200); } }); }
   // one more floor, when every piece is in
