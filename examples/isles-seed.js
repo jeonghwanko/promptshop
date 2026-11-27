@@ -3,15 +3,16 @@ export const ISLES_SEED = {
  "seed-a": {
   "slot": 2,
   "at": 1,
+  "gap": 24,
   "name": "예시 친구 하나",
   "plots": {
-   "2_24_6": {
-    "x": 24,
-    "z": 6,
+   "2_36_10": {
+    "x": 36,
+    "z": 10,
     "size": "M",
     "door": [
-     27,
-     6
+     39,
+     10
     ],
     "stock": 999,
     "fx": 4,
@@ -27,13 +28,13 @@ export const ISLES_SEED = {
      "at": 1
     }
    },
-   "2_28_6": {
-    "x": 28,
-    "z": 6,
+   "2_40_10": {
+    "x": 40,
+    "z": 10,
     "size": "S",
     "door": [
-     27,
-     6
+     39,
+     10
     ],
     "stock": 999,
     "fx": 4,
@@ -48,13 +49,13 @@ export const ISLES_SEED = {
      "at": 1
     }
    },
-   "2_28_8": {
-    "x": 28,
-    "z": 8,
+   "2_40_12": {
+    "x": 40,
+    "z": 12,
     "size": "S",
     "door": [
-     27,
-     8
+     39,
+     12
     ],
     "stock": 999,
     "fx": 4,
@@ -84,15 +85,16 @@ export const ISLES_SEED = {
  "seed-b": {
   "slot": 6,
   "at": 1,
+  "gap": 24,
   "name": "예시 친구 둘",
   "plots": {
-   "6_12_22": {
-    "x": 12,
-    "z": 22,
+   "6_16_34": {
+    "x": 16,
+    "z": 34,
     "size": "M",
     "door": [
-     11,
-     22
+     15,
+     34
     ],
     "stock": 999,
     "fx": 4,
@@ -108,13 +110,13 @@ export const ISLES_SEED = {
      "at": 1
     }
    },
-   "6_7_28": {
-    "x": 7,
-    "z": 28,
+   "6_11_40": {
+    "x": 11,
+    "z": 40,
     "size": "L",
     "door": [
-     11,
-     28
+     15,
+     40
     ],
     "stock": 999,
     "fx": 4,
@@ -129,13 +131,13 @@ export const ISLES_SEED = {
      "at": 1
     }
    },
-   "6_9_22": {
-    "x": 9,
-    "z": 22,
+   "6_13_34": {
+    "x": 13,
+    "z": 34,
     "size": "S",
     "door": [
-     11,
-     22
+     15,
+     34
     ],
     "stock": 999,
     "fx": 4,
@@ -157,6 +159,208 @@ export const ISLES_SEED = {
   "half": {
    "1": 3
   },
+  "wallet": {
+   "coins": 0,
+   "unlocked": [
+    "S",
+    "M",
+    "L"
+   ]
+  }
+ },
+ "seed-c": {
+  "slot": 3,
+  "at": 1,
+  "gap": 24,
+  "name": "예시 친구 셋",
+  "plots": {
+   "3_60_10": {
+    "x": 60,
+    "z": 10,
+    "size": "M",
+    "door": [
+     63,
+     10
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "cafe",
+      "name": "카페",
+      "scale": "M",
+      "style": "mediterranean",
+      "levels": 2
+     },
+     "line": "바다 보이는 루프탑 카페",
+     "at": 1
+    }
+   },
+   "3_64_11": {
+    "x": 64,
+    "z": 11,
+    "size": "M",
+    "door": [
+     63,
+     11
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "hanok_house",
+      "name": "찻집",
+      "scale": "M",
+      "style": "hanok"
+     },
+     "line": "마당 넓은 한옥 찻집",
+     "at": 1
+    }
+   },
+   "3_58_13": {
+    "x": 58,
+    "z": 13,
+    "size": "S",
+    "door": [
+     58,
+     15
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "lighthouse",
+      "name": "전망대",
+      "scale": "S",
+      "accent": "#c0392b"
+     },
+     "line": "빨간 등대 전망대",
+     "at": 1
+    }
+   },
+   "3_60_13": {
+    "x": 60,
+    "z": 13,
+    "size": "S",
+    "door": [
+     60,
+     15
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "house",
+      "name": "집",
+      "scale": "S",
+      "accent": "#2f6fb0"
+     },
+     "line": "파란 대문 작은 집",
+     "at": 1
+    }
+   }
+  },
+  "half": {},
+  "wallet": {
+   "coins": 0,
+   "unlocked": [
+    "S",
+    "M",
+    "L"
+   ]
+  }
+ },
+ "seed-d": {
+  "slot": 4,
+  "at": 1,
+  "gap": 24,
+  "name": "예시 친구 넷",
+  "plots": {
+   "4_88_10": {
+    "x": 88,
+    "z": 10,
+    "size": "M",
+    "door": [
+     87,
+     10
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "restaurant",
+      "name": "국밥집",
+      "scale": "M",
+      "style": "brick"
+     },
+     "line": "할머니 국밥집",
+     "at": 1
+    }
+   },
+   "4_85_11": {
+    "x": 85,
+    "z": 11,
+    "size": "S",
+    "door": [
+     87,
+     11
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "convenience_store",
+      "name": "편의점",
+      "scale": "S"
+     },
+     "line": "24시간 편의점",
+     "at": 1
+    }
+   },
+   "4_82_16": {
+    "x": 82,
+    "z": 16,
+    "size": "M",
+    "door": [
+     82,
+     15
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "bowling_alley",
+      "name": "볼링장",
+      "scale": "M",
+      "night": true,
+      "accent": "#ffb000"
+     },
+     "line": "레트로 볼링장",
+     "at": 1
+    }
+   },
+   "4_82_13": {
+    "x": 82,
+    "z": 13,
+    "size": "S",
+    "door": [
+     82,
+     15
+    ],
+    "stock": 999,
+    "fx": 4,
+    "b": {
+     "input": {
+      "type": "house",
+      "name": "집",
+      "scale": "S"
+     },
+     "line": "마당 있는 작은 집",
+     "at": 1
+    }
+   }
+  },
+  "half": {},
   "wallet": {
    "coins": 0,
    "unlocked": [

@@ -89,7 +89,7 @@ function shopActions(w, p) {
   const caps = (o, l, hh) => flowCaps(fx, o, base, hh ?? h, l ?? lv), sup = w.supply ?? Infinity, now0 = caps(own);
   const gain = (b) => Math.min(b.gpm, sup) - Math.min(now0.gpm, sup);
   const popTxt = (b) => { const d = gain(b); return d > .05 ? `+${d.toFixed(1)}명/분` : b.price > now0.price ? `+${b.price - now0.price}동전` : ''; };
-  const gainTxt = (b) => { const d = gain(b); return d > .05 ? `받는 손님 +${d.toFixed(1)}/분` : b.price > now0.price ? `한 명 +${b.price - now0.price}동전` : '배가 조금 빨리 와요'; };
+  const gainTxt = (b, idle = '배가 더 자주 와요') => { const d = gain(b); return d > .05 ? `손님 +${d >= 1 ? Math.round(d) : d.toFixed(1)}명/분` : b.price > now0.price ? `한 명 +${b.price - now0.price}동전` : idle; };   // (a new piece brings boats sooner — rules.js boatPlanOf; a level-up only helps once guests queue)
   // what a piece adds to the island's power and water, said after what it brings
   const lvUse = (k, L) => { const a = fixUse(k, L), b = fixUse(k, L + 1); return [b[0] - a[0], b[1] - a[1]]; };
   // the next piece: the one that lifts income most
@@ -98,7 +98,7 @@ function shopActions(w, p) {
   if (i !== undefined) { const f = fx[i], c = costOf(f.kind), b = caps(new Set([...own, i])); out.push({ icon: 'chair', title: `${FIX_INFO[f.kind]?.[0] ?? f.kind} 들이기`, sub: gainTxt(b), use: fixUse(f.kind), cost: c, ok: coins >= c, hi: i, run: () => { if (w.view.buyIndex(i)) w.view.thud(i, popTxt(b), 'buy'); } }); }
   // the best level-up
   let best = null; for (const j of own) { const L = lv[j] ?? 1; if (L >= LV_MAX) continue; const b = caps(own, { ...lv, [j]: L + 1 }), c = upgradeCost(fx[j].kind, L), v = (Math.max(0, gain(b)) + (b.price - now0.price) * .5 + .01) / c; if (!best || v > best.v) best = { j, L, c, v, b }; }
-  if (best) out.push({ icon: 'up', title: `${FIX_INFO[fx[best.j].kind]?.[0] ?? fx[best.j].kind} Lv${best.L + 1}`, sub: gainTxt(best.b), use: lvUse(fx[best.j].kind, best.L), cost: best.c, ok: coins >= best.c, hi: best.j, run: () => { if (w.view.upgradeIndex(best.j)) w.view.thud(best.j, `Lv${best.L + 1}! ${popTxt(best.b)}`, 'up'); } });
+  if (best) out.push({ icon: 'up', title: `${FIX_INFO[fx[best.j].kind]?.[0] ?? fx[best.j].kind} Lv${best.L + 1}`, sub: gainTxt(best.b, '손님이 줄 설 때 빨라져요'), use: lvUse(fx[best.j].kind, best.L), cost: best.c, ok: coins >= best.c, hi: best.j, run: () => { if (w.view.upgradeIndex(best.j)) w.view.thud(best.j, `Lv${best.L + 1}! ${popTxt(best.b)}`, 'up'); } });
   // a helper, when ordering is what holds guests up and the shop is full
   if (i === undefined && now0.order <= now0.seat && h < HELPER_MAX) { const c = helperCost(h); out.push({ icon: 'helper', title: '알바 뽑기', sub: gainTxt(caps(own, lv, h + 1)), cost: c, ok: coins >= c, run: () => { if (S.myDoc.wallet.coins < c) return; S.myDoc.wallet.coins -= c; S.myDoc.plots[p.key].helpers = h + 1; w.view.sim.setHelpers(h + 1); rebuild(); save(true); toast('알바가 왔어요!', 1200); } }); }
   // one more floor, when every piece is in

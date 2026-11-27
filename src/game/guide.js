@@ -23,7 +23,7 @@ const TUT = [
   { say: '불 들어왔다! 🎉\n전등 하나가 이 집으로 갔어.', map: 'plant', on: 'coin', boat: true },
   { say: '첫 손님이야!\n가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
   // the last step hands the island over (running out of lamps is taught when it happens); it ends by itself
-  { say: '이제 네 섬이야!\n손님이 원하는 걸 지어 봐.', wait: 7000 },
+  { say: '이제 네 섬이야!\n손님이 원하는 걸 지어 봐.', wait: 7000, onMap: true },   // (said on the map: inside a shop it waits for the shop to close)
 ];
 // inside a shop for the first time: how to read the flow and what a fixture buys. No buttons here either: a step that only
 // explains moves on after `wait` ms, the one that asks for something moves on when it is done
@@ -35,7 +35,8 @@ const TUT_IN = [
 ];
 const inStep = () => S.myDoc?.wallet?.tutIn ?? 99;
 export const inTutOn = () => !!S.watching?.mine && inStep() < TUT_IN.length;
-const setStep = (field, n) => { if (!canWrite()) return; if (field === 'tut') S.stepAt = performance.now(); if (n > (S.myDoc.wallet[field] ?? 0) && n < 99) gull?.cheer(); S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n, v: 5 }); guide(); };
+const setStep = (field, n) => { if (!canWrite()) return; if (field === 'tut') { S.stepAt = performance.now(); document.getElementById('why')?.remove(); S.showPipe = false; }   // a new step: nothing from the last one left open to press
+ if (n > (S.myDoc.wallet[field] ?? 0) && n < 99) gull?.cheer(); S.myDoc.wallet[field] = n; S.dirty = true; save(true); if (field === 'tut') track('tut', { step: n, v: 5 }); guide(); };
 const say = (v) => typeof v === 'function' ? v() : v;
 
 // before I have an island: choose one on the map. Invited: next to the friend who sent the link.
@@ -95,13 +96,15 @@ export function guide() {
     return;
   }
   if (S.inviteGuide) {   // the later moment: a friend next door (no buttons either; the island is what to press)
-    g.hidden = false; speak('섬이 제법 커졌네!\n옆 빈 섬에 친구를 불러 볼까?');   // (a bridge comes later, once a friend lives there: said after the link is copied) $('gbtns').replaceChildren();
+    g.hidden = false; speak('섬이 제법 커졌네!\n옆 빈 섬에 친구를 불러 볼까?'); $('gbtns').replaceChildren();   // (a bridge comes later, once a friend lives there: said after the link is copied)
     if (panned !== 'invite') { panned = 'invite'; const n = emptyNeighbours()[0]; if (n) setTimeout(() => { const z = chooseZoom(n); if (S.zoom > z) { S.zoom = z; applyZoom(); } scrollToSlot(n); }, 300); }
     return;
   }
   if (S.supplyGuide && !tutOn()) { g.hidden = false; speak(S.supplyGuide.text); $('gbtns').replaceChildren(); return; }
   if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
-  const st = TUT[tutStep()]; g.hidden = false; gull?.mood(st.mood); speak(say(st.say));
+  const st = TUT[tutStep()];
+  if (st.onMap && S.watching) { g.hidden = true; $('garrow').hidden = true; return; }
+  g.hidden = false; gull?.mood(st.mood); speak(say(st.say));
   $('gbtns').replaceChildren();   // no buttons: the step moves on when its thing is done (or, with nothing to do, after `wait`)
   if (st.wait && waitK !== tutStep()) { const k = waitK = tutStep(); clearTimeout(waitT); waitT = setTimeout(() => { if (tutStep() === k) setStep('tut', k + 1); }, st.wait); }
   if (st.boat && S.mySlot) nextBoat.set(S.mySlot, 0);   // the first boat comes at once

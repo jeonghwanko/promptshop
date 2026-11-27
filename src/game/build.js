@@ -32,7 +32,7 @@ import { openShop, closeInside, renderActs, placeActs } from './shop.js';
 // what the island asks for, by kind of guest
 const REQ = {
   food: { short: '배고파요', ko: '배고파요', sub: '식당 · 포장마차', icon: '🍜', en: 'a place to eat', ex: ['할머니 국밥집', '골목 포장마차', '바다 보이는 횟집'] },
-  cafe: { short: '커피', ko: '커피 한잔 하고 싶어요', sub: '카페 · 빵집 · 노점', icon: '☕', en: 'coffee and snacks', ex: ['창가 자리 많은 카페', '아침마다 줄 서는 빵집', '붕어빵 노점'] },
+  cafe: { short: '커피', ko: '커피 한잔 하고 싶어요', sub: '카페 · 빵집 · 노점', icon: '☕', en: 'coffee and snacks', ex: ['창가 자리 많은 카페', '바다 보이는 루프탑 카페', '원두 볶는 로스터리 카페'] },
   shop: { short: '살 거', ko: '살 게 있어요', sub: '가게 · 볼일', icon: '🛍️', en: 'a shop or an errand', ex: ['24시간 편의점', '작은 약국', '바닷가 우체국'] },
   fun: { short: '놀 데', ko: '놀 데가 없어요', sub: '놀거리 · 구경거리', icon: '🎳', en: 'something fun to do', ex: ['레트로 볼링장', '작은 영화관', '등대 전망대'] },
   rest: { short: '쉴 곳', ko: '쉴 곳이 필요해요', sub: '숙소 · 쉼터', icon: '🛏️', en: 'a place to stay and rest', ex: ['바닷가 게스트하우스', '작은 모텔', '조용한 산사'] },

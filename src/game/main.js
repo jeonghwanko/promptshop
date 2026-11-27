@@ -6,7 +6,7 @@ import { setVoxelPalette } from '../ui/voxelui.js';
 import { centerOf, neighbours, PLOT } from '../v2/isles.js';
 import { normalize } from '../v2/spec.js';
 import { el } from './ui.js';
-import { S, db, me, sim, FROM, BOARD, pr } from './state.js';
+import { S, db, me, sim, FROM, BOARD, pr, SHOWCASE } from './state.js';
 import { hooks, allPlots, ratesOf, servesOf, tilesOf } from './model.js';
 import { initPersist, WRITER, track } from './persist.js';
 import { initCamera, startZoom, chooseZoom, applyZoom, scrollToSlot, toScreen, scrollToPoint, inSafe } from './camera.js';
@@ -74,7 +74,7 @@ function showFresh(p, look) {
 }
 hooks.rebuilt = (oldGround) => {
   if (!S.scrolled) {   // the first view: my island; invited, the inviter's; else the whole archipelago to choose from
-    S.scrolled = true; const at = S.mySlot || (FROM && S.owners.has(FROM) ? FROM : 0) || pickSpot() || 1;   // (choosing: the island the guide points at, big enough to read)
+    S.scrolled = true; const at = S.mySlot || (FROM && S.owners.has(FROM) ? FROM : 0) || (SHOWCASE ? 3 : 0) || pickSpot() || 1;   // (choosing: the island the guide points at, big enough to read; the showcase: its middle sample island, examples/isles-seed.js seed-c)
     S.zoom = S.mySlot ? startZoom(at) : chooseZoom(at); applyZoom(); setTimeout(() => { scrollToSlot(at, false); lift(); }, 50);   // the cover lifts on a drawn island, never on an empty sea
     track('arrive', { from: FROM, has: !!S.mySlot, taken: S.owners.size });
   }

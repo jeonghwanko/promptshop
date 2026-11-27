@@ -559,7 +559,7 @@ body[data-tut="1"] .want.cancel, body[data-tut="2"] .want.cancel { display:none;
 .ask.card .want .rw, .ask.card .want.more .faces .face:nth-child(n+2) { display:none; }
 .ask.card .want .cnt { top:-6px; left:-4px; transform:scale(.8); }
 .ask.card .want.cancel { margin-left:auto; padding:4px; background:none; } .ask.card .want.cancel .wt, .ask.card .want.cancel kbd { display:none; }
-.ask.card .bar { flex-wrap:wrap; gap:8px; padding:0; background:none; box-shadow:none; }
+.ask.card .bar { flex-wrap:wrap; gap:8px; width:100%; max-width:100%; min-width:0; box-sizing:border-box; padding:0; background:none; box-shadow:none; }
 .ask.card .bwho { display:none; } .ask.card .bmid { flex:1 1 100%; min-width:0; }
 .ask.card #line { box-sizing:border-box; width:100%; padding:8px 12px; border-radius:12px; background:rgba(251,241,220,.1); }
 .ask.card .bsize { margin-right:auto; } .ask.card .bgo { margin-left:auto; }
@@ -577,3 +577,8 @@ body[data-tut="1"] .want.cancel, body[data-tut="2"] .want.cancel { display:none;
 .shophead .sback img { width:28px; height:28px; image-rendering:pixelated; filter:brightness(.25); }
 .shophead .sn { display:flex; flex-direction:column; line-height:1.15; } .shophead b { font:400 20px var(--f-disp); } .shophead small { font:400 13px var(--f-disp); color:#c9b99a; }
 body.inshop .hud.tl { display:none !important; }
+
+/* nothing left to show on the island plate (level hidden while learning, name hidden while building): no empty pill */
+body.hide-level.buildmode #who { display:none; }
+/* phones: the cut-away sits in the upper middle and the zoomed street below competed with it — darken around the building */
+@media (max-width:760px) { .shopwrap { background:radial-gradient(ellipse 85% 42% at 50% 45%, rgba(10,25,40,.12) 35%, rgba(10,25,40,.72) 100%); } }
