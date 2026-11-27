@@ -27,7 +27,7 @@ const MOD = '_mod';
 let lease = { role: 'new', term: 0 }, settleAt = 0, lastMine = null, lastSig = '', lastMyDoc = null;
 const myRef = () => db.doc(COL + '/' + me);
 /** What a save writes: the island, never the lease fields (so a save and a claim cannot undo each other); wb and hb say who wrote it and when. */
-const dataOf = (d) => ({ slot: d.slot, at: d.at, gap: d.gap, land: d.land ?? 0, plots: d.plots, half: d.half, wallet: d.wallet, rev: (d.rev ?? 0) + 1, wb: WRITER, hb: Date.now() });
+const dataOf = (d) => { if (d.wallet) d.wallet.seenAt = Date.now(); return { slot: d.slot, at: d.at, gap: d.gap, land: d.land ?? 0, plots: d.plots, half: d.half, wallet: d.wallet, rev: (d.rev ?? 0) + 1, wb: WRITER, hb: Date.now() }; };   // seenAt: when the island was last played (the vault, vault.js)
 
 let lastSave = 0, saving = Promise.resolve(), fails = 0;
 /** Two saves in a row failed: a small mark on the coins, gone with the next save that lands. */

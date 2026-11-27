@@ -14,6 +14,9 @@ export const REQ_BONUS = 15;                                // building what a r
 /** When 끼룩이 first suggests calling a friend: the island grown this far (level index into LEVELS, my buildings). */
 export const INVITE_AT = { level: 3, shops: 6 };   // 번화가 and six buildings: well after the first sessions (the owner: calling friends comes much later)
 
+// ---------- the vault: the island trades while nobody plays (vault.js) ----------
+export const VAULT = { share: .05, hours: 8, minMinutes: 10 };   // a twentieth of the live pace, net of the bill; at most eight hours; nothing under ten minutes
+
 // ---------- land ----------
 export const MAX_PLOTS = 8, PLOTS_PER_LAND = 3;
 export const LAND_COST = [1600, 4000, 9000, 18000], LAND_LEVEL = [0, 1, 2, 3];   // ×20 (2026-11-28: days, not minutes)   // per widening step: its price, the island level it needs
