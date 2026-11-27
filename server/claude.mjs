@@ -1,6 +1,6 @@
 // Claude for building: streams the model's text back, within limits. A build or an extension costs one of the
 // player's daily calls; the one follow-up that fixes a build ('revise') is free within 5 minutes of it.
-//   SAMPLE=api   the Anthropic API (ANTHROPIC_API_KEY)        SAMPLE=cli   the local `claude` CLI (testing)
+//   SAMPLE=api   the Anthropic API (ANTHROPIC_API_KEY)        SAMPLE=cli   the local `claude` CLI (testing, or a subscription token: CLAUDE_CODE_OAUTH_TOKEN)
 //   SAMPLE=echo  a fixed answer, instantly (checks)
 import Anthropic from '@anthropic-ai/sdk';
 import { spawn } from 'node:child_process';
@@ -30,6 +30,10 @@ export function admit(store, uid, kind) {
 export const left = (store, uid) => Math.max(0, PER_USER - store.sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise'`).get(uid, today()).n);
 
 let client = null;
+// SAMPLE=cli on a small VM: at most CLAUDE_CLI_MAX `claude` processes at once (each takes a few hundred MB); the rest wait in line.
+const CLI_MAX = +(process.env.CLAUDE_CLI_MAX ?? 2); let cliBusy = 0; const cliLine = [];
+const cliSlot = (req) => cliBusy < CLI_MAX ? (cliBusy++, Promise.resolve()) : new Promise((go) => { const t = () => { cliBusy++; go(); }; cliLine.push(t); req.on('close', () => { const i = cliLine.indexOf(t); if (i >= 0) { cliLine.splice(i, 1); go(); cliBusy++; } }); });
+const cliFree = () => { cliBusy--; cliLine.shift()?.(); };
 /** Stream the answer to `prompt` into res (plain text). */
 export async function stream(prompt, res, req) {
   if (typeof prompt !== 'string' || !prompt || prompt.length > MAX_PROMPT) { res.writeHead(400); return res.end('bad prompt'); }
@@ -37,10 +41,12 @@ export async function stream(prompt, res, req) {
   res.writeHead(200, { 'content-type': 'text/plain; charset=utf-8', 'cache-control': 'no-store', 'x-accel-buffering': 'no' });
   if (mode === 'echo') { res.write('{"step":"building","type":"cafe","name":"시험 카페"}\n'); return res.end(); }
   if (mode === 'cli') {
-    const cli = spawn('claude', ['-p', '--model', 'haiku', '--output-format', 'stream-json', '--include-partial-messages', '--verbose', '--tools', '', '--no-session-persistence', '--system-prompt', SYSTEM], { stdio: ['pipe', 'pipe', 'pipe'], cwd: os.tmpdir() });
+    await cliSlot(req); if (req.destroyed) { cliFree(); return res.end(); }
+    const cli = spawn(process.env.CLAUDE_BIN ?? 'claude', ['-p', '--model', 'haiku', '--output-format', 'stream-json', '--include-partial-messages', '--verbose', '--tools', '', '--no-session-persistence', '--system-prompt', SYSTEM], { stdio: ['pipe', 'pipe', 'pipe'], cwd: os.tmpdir() });
     cli.stdin.end(prompt); let buf = '';
     cli.stdout.on('data', (c) => { buf += c; let i; while ((i = buf.indexOf('\n')) >= 0) { const line = buf.slice(0, i); buf = buf.slice(i + 1); try { const m = JSON.parse(line), d = m.type === 'stream_event' && m.event?.type === 'content_block_delta' && m.event.delta?.text; if (d) res.write(d); } catch {} } });
-    cli.on('close', () => res.end()); req.on('close', () => { if (!res.writableEnded) cli.kill(); });
+    cli.on('error', (e) => { console.error('claude cli', e.message); });
+    cli.on('close', () => { cliFree(); res.end(); }); req.on('close', () => { if (!res.writableEnded) cli.kill(); });
     return;
   }
   client ??= new Anthropic();   // ANTHROPIC_API_KEY from the environment
