@@ -1,4 +1,4 @@
-  :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; --line:#d4c4a6; --accent:#3f7a74; --hot:#c0392b; --gold:#e3a72f; --sea:#3d7fa6;
+  :root { --ground:#e8dcc4; --ink:#2e241a; --dim:#7a6a55; --card:#f3ead8; --line:#d4c4a6; --accent:#3f7a74; --hot:#c0392b; --gold:#e3a72f; --sea:#1f86c0;
           --f-disp:"Jua","Noto Sans KR",sans-serif; --f-ui:"Noto Sans KR",system-ui,sans-serif; }
   html, body { height:100%; overflow:hidden; }
   body { margin:0; background:var(--sea); color:var(--ink); font:14px/1.55 var(--f-ui); }
@@ -59,7 +59,7 @@
   .panel[hidden] { display:none; }
   .panel .x { position:sticky; top:0; align-self:flex-end; margin:-6px -6px -34px 0; z-index:1; padding:4px 10px; }
   .pill.isle { cursor:pointer; } .pill.isle:hover { background:#fff; }
-  .world { position:fixed; inset:0; z-index:30; background:#3d7fa6; overflow:hidden; }
+  .world { position:fixed; inset:0; z-index:30; background:#1f86c0; overflow:hidden; }
   .world[hidden] { display:none; }
   .world .wmap { position:absolute; image-rendering:pixelated; }
   .spot { position:absolute; transform:translate(-50%, -100%); display:flex; flex-direction:column; align-items:center; gap:2px; cursor:pointer; border:0; background:none; padding:0; box-shadow:none; }

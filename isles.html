@@ -8,7 +8,7 @@
 <link rel="stylesheet" href="src/game/isles.css">
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }</script>
 <div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
-<div id="boot" style="position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#3d7fa6;color:#fff;font:400 34px Jua,'Noto Sans KR',sans-serif;text-shadow:0 3px 0 #2e241a;transition:opacity .4s">한 줄 군도</div>
+<div id="boot" style="position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#1f86c0;color:#fff;font:400 34px Jua,'Noto Sans KR',sans-serif;text-shadow:0 3px 0 #2e241a;transition:opacity .4s">한 줄 군도</div>
 <script>setTimeout(() => { const b = document.getElementById('boot'); if (b) b.innerHTML = '<div style="text-align:center">한 줄 군도<br><button onclick="location.reload()" style="margin-top:14px;font:inherit;font-size:20px;padding:6px 18px;border:0;border-radius:12px;background:#3f7a74;color:#fff">다시</button></div>'; }, 20000);</script>   <!-- the game did not start in 20 s (a module failed to load): a way out -->
 <div class="shophead" id="shophead" hidden><button class="sback" id="sback" aria-label="뒤로"></button><span class="sn"><b id="sname"></b><small id="ssub"></small></span></div>
 <div class="hud tl"><button class="isleb" id="who"></button><button class="autot" id="d-auto" title="가구 자동으로 들이기"><span class="ic" data-i="chair"></span><span id="d-auto-t">자동</span><i class="sw"></i></button></div>
