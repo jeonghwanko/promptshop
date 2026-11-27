@@ -37,7 +37,7 @@ Do this only when the owner asks for it.
    3. Link `/opt/we-oddbout/current` to that release.
 3. **Secrets.** Create `/opt/we-oddbout/env` with `ANTHROPIC_API_KEY=...` and `chmod 600`. `SESSION_SECRET` is optional: the server makes one in `DATA_DIR` the first time.
 4. **Service.** Copy `deploy/we-oddbout.service` to `/etc/systemd/system/`, then run `systemctl enable --now we-oddbout`.
-5. **nginx.** Copy `deploy/we.oddbout.com.nginx` to `/etc/nginx/sites-available/`, link it, then run `certbot --nginx -d we.oddbout.com` and `nginx -s reload`.
+5. **nginx.** The VM's certbot has no nginx plugin, so issue the certificate by webroot first: serve only the port-80 block with the `acme-challenge` location, run `certbot certonly --webroot -w /var/www/letsencrypt -d we.oddbout.com`, then copy the full `deploy/we.oddbout.com.nginx` to `/etc/nginx/sites-available/`, link it, and run `nginx -t && nginx -s reload`.
 6. **Check.** Run `node scripts/check-site-play.mjs https://we.oddbout.com`. It uses real Claude calls: two players, one build.
 
 An update is a new release folder, a new `current` link and `systemctl restart we-oddbout`. `DATA_DIR` stays where it is.
