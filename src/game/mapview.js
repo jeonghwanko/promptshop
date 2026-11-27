@@ -25,6 +25,18 @@ function sprite(p) {
     let top = 0; while (top < canvas.height - 1 && !painted(top)) top++;
     const n = { canvas, anchor, k, alpha, top }; sprites.set(p.key, n); return n; } catch { return null; }
 }
+// the unbuilt part of a building is promised as a faint dark silhouette of its own shape (no glow)
+const silC = document.createElement('canvas'), silG = silC.getContext('2d');
+function silhouette(src) {
+  const w = src.width, h = src.height; if (silC.width !== w || silC.height !== h) { silC.width = w; silC.height = h; }
+  silG.globalCompositeOperation = 'source-over'; silG.clearRect(0, 0, w, h); silG.drawImage(src, 0, 0); silG.globalCompositeOperation = 'source-atop'; silG.fillStyle = '#3a2a1c'; silG.fillRect(0, 0, w, h); return silC;
+}
+/** Draw src at (x0, y0) filled up from the ground to `edge` (px from its top): a faint silhouette above, the real thing below a
+ *  ragged edge (each 4 px column a little off, like courses being laid). */
+function filled(src, x0, y0, edge, w, h) {
+  g.save(); g.globalAlpha = .22; g.drawImage(silhouette(src), x0, y0); g.restore();
+  g.save(); g.beginPath(); for (let c = 0; c < w; c += 4) { const top = Math.max(0, edge + ((c / 4 * 7) % 3) * 2); g.rect(x0 + c, y0 + top, 4, h - top); } g.clip(); g.drawImage(src, x0, y0); g.restore();
+}
 /** The building under a pointer (its picture's own pixels, frontmost first), or null. */
 export function buildingAt(e) { const [sx, sy] = mapXY(e);
   for (const it of [...S.drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
@@ -90,12 +102,23 @@ export function drawMap(dt) {
     if (zoomShop?.key === p.key) { const u = zoomShop.t; if (u >= 1) continue; const e = u * u;   // the roof lifts away from an opened shop
       items.push({ d: p.x + p.z + n, draw: () => { g.globalAlpha = 1 - e; g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y - e * 60)); g.globalAlpha = 1; } }); continue; }
     tops[p.key] = [px, py - s.anchor.y + s.top + 6];   // just over the roof
-    const land = S.landing?.key === p.key ? (performance.now() - S.landing.t0) / 420 : 1;
-    if (land < 1) {   // just finished: it lands — squashed flat, then a little tall, then itself (the foot stays put)
-      const k = Math.sin(land * Math.PI * 2) * (1 - land) * .16, sy = 1 - k, sx = 1 + k * .6;
-      items.push({ d: p.x + p.z + n, draw: () => { g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(sx, sy); g.drawImage(s.canvas, -s.anchor.x, -s.anchor.y); g.restore(); }, key: p.key, s, px, py }); continue; }
+    const lt = S.landing?.key === p.key ? performance.now() - S.landing.t0 : 1e9;
+    if (lt < 450) {   // just finished: the rest fills in, it lights up for an instant, one squash beat (the foot stays put)
+      const r0 = S.landing.rev0 ?? 1, fillU = Math.min(1, lt / 120), rev = r0 + (1 - r0) * (1 - (1 - fillU) ** 3), b = lt - 120;
+      const [sx, sy] = b < 0 ? [1, 1] : b < 80 ? [1.04, .93] : b < 200 ? [.985, 1.03] : b < 320 ? [.985 + .015 * (b - 200) / 120, 1.03 - .03 * (b - 200) / 120] : [1, 1];
+      const lit = b >= 0 && b < 33 ? .3 : b >= 33 && b < 66 ? .15 : 0;
+      items.push({ d: p.x + p.z + n, draw: () => { g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(sx, sy);
+        if (rev < 1) filled(s.canvas, -s.anchor.x, -s.anchor.y, Math.round(s.anchor.y - rev * s.anchor.y), s.canvas.width, s.canvas.height); else g.drawImage(s.canvas, -s.anchor.x, -s.anchor.y);
+        if (lit) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = lit; g.drawImage(s.canvas, -s.anchor.x, -s.anchor.y); }   // its own pixels, brightest first
+        g.restore(); }, key: p.key, s, px, py }); continue; }
     items.push({ d: p.x + p.z + n, draw: () => g.drawImage(s.canvas, Math.round(px - s.anchor.x), Math.round(py - s.anchor.y)), key: p.key, s, px, py }); }
-  if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; tops['@site'] = [px, py - Math.max(40, st.H * .6)]; items.push({ d: building.x + building.z + n, draw: () => g.drawImage(st.canvas, Math.round(px - st.W / 2), Math.round(py - st.H * .82)) }); }
+  if (building) { const n = PLOT[building.size], [px, py] = pr.P(building.x + n / 2, building.z + n / 2), st = building.stage; tops['@site'] = [px, py - Math.max(40, st.H * .6)]; items.push({ d: building.x + building.z + n, draw: () => {
+      // a part just landed: squashed down a little, then a little tall (a few frames, the foot stays put)
+      const u = building.bumpAt ? (performance.now() - building.bumpAt) / 260 : 1, k = u < 1 ? Math.sin(u * Math.PI * 2) * (1 - u) * .1 : 0;
+      // it fills up from the ground as the parts come (eased), and only the building's own pixels at the rising edge are lit
+      const goal = Math.min(1, .14 + (building.parts ?? 0) * .1); building.rev = (building.rev ?? .05) + (goal - (building.rev ?? .05)) * .06;
+      const foot = st.H * .82, edge = Math.round(foot - building.rev * foot), x0 = Math.round(-st.W / 2), y0 = Math.round(-foot);
+      g.save(); g.translate(Math.round(px), Math.round(py)); g.scale(1 + k * .6, 1 - k); filled(st.canvas, x0, y0, edge, st.W, st.H); g.restore(); } }); }
   for (const p of sim.people) items.push({ d: p.x + p.z - .01, draw: () => drawPerson(g, pr, p) });
   for (const b of boats) items.push({ d: b.x + b.z, draw: () => drawBoat(g, pr, b) });
   const fest = S.fest; if (fest) items.push({ d: fest.x + fest.z, draw: () => drawFestBoat(g, pr, fest) });
@@ -121,7 +144,7 @@ export function drawMap(dt) {
   }
   // my half missing toward a friend next door: a plank tag over the gap — its price — and a tap lays it (input.js)
   S.bridgeTags = [];
-  if (mySlot && myDoc && !zoomShop && !S.buildMode) for (const n of neighbours(mySlot)) {
+  if (mySlot && myDoc && !zoomShop && !S.buildMode && (myDoc.wallet?.invGuide || myDoc.wallet?.freeHalf)) for (const n of neighbours(mySlot)) {   // a friend feature: once calling friends has come up
     if (!S.owners.has(n) || myDoc.half?.[n]) continue; const t = bridgeTiles(mySlot, n); if (!t.length) continue;
     const [mx, mz] = t[Math.floor((t.length - 1) / 2)], [x, y] = pr.P(mx + .5, mz + .5), free = myDoc.wallet?.freeHalf === n, bob = Math.sin(performance.now() / 300 + n) * 2;
     const txt = free ? '다리 · 무료' : `다리 · ${BRIDGE}`; g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(txt).width + (free ? 18 : 34), h = 24, X = Math.round(x - w / 2), Y = Math.round(y - 30 + bob);

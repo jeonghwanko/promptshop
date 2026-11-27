@@ -15,9 +15,9 @@ import { faceEl } from '../ui/faces.js';
 import { START_STOCK, REQ_BONUS, levelOf, sizesOpen, bad } from './rules.js';
 import { refundOf } from './migrate.js';
 import { $, el } from './ui.js';
-import { S, me, sample, pr, sim, now, canWrite, splash, nextBoat, map } from './state.js';
+import { S, me, sample, pr, sim, now, canWrite, splash, nextBoat } from './state.js';
 import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf } from './model.js';
-import { stakeSite, dustSite } from './mapfx.js';
+import { stakeSite, dustSite, hookDrop } from './mapfx.js';
 import { save } from './persist.js';
 import { scrollToSlot, scrollToPoint } from './camera.js';
 import { logOpen, logStep, logNote, logDone, logFail, logDrop } from './buildlog.js';
@@ -39,11 +39,10 @@ const SUGGEST = { S: ['24시간 편의점', '작은 2층 단독주택', '붕어�
 const EXT_IDEAS = { food: ['2층에 창가 자리', '루프탑 테라스', '주방 넓히기'], cafe: ['2층 다락 좌석', '루프탑 테라스', '빵 굽는 주방 늘리기'], shop: ['2층 매장 넓히기', '계산대 늘리기', '창고 한 층'], fun: ['2층 관람석', '놀이방 한 층', '휴게실'], rest: ['객실 한 층 더', '루프탑 라운지', '스파 층'] };
 // the parts a building arrives in, stamped one by one on the sign while Claude writes (no bar, no percent)
 const STAMPS = [['building', '건물'], ['main', '본관'], ['sign', '간판'], ['hero', '대표'], ['prop', '소품'], ['floor', '층'], ['fixture', '가구']];
-/** A part landed on the site: square dust kicks up from the lot and the map gives a small thud. */
+/** A part landed on the site: the crane's load drops and square dust kicks up from the lot's front foot (the camera stays still). */
 function thud(x, z, n) {
-  const [px, py] = pr.P(x + n / 2, z + n / 2);
-  for (let i = 0; i < 8; i++) splash.push({ x: px + (Math.random() - .5) * n * 22, y: py + (Math.random() - .5) * n * 6, vx: (Math.random() - .5) * 60, vy: -15 - Math.random() * 35, t: 0, dust: true });
-  if (!S.watching) map.animate([{ translate: '0 3px' }, { translate: '0 0' }], { duration: 140, easing: 'ease-out' });
+  const [px, py] = pr.P(x + n / 2, z + n / 2); hookDrop();
+  for (let i = 0; i < 8; i++) splash.push({ x: px + (Math.random() - .5) * n * 22, y: py + n * 6, vx: (Math.random() - .5) * 60, vy: -15 - Math.random() * 35, t: 0, dust: true });
 }
 const STEP_KO = { building: '건물', main: '본관', mass: '덩어리', sign: '간판', hero: '대표', prop: '소품', floor: '층', fixture: '가구', order: '순서' };
 const failText = (e, msg) => e?.code === 'daily_limit' ? '오늘 Claude와 지을 수 있는 횟수를 다 썼어요. 내일 또 와요!' : e?.code === 'rate_limited' ? '잠깐 쉬었다가 다시 눌러 주세요.' : e?.code === 'not_granted' ? 'Claude 사용을 허락해야 지을 수 있어요.' : msg;
@@ -136,7 +135,7 @@ async function build() {
   // the show: the bar carries my line, the parts get stamped under it as they arrive, and the camera faces the lot
   closePanel(); S.current = { kind: 'build' }; dustSite({ x, z, size: sz }); stakeSite({ x, z, size: sz });
   const box = $('mapbox'), camWas = { left: box.scrollLeft, top: box.scrollTop, zoom: S.zoom };
-  const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); S.building = { x, z, size: sz, stage };
+  const b = emptyBuilding(), stage = new Stage2({ width: 420, height: 400, lift: .82 }); S.building = { x, z, size: sz, stage, t0: performance.now(), parts: 0, bumpAt: 0 };   // parts and bumpAt drive the site's show
   S.buildMode = false; document.body.classList.remove('buildmode'); input.value = `“${line}”`; drawAsk(true); tutEvent('line');
   scrollToPoint(...pr.P(x + n / 2, z + n / 2 - 1));
   const stamps = el('span', { class: 'stamps' }, STAMPS.map(([k, ko]) => el('i', { 'data-k': k }, ko)));
@@ -147,7 +146,7 @@ async function build() {
   const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
     if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } logStep(s);
     const st = stamps.querySelector(`[data-k="${s.step}"]:not(.on)`); if (st) st.classList.add('on');
-    if (ch.view === 'ext' || st) thud(x, z, n);
+    if (ch.view === 'ext' || st) { thud(x, z, n); if (S.building) { S.building.parts++; S.building.bumpAt = performance.now(); } }
   };
   try {
     const rd = lineReader(apply, () => broken++);
@@ -170,10 +169,10 @@ async function build() {
     G().permits--;
     const own = startingFixtures(buildSection(normalize(b.input)).fixtures, b.input.order);
     S.myDoc.plots = { ...S.myDoc.plots, [key]: { x, z, size: sz, door, stock: START_STOCK, own, fx: own.length, lay: LAYOUT, b: { input: JSON.parse(JSON.stringify(b.input)), line, at: now() } } };
-    dustSite({ x, z, size: sz }); S.building = null;
+    const rev0 = S.building?.rev ?? 1; dustSite({ x, z, size: sz }, { finish: true }); S.building = null;
     // finished: the building lands with a squash, my line rises over its roof, the first boat leaves now, and the camera
     // stays a moment before going back to where it was
-    S.landing = { key, t0: performance.now(), line }; nextBoat.set(S.mySlot, 0);
+    S.landing = { key, t0: performance.now(), line, rev0 }; nextBoat.set(S.mySlot, 0);   // rev0: how much of it had filled in
     // (only if nothing else has taken the camera since: a new zoom, or the guide showing the way)
     setTimeout(() => { if (!S.building && !S.watching && !S.current?.key && S.zoom === camWas.zoom && !tutOn()) box.scrollTo({ left: camWas.left, top: camWas.top, behavior: 'smooth' }); }, 2600);
     // a request answered: a bonus, and a crowd that wanted exactly this comes off the next boat

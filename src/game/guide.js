@@ -2,7 +2,7 @@
 // and through the inside of a shop the first time one is opened. The arrow points at a button or a spot on the map.
 import { SLOTS, centerOf, neighbours } from '../v2/isles.js';
 import { $, el } from './ui.js';
-import { mountGuideGull } from '../ui/gull/guide-gull.js';
+import { mountThumbGull } from '../ui/gull/thumb.js';
 import { S, db, me, pr, nextBoat, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
 import { allPlots, nameOf } from './model.js';
 import { save, track } from './persist.js';
@@ -17,7 +17,7 @@ const WISH = { food: '배고프대! 어떤 밥집일까?', cafe: '커피 마시�
 const TUT = [
   { say: '끼룩! 여기가 네 섬이야.\n섬 사람 얼굴을 하나 눌러 봐!', el: '#wants .want', spot: '#wants', on: 'card' },
   { say: () => `${WISH[S.card?.need] ?? '어떤 가게일까?'}\n한 줄 써 봐. 골라도 돼!`, el: () => document.querySelector('#bsub button') ? '#bsub button' : '#wants .want', spot: () => document.querySelector('#bsub button') ? '#bar' : '#wants', on: 'line' },
-  { say: 'Claude가 짓는 중이야…\n뭐가 나올까? 끼룩!', on: 'built' },
+  { say: 'Claude가 짓는 중이야…\n뭐가 나올까? 끼룩!', on: 'built', mood: 'think' },
   { say: '완공! 🎉\n저기 봐, 배가 손님을 싣고 와!', on: 'coin', boat: true },
   { say: '첫 손님이야!\n가게를 눌러 봐. 안이 보여!', map: 'shop', on: 'inside' },
   // the last step hands over a goal: the next 🎫 (and the level and the 🎫 count open beside my island's name); it ends by itself
@@ -67,6 +67,7 @@ function endInvite() { clearTimeout(inviteT); if (!S.inviteGuide) return; S.invi
 let panned = -1, inAutoT = 0, inAutoK = -1, waitT = 0, waitK = -1;
 /** Show the current step. */
 export function guide() {
+  gull?.mood();   // talking, unless the step below says otherwise
   const g = $('guide'); document.querySelectorAll('.glow').forEach(e => e.classList.remove('glow'));
   if (inTutOn()) {
     const st = TUT_IN[inStep()]; g.hidden = false; speak(typeof st.say === 'function' ? st.say() : st.say);
@@ -89,7 +90,7 @@ export function guide() {
     return;
   }
   if (!tutOn()) { g.hidden = true; $('garrow').hidden = true; return; }
-  const st = TUT[tutStep()]; g.hidden = false; speak(say(st.say));
+  const st = TUT[tutStep()]; g.hidden = false; gull?.mood(st.mood); speak(say(st.say));
   $('gbtns').replaceChildren();   // no buttons: the step moves on when its thing is done (or, with nothing to do, after `wait`)
   if (st.wait && waitK !== tutStep()) { const k = waitK = tutStep(); clearTimeout(waitT); waitT = setTimeout(() => { if (tutStep() === k) setStep('tut', k + 1); }, st.wait); }
   if (st.boat && S.mySlot) nextBoat.set(S.mySlot, 0);   // the first boat comes at once
@@ -138,10 +139,11 @@ function placeSpot(r) {
 }
 /** 끼룩이 right above r (below it when there is no room above); null: back to its own corner. */
 function placeGuide(r) {
-  const g = $('guide'); if (!r || g.hidden) { g.classList.remove('anchored'); g.style.left = g.style.top = g.style.bottom = ''; return; }
+  const g = $('guide'); if (!r || g.hidden) { g.classList.remove('anchored', 'below'); g.style.left = g.style.top = g.style.bottom = ''; return; }
   const w = g.offsetWidth, h = g.offsetHeight, x = Math.max(8, Math.min(innerWidth - w - 8, r.left + r.width / 2 - w / 2));
-  const top = r.top - h - 12 >= 64 ? r.top - h - 12 : Math.min(innerHeight - h - 8, r.bottom + 12);
-  g.classList.add('anchored'); g.style.left = x + 'px'; g.style.top = top + 'px'; g.style.bottom = 'auto';
+  const above = r.top - h - 14 >= 64, top = above ? r.top - h - 14 : Math.min(innerHeight - h - 8, r.bottom + 14);
+  g.classList.add('anchored'); g.classList.toggle('below', !above);   // the card's tail points down at it, or up from below
+  { const b = g.querySelector('.gbub').getBoundingClientRect(); g.style.setProperty('--tail', Math.max(24, Math.min(b.width - 24, r.left + r.width / 2 - b.left)) + 'px'); } g.style.left = x + 'px'; g.style.top = top + 'px'; g.style.bottom = 'auto';
 }
 // ---------- 끼룩이 and its words: the line types itself out while the beak moves; a tap on the bubble shows it all ----------
 let gull = null, spoken = null, typing = null;
@@ -170,7 +172,7 @@ function speak(text) {
   }, 0);
 }
 export function initGuide() {
-  gull = mountGuideGull(document.querySelector('#guide .gbird'));
+  gull = mountThumbGull(document.querySelector('#guide .gbird'));
   document.querySelector('#guide .gbird').addEventListener('click', () => fold(false));
   setInterval(guideArrow, 120); setInterval(laterInvite, 2000);
 }

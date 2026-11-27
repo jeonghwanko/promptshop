@@ -7,7 +7,9 @@ export const site = { parts: [], t: 0, done: null, pending: null, dt: 0, step(dt
 /** Stake a spot (a sign waits for the line) or take the stake away (null). */
 export const stakeSite = (spot) => { site.pending = spot && { x: spot.x, z: spot.z, size: spot.size }; };
 /** A dust burst at a spot: something landed or was finished there. */
-export const dustSite = (spot) => { site.done = { x: spot.x, z: spot.z, size: spot.size, t: 0 }; };
+/** A part landed: the crane's hook load drops and comes back up. */
+export const hookDrop = () => { site.hookAt = performance.now(); };
+export const dustSite = (spot, o = {}) => { site.done = { x: spot.x, z: spot.z, size: spot.size, t: 0, finish: !!o.finish }; };   // finish: the scaffold flies off too
 
 /** Draw the building site's back half (behind the building) or front half; building: the plot being built, or null. */
 export function drawSite(g, pr, half, building) {
@@ -16,35 +18,74 @@ export function drawSite(g, pr, half, building) {
     const [mx, my] = pr.P(q.x + m / 2, q.z + m / 2); g.fillStyle = '#5b3a22'; g.fillRect(Math.round(mx) - 1, Math.round(my) - 22, 3, 22); g.fillStyle = '#c08a4a'; g.fillRect(Math.round(mx) - 9, Math.round(my) - 30, 19, 11); g.fillStyle = '#2e241a'; g.fillRect(Math.round(mx) - 9, Math.round(my) - 30, 19, 1); g.fillRect(Math.round(mx) - 9, Math.round(my) - 20, 19, 1); }
   const b = building ?? site.done; if (!b) return; const dt = site.dt, P = (x, z) => pr.P(x, z);
   const n = PLOT[b.size], x0 = b.x, z0 = b.z, C = [P(x0, z0), P(x0 + n, z0), P(x0 + n, z0 + n), P(x0, z0 + n)], H = 26 + n * 10;   // C[0] back, C[2] front
+  // the scaffold grows while Claude thinks (time) and with every part it sends: never still, and its height is the progress
+  const grow = building ? Math.min(1, .15 + Math.min(.55, (performance.now() - (building.t0 ?? 0)) / 16000 * .55) + (building.parts ?? 0) * .06) : 1, Hg = H * grow;
   const line = (a, c, col, w) => { g.strokeStyle = col; g.lineWidth = w; g.beginPath(); g.moveTo(Math.round(a[0]) + .5, Math.round(a[1]) + .5); g.lineTo(Math.round(c[0]) + .5, Math.round(c[1]) + .5); g.stroke(); };
-  const tape = (a, c) => { const m = 10; for (let i = 0; i < m; i++) line([a[0] + (c[0] - a[0]) * i / m, a[1] + (c[1] - a[1]) * i / m - 4], [a[0] + (c[0] - a[0]) * (i + 1) / m, a[1] + (c[1] - a[1]) * (i + 1) / m - 4], i % 2 ? '#2e241a' : '#ffcf3f', 2); };
+  const tape = (a, c) => { const m = 10; for (let i = 0; i < m; i++) line([a[0] + (c[0] - a[0]) * i / m, a[1] + (c[1] - a[1]) * i / m - 4], [a[0] + (c[0] - a[0]) * (i + 1) / m, a[1] + (c[1] - a[1]) * (i + 1) / m - 4], i % 2 ? '#3a2e22' : '#d9a92e', 2); };
+  // ---- the parts of a scaffold, drawn the same way while it stands and while it comes down ----
+  const hash = (i) => { const v = Math.sin(i * 12.9898) * 43758.5453; return v - Math.floor(v); };
+  /** A deck of planks along a→c at `lift` px up: pieces 6–9 px with 1 px gaps and ±1 px jitter, a dark underside; fall/rot/alpha bring it down. */
+  const deck = (a, c, lift, seed, fall = 0, rot = 0, alpha = 1) => {
+    const len = Math.hypot(c[0] - a[0], c[1] - a[1]); g.save(); g.globalAlpha = alpha;
+    for (let u = 0, i = 0; u < len; i++) { const L = 6 + hash(seed + i) * 3, u2 = Math.min(len, u + L), j = Math.round(hash(seed + i + 50) * 2 - 1);
+      const p = [a[0] + (c[0] - a[0]) * u / len, a[1] + (c[1] - a[1]) * u / len - lift + j + fall], q = [a[0] + (c[0] - a[0]) * u2 / len, a[1] + (c[1] - a[1]) * u2 / len - lift + j + fall];
+      if (rot) { const m = [(p[0] + q[0]) / 2, (p[1] + q[1]) / 2], r = rot * (hash(seed + i + 9) > .5 ? 1 : -1), cs = Math.cos(r), sn = Math.sin(r), turn = (v) => [m[0] + (v[0] - m[0]) * cs - (v[1] - m[1]) * sn, m[1] + (v[0] - m[0]) * sn + (v[1] - m[1]) * cs]; p.splice(0, 2, ...turn(p)); q.splice(0, 2, ...turn(q)); }
+      line([p[0], p[1] + 1], [q[0], q[1] + 1], '#7a5230', 1); line(p, q, '#c08a4a', 2); u = u2 + 1; }
+    g.restore();
+  };
+  const brace = (a, c, f0, f1) => line([a[0], a[1] - H * f0], [c[0], c[1] - H * f1], '#5a4030', 1);
+  const LEVELS = [.3, .6, .9], BACK = [[C[3], C[0]], [C[0], C[1]]], FRONT = [[C[1], C[2]], [C[2], C[3]]];
+  // finished (site.done.finish, t in s): the building fills the last of itself (0–.12), then the decks drop top first 40 ms apart
+  // (gravity, a little turn, land, hold, two cuts), then the poles sink (easeInQuad, .22 s); dust as the first planks land
+  const fin = !building && site.done?.finish ? site.done.t : -1;
+  const plankState = (li) => { const t0 = .12 + (2 - li) * .04, h = H * LEVELS[li], tl = Math.sqrt(2 * h / 600), u = fin - t0;   // li 2 = top
+    if (u <= 0) return { fall: 0, rot: 0, alpha: 1 }; if (u < tl) return { fall: 300 * u * u, rot: .44 * u / tl, alpha: 1 };
+    const after = u - tl; return { fall: h, rot: .44, alpha: after < .06 ? 1 : after < .12 ? .6 : after < .18 ? .3 : 0 }; };
+  const poleH = fin < 0 ? Hg : fin < .32 ? H : fin < .54 ? H * (1 - ((fin - .32) / .22) ** 2) : 0;
   if (half === 'back') {
-    if (!building) return;
-    // a tower crane on the back corner, its jib turning a little, a load swinging on the hook
-    const base = C[0], mast = H + 40, top = [base[0], base[1] - mast], sw = Math.sin(site.t * .7) * 14, tip = [top[0] + 34 + sw, top[1] + 6], back = [top[0] - 18 - sw * .4, top[1] - 2];
-    line(base, top, '#2e241a', 4); line(base, top, '#ffcf3f', 2);
-    for (let y = 8; y < mast; y += 8) line([base[0] - 1, base[1] - y], [base[0] + 1, base[1] - y + 6], '#b58a10', 1);
-    line(back, tip, '#2e241a', 4); line(back, tip, '#ffcf3f', 2); g.fillStyle = '#5b5f66'; g.fillRect(Math.round(back[0]) - 3, Math.round(back[1]) - 1, 6, 5);
-    const hook = [tip[0] - 6, tip[1] + 18 + Math.sin(site.t * 2) * 3]; line([tip[0] - 6, tip[1]], hook, '#2e241a', 1); g.fillStyle = '#c08a4a'; g.fillRect(Math.round(hook[0]) - 4, Math.round(hook[1]), 8, 4);
-    // back poles, the planks between them, the back fence
-    for (const c of [C[0], C[1], C[3]]) line(c, [c[0], c[1] - H], 'rgba(58,42,28,.9)', 2);
-    for (const f of [.45, .9]) for (const [a, c] of [[C[3], C[0]], [C[0], C[1]]]) line([a[0], a[1] - H * f], [c[0], c[1] - H * f], '#c08a4a', 2);
-    tape(C[3], C[0]); tape(C[0], C[1]);
+    if (building) {
+      // a tower crane on the back corner, its jib turning a little; each part that lands drops the load on the hook (in, then up)
+      const base = C[0], mast = H + 40, top = [base[0], base[1] - mast], sw = Math.sin(site.t * .7) * 14, tip = [top[0] + 34 + sw, top[1] + 6], back = [top[0] - 18 - sw * .4, top[1] - 2];
+      line(base, top, '#2e241a', 4); line(base, top, '#ffcf3f', 2);
+      for (let y = 8; y < mast; y += 8) line([base[0] - 1, base[1] - y], [base[0] + 1, base[1] - y + 6], '#b58a10', 1);
+      line(back, tip, '#2e241a', 4); line(back, tip, '#ffcf3f', 2); g.fillStyle = '#5b5f66'; g.fillRect(Math.round(back[0]) - 3, Math.round(back[1]) - 1, 6, 5);
+      const hu = site.hookAt ? (performance.now() - site.hookAt) / 1000 : 9, drop = hu < .16 ? 12 * (hu / .16) ** 2 : hu < .46 ? 12 * (1 - (hu - .16) / .3) ** 2 : 0;
+      const hook = [tip[0] - 6, tip[1] + 18 + drop + Math.sin(site.t * 2) * 2]; line([tip[0] - 6, tip[1]], hook, '#2e241a', 1); g.fillStyle = '#c08a4a'; g.fillRect(Math.round(hook[0]) - 4, Math.round(hook[1]), 8, 4);
+    } else if (fin < 0 || poleH <= 0) return;
+    for (const c of [C[0], C[1], C[3]]) if (poleH > 0) line(c, [c[0], c[1] - poleH], 'rgba(58,42,28,.9)', 2);
+    LEVELS.forEach((f, li) => { if (building ? grow < f + .04 : false) return; const st = fin < 0 ? { fall: 0, rot: 0, alpha: 1 } : plankState(li); if (!st.alpha) return; BACK.forEach(([a, c], e) => deck(a, c, H * f, li * 10 + e * 3, st.fall, st.rot, st.alpha)); });
     return;
   }
-  if (building) {
-    line(C[2], [C[2][0], C[2][1] - H], 'rgba(58,42,28,.9)', 2);
-    tape(C[1], C[2]); tape(C[2], C[3]);
-    if (Math.random() < dt * 8) { const c = C[Math.floor(Math.random() * 4)]; for (let i = 0; i < 5; i++) site.parts.push({ x: c[0] + (Math.random() - .5) * 20, y: c[1] - H * (.3 + Math.random() * .6), vx: (Math.random() - .5) * 50, vy: -20 - Math.random() * 30, t: 0, spark: true }); }
-    if (Math.random() < dt * 4) { const k = Math.floor(Math.random() * 4); site.parts.push({ x: C[k][0], y: C[k][1], vx: (Math.random() - .5) * 12, vy: -8, t: 0 }); }
-  } else if (site.done && site.done.t === 0) {   // finished: chunks of dust thrown out from the foot, each its own way (no ring)
-    for (let i = 0; i < 30; i++) { const a = Math.random() * 6.28, v = 25 + Math.random() * 55; site.parts.push({ x: (C[0][0] + C[2][0]) / 2 + (Math.random() - .5) * 16, y: (C[0][1] + C[2][1]) / 2, vx: Math.cos(a) * v, vy: Math.sin(a) * v * .45 - 10 - Math.random() * 20, t: 0, big: true, s: 2 + (Math.random() * 3 | 0) }); }
+  if (building || fin >= 0) {
+    if (poleH > 0) line(C[2], [C[2][0], C[2][1] - poleH], 'rgba(58,42,28,.9)', 2);
+    LEVELS.forEach((f, li) => { if (building && grow < f + .04) return; const st = fin < 0 ? { fall: 0, rot: 0, alpha: 1 } : plankState(li); if (!st.alpha) return; FRONT.forEach(([a, c], e) => deck(a, c, H * f, 100 + li * 10 + e * 3, st.fall, st.rot, st.alpha)); });
+    if (building) {
+      for (let li = 0; li < 2; li++) if (grow >= LEVELS[li + 1] + .04) { brace(C[1], C[2], LEVELS[li], LEVELS[li + 1]); brace(C[3], C[2], LEVELS[li + 1], LEVELS[li]); }   // one diagonal brace per level
+      tape(C[1], C[2]); tape(C[2], C[3]);
+      // two workers at the front corners, hammering in turn: each blow knocks off a couple of wood chips
+      for (const [k, c] of [[0, C[1]], [1, C[3]]]) {
+        const ph = site.t * 6 + k * Math.PI, up = Math.sin(ph) > 0, x = Math.round(c[0] + (k ? 6 : -9)), y = Math.round(c[1] + 2);
+        g.fillStyle = '#3a6ea5'; g.fillRect(x, y - 6, 3, 4); g.fillStyle = '#f6d2b8'; g.fillRect(x, y - 8, 3, 2); g.fillStyle = '#ffcf3f'; g.fillRect(x - 1, y - 9, 5, 1);   // body, face, hard hat
+        g.fillStyle = '#2e241a'; g.fillRect(x, y - 2, 1, 2); g.fillRect(x + 2, y - 2, 1, 2);
+        const hx = x + (k ? -2 : 4); g.fillStyle = '#5b5f66'; g.fillRect(hx, up ? y - 9 : y - 5, 2, 2);   // the hammer, up or down
+        const was = site['w' + k]; site['w' + k] = up; if (was && !up) for (let i = 0; i < 2; i++) site.parts.push({ x: hx, y: y - 4, vx: (Math.random() - .5) * 40, vy: -20 - Math.random() * 15, t: 0, chip: true });
+      }
+    }
   }
-  if (site.done) { site.done.t += dt; if (site.done.t > 1.2) site.done = null; }
-  for (const q of site.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.spark) q.vy += 100 * dt; else { q.vx *= .96; q.vy *= .96; if (q.big) q.vy += 70 * dt; } }
-  site.parts = site.parts.filter(q => q.t < (q.spark ? .45 : q.big ? 1.1 : 1));
-  for (const q of site.parts) { if (q.spark) { g.fillStyle = `rgba(255,${200 + Math.random() * 55 | 0},90,${1 - q.t / .45})`; g.fillRect(Math.round(q.x), Math.round(q.y), 2, 2); }
-    else { const s = q.s ?? 2; g.fillStyle = `rgba(${q.t < .2 ? '232,216,176' : '184,154,106'},${(q.big ? .9 : .6) * (1 - q.t / (q.big ? 1.1 : 1))})`; g.fillRect(Math.round(q.x), Math.round(q.y), s, s); } }   // square pixel dust, not soft circles
+  // dust: a few chunks pushed out low from the two front edges (the back ones would land on the facade), stepped fades
+  const dust = (k) => { const cx = (C[0][0] + C[2][0]) / 2, cy = (C[0][1] + C[2][1]) / 2;
+    for (const [a, c] of FRONT) for (let i = 0; i < k; i++) { const u = Math.random(), x = a[0] + (c[0] - a[0]) * u, y = a[1] + (c[1] - a[1]) * u, v = 10 + Math.random() * 14, r = Math.random();
+      site.parts.push({ x, y: y - 1, vx: (x - cx) / 20 * v, vy: (y - cy) / 20 * v - 3, t: 0, big: true, s: r < .4 ? 3 : r < .8 ? 2 : 1 }); } };
+  if (site.done && site.done.t === 0 && !site.done.finish) dust(3);
+  if (fin >= .24 && !site.done.dusted) { site.done.dusted = true; dust(6); }
+  if (site.done) { site.done.t += dt; if (site.done.t > (site.done.finish ? .8 : .6)) site.done = null; }
+  for (const q of site.parts) { q.t += dt; q.x += q.vx * dt; q.y += q.vy * dt; if (q.chip) q.vy += 140 * dt; else { q.vx *= .9; q.vy *= .9; } }
+  site.parts = site.parts.filter(q => q.t < (q.chip ? .35 : q.big ? .55 : .5));
+  for (const q of site.parts) {
+    if (q.chip) { g.fillStyle = q.t < .15 ? '#e0a868' : '#8a5a32'; g.fillRect(Math.round(q.x), Math.round(q.y), 1, 1); continue; }   // wood chips off the hammer
+    const [col, a] = q.t < .15 ? ['232,216,176', 1] : q.t < .35 ? ['184,154,106', .8] : ['138,110,72', .5];   // stepped, like hand-drawn frames (no smooth smear)
+    const s = q.s ?? 2; g.fillStyle = `rgba(${col},${q.big ? a : a * .6})`; g.fillRect(Math.round(q.x), Math.round(q.y), s, s);
+  }
 }
 
 /** The festival boat: a big boat with bunting and a deck full of people. */
