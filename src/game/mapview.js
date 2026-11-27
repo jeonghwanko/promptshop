@@ -45,10 +45,38 @@ function filled(src, x0, y0, edge, w, h) {
   g.save(); g.globalAlpha = .22; g.drawImage(silhouette(src), x0, y0); g.restore();
   g.save(); g.beginPath(); for (let c = 0; c < w; c += 4) { const top = Math.max(0, edge + ((c / 4 * 7) % 3) * 2); g.rect(x0 + c, y0 + top, 4, h - top); } g.clip(); g.drawImage(src, x0, y0); g.restore();
 }
+// A building in front that covers much of one behind it turns see-through where that one stands (30%), so every shop stays in
+// sight: only the covered part, only while it covers. Worked out when the layout changes, not every frame.
+const GHOST_MIN = .2, GHOST_A = .3;
+let ghostSig = '', ghosts = new Map();
+const SOLID = 200;   // the body only: a sprite's cast shadow is see-through (about 90) and must not count
+function bodyOf(sp) { if (sp.body) return sp.body; const c = document.createElement('canvas'); c.width = sp.canvas.width; c.height = sp.canvas.height; const cg = c.getContext('2d'), im = cg.createImageData(c.width, c.height);
+  for (let i = 3; i < sp.alpha.length; i += 4) if (sp.alpha[i] > SOLID) im.data[i] = 255; cg.putImageData(im, 0, 0); return sp.body = c; }
+function ghostsFor(list) {   // list: [{ key, s, x0, y0, d }]
+  const sig = list.map(o => o.key + '@' + o.x0 + ',' + o.y0 + ':' + o.s.k).join('|'); if (sig === ghostSig) return ghosts;
+  ghostSig = sig; ghosts = new Map();
+  const opaque = (o) => o.n ??= (() => { let n = 0; for (let i = 3; i < o.s.alpha.length; i += 4) if (o.s.alpha[i] > SOLID) n++; return n; })();
+  for (const A of list) {
+    const behind = [];
+    for (const B of list) { if (B === A || B.d >= A.d) continue;
+      const aw = A.s.canvas.width, ah = A.s.canvas.height, bw = B.s.canvas.width, bh = B.s.canvas.height;
+      const X0 = Math.max(A.x0, B.x0), Y0 = Math.max(A.y0, B.y0), X1 = Math.min(A.x0 + aw, B.x0 + bw), Y1 = Math.min(A.y0 + ah, B.y0 + bh);
+      if (X1 <= X0 || Y1 <= Y0) continue;
+      let cov = 0; for (let y = Y0; y < Y1; y += 2) for (let x = X0; x < X1; x += 2) if (B.s.alpha[((y - B.y0) * bw + x - B.x0) * 4 + 3] > SOLID && A.s.alpha[((y - A.y0) * aw + x - A.x0) * 4 + 3] > SOLID) cov += 4;
+      if (cov / Math.max(1, opaque(B)) >= GHOST_MIN) behind.push(B); }
+    if (!behind.length) continue;
+    const W = A.s.canvas.width, H = A.s.canvas.height, mk = () => { const c = document.createElement('canvas'); c.width = W; c.height = H; return c; };
+    const mask = mk(), mg = mask.getContext('2d'); for (const B of behind) mg.drawImage(bodyOf(B.s), B.x0 - A.x0, B.y0 - A.y0);
+    const solid = mk(), sg = solid.getContext('2d'); sg.drawImage(A.s.canvas, 0, 0); sg.globalCompositeOperation = 'destination-out'; sg.drawImage(mask, 0, 0);
+    const ghost = mk(), gg = ghost.getContext('2d'); gg.drawImage(A.s.canvas, 0, 0); gg.globalCompositeOperation = 'destination-in'; gg.drawImage(mask, 0, 0);
+    ghosts.set(A.key, { solid, ghost, through: gg.getImageData(0, 0, W, H).data });
+  }
+  return ghosts;
+}
 /** The building under a pointer (its picture's own pixels, frontmost first), or null. */
 export function buildingAt(e) { const [sx, sy] = mapXY(e);
   for (const it of [...S.drawn].reverse()) { if (!it.s) continue; const x = Math.floor(sx - (it.px - it.s.anchor.x)), y = Math.floor(sy - (it.py - it.s.anchor.y));
-    if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40) return it.key; }
+    if (x >= 0 && y >= 0 && x < it.s.canvas.width && y < it.s.canvas.height && it.s.alpha[(y * it.s.canvas.width + x) * 4 + 3] > 40 && !(it.gh && it.gh.through[(y * it.s.canvas.width + x) * 4 + 3] > 40)) return it.key; }   // see-through: the one behind takes the tap
   return null; }
 
 /** New land rises from the sea, from `center` outward like a wave going round; `old` is the ground as it was. Returns when it ends (s). */
@@ -220,6 +248,8 @@ export function drawMap(dt) {
     items.push({ d: 1e9, draw: () => { g.globalAlpha = .85; g.drawImage(sp.canvas, Math.round(px - sp.anchor.x), Math.round(py - sp.anchor.y - lift)); g.globalAlpha = 1; } }); } }
   const zs = S.zoomShop; if (zs) { zs.t = Math.max(0, Math.min(1, zs.t + zs.dir * dt / .4)); if (zs.dir < 0 && zs.t === 0) S.zoomShop = null; }
   const zoomShop = S.zoomShop;
+  const ghostMap = zoomShop || moving ? new Map() : ghostsFor(all.filter(p => p.b && S.landing?.key !== p.key).map(p => { const s = sprite(p); if (!s) return null; const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2);
+    return { key: p.key, s, x0: Math.round(px - s.anchor.x), y0: Math.round(py - s.anchor.y), d: p.x + p.z + n }; }).filter(Boolean));
   for (const p of all) { if (!p.b || (moving && p.key === moving.key)) continue; const s = sprite(p); if (!s) continue;
     const n = PLOT[p.size], [px, py] = pr.P(p.x + n / 2, p.z + n / 2);
     if (zoomShop?.key === p.key) { const u = zoomShop.t; if (u >= 1) continue; const e = u * u;   // the roof lifts away from an opened shop
@@ -234,7 +264,8 @@ export function drawMap(dt) {
         if (rev < 1) filled(s.canvas, -s.anchor.x, -s.anchor.y, Math.round(s.anchor.y - rev * s.anchor.y), s.canvas.width, s.canvas.height); else g.drawImage(s.canvas, -s.anchor.x, -s.anchor.y);
         if (isDark(p)) { g.globalAlpha = .45; g.drawImage(silhouette(s.canvas, NIGHT), -s.anchor.x, -s.anchor.y); g.globalAlpha = 1; }   // dark until power reaches it
         g.restore(); }, key: p.key, s, px, py }); continue; }
-    items.push({ d: p.x + p.z + n, draw: () => { const x0 = Math.round(px - s.anchor.x), y0 = Math.round(py - s.anchor.y); g.drawImage(s.canvas, x0, y0);
+    const gh = ghostMap.get(p.key);
+    items.push({ gh, d: p.x + p.z + n, draw: () => { const x0 = Math.round(px - s.anchor.x), y0 = Math.round(py - s.anchor.y); if (gh) { g.drawImage(gh.solid, x0, y0); g.globalAlpha = GHOST_A; g.drawImage(gh.ghost, x0, y0); g.globalAlpha = 1; } else g.drawImage(s.canvas, x0, y0);
       if (isDark(p)) { g.globalAlpha = .45; g.drawImage(silhouette(s.canvas, NIGHT), x0, y0); g.globalAlpha = 1; }   // lights out
       const u = connectU(p.key); if (u != null && u >= 1) { lightUp(p, px, py); const f = Math.max(0, 1 - (u - 1) / .3); if (f > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = .45 * f; g.drawImage(s.canvas, x0, y0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; } } }, key: p.key, s, px, py }); }
   if (!S.zoomShop) drawPlants(items);
