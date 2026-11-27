@@ -1,4 +1,4 @@
-// The HUD: coins and income, my level, power and water, the boat horn, the dock buttons, the festival plate,
+// The HUD: coins, my level, power and water (boats come by themselves: no horn), the dock buttons, the festival plate,
 // and the short messages (toast, celebrate, a coin flying up to the coin plate).
 import { iconEl } from '../ui/icons.js';
 import { voxelEl } from '../ui/voxelui.js';
@@ -71,11 +71,6 @@ export function why(anchor, o) {
   const close = (e) => { if (e && w.contains(e.target)) return; w.remove(); removeEventListener('pointerdown', close, true); };   // (a press inside is not a press elsewhere)
   setTimeout(() => addEventListener('pointerdown', close, true), 0);
 }
-/** Call my boat now, if it can come (also the button in the why window). */
-export function callBoat() {
-  if (!S.mySlot || !$('boat').classList.contains('callable')) return false;
-  nextBoat.set(S.mySlot, 0); S.callReady = performance.now() / 1000 + 25; toast('📣 뿌우— 배를 불렀어요!', 1400); hud(); return true;
-}
 /** An icon flies in an arc from a screen point to an element, which bounces when it lands: cause to effect, without words. */
 export function flyIcon(name, [x0, y0], target, size = 32) {
   const to = target?.getBoundingClientRect(); if (!to || !to.width) return;
@@ -103,14 +98,6 @@ export function hud() {
   } else $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, S.boardName || '한 줄 군도', el('small', {}, '섬 고르기')));
   drawMeter();   // power and water by the coins
   if (heldCeleb && !S.buildMode) { const [t, s] = heldCeleb; heldCeleb = null; celebrate(t, s); }
-  const B = $('boat');
-  if (mySlot) { const bp = boatPlan(mySlot), nb = (nextBoat.get(mySlot) ?? 0) - t / 1000, docked = boats.find(b => b.slot === mySlot && b.state !== 'out');
-    const cd = Math.ceil(S.callReady - t / 1000), can = bp.shops && !docked && cd <= 0;
-    B.hidden = false; B.classList.toggle('callable', !!can); B.classList.toggle('docked', !!docked); B.classList.toggle('idle', !bp.shops);
-    $('boatring').style.setProperty('--p', docked || !bp.shops ? 1 : Math.max(0, Math.min(1, 1 - nb / Math.max(1, bp.every))).toFixed(3));
-    $('boatn').textContent = docked ? String(docked.people) : bp.shops ? String(bp.people) : '';
-    $('boatt').textContent = can ? '부르기!' : docked ? '도착!' : bp.shops ? `${Math.max(0, Math.ceil(nb))}초` : '';
-  } else B.hidden = true;
   dockState();
   // the parts the first session has opened; power and water open at the guide's end, flying in from my buildings' side
   if (applyReveal().includes('util')) flyIcon('bolt', [innerWidth / 2, innerHeight / 2], $('pmt'));
@@ -122,10 +109,6 @@ export function initHud() {
   for (const e of document.querySelectorAll('[data-v]')) e.replaceChildren(voxelEl(e.dataset.v, e.closest('.big') ? 6 : 5));   // the dock buttons are voxel dioramas, rendered once
   $('coinb').querySelector('.cic').replaceChildren(iconEl('coin', 36, ''));
   setInterval(hud, 500); hud();
-  // the horn: call the next boat now, then wait for the horn to come back
-  $('boat').addEventListener('click', () => {
-    if (!callBoat()) return;
-  });
   $('d-home').onclick = () => { $('d-home').querySelector('.badge')?.remove(); setBuildMode(false); if ($('panel').hidden || S.current) showHome(); else closePanel(); };   // open my island; a second press closes it
   $('d-auto').onclick = () => { if (!S.myDoc || !canWrite()) return; S.myDoc.wallet.autoInvest = !S.myDoc.wallet.autoInvest; save(true); dockState(); toast(!S.myDoc.wallet.autoInvest ? '가구를 직접 들여요' : '가구가 자동으로 들어와요', 1500); };
   $('festp').onclick = () => { if (S.watching) closeInside(); scrollToSlot(S.mySlot); };

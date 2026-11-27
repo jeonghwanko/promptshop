@@ -14,7 +14,7 @@ import { allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, starText
 import { noSupply } from './utility.js';
 import { save } from './persist.js';
 import { applyZoom } from './camera.js';
-import { toast, why, callBoat, flyIcon } from './hud.js';
+import { toast, why, flyIcon } from './hud.js';
 import { guide, tutEvent, tutInEvent } from './guide.js';
 import { closePanel } from './panel.js';
 import { setBuildMode, startExtend } from './build.js';
