@@ -3,7 +3,7 @@
 // runtime gave it before — storage, who is playing, and Claude — through src/site/runtime.js.
 //   Players start anonymous: the first visit makes an account and a cookie. Docs live in SQLite (store.mjs), every
 //   write is checked (rules.mjs), Claude calls are limited per player and per day (claude.mjs).
-// Usage: node server/main.mjs   env: PORT (5310), DATA_DIR (server-data), SAMPLE (api|cli|echo), ANTHROPIC_API_KEY,
+// Usage: node server/main.mjs   env: PORT (5310), HOST (127.0.0.1; 0.0.0.0 to reach a local test from another machine), DATA_DIR (server-data), SAMPLE (api|cli|echo), ANTHROPIC_API_KEY,
 //        SITE_ORIGIN (https://we.oddbout.com, for link previews), SESSION_SECRET (else made once in DATA_DIR)
 import http from 'node:http';
 import fs from 'node:fs';
@@ -135,4 +135,4 @@ http.createServer(async (req, res) => {
     }
     return json(res, { error: 'not found' }, 404);
   } catch (e) { console.error(e); if (!res.headersSent) json(res, { error: 'server' }, 500); else res.end(); }
-}).listen(PORT, '127.0.0.1', () => console.log(`we.oddbout.com server on http://127.0.0.1:${PORT} (data ${DATA}, Claude ${process.env.SAMPLE ?? 'api'})`));
+}).listen(PORT, process.env.HOST ?? '127.0.0.1', () => console.log(`we.oddbout.com server on http://${process.env.HOST ?? '127.0.0.1'}:${PORT} (data ${DATA}, Claude ${process.env.SAMPLE ?? 'api'})`));
