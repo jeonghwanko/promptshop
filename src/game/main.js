@@ -9,7 +9,7 @@ import { setVoxelPalette } from '../ui/voxelui.js';
 import { centerOf, neighbours, PLOT } from '../v2/isles.js';
 import { normalize } from '../v2/spec.js';
 import { el } from './ui.js';
-import { S, db, me, sim, FROM, BOARD, pr, SHOWCASE } from './state.js';
+import { S, db, me, sim, FROM, BOARD, pr, SHOWCASE, site } from './state.js';
 import { hooks, allPlots, ratesOf, servesOf, tilesOf } from './model.js';
 import { initPersist, WRITER, track } from './persist.js';
 import { initCamera, startZoom, chooseZoom, applyZoom, scrollToSlot, toScreen, scrollToPoint, inSafe } from './camera.js';
@@ -42,7 +42,15 @@ hooks.yielded = () => {   // another tab plays this island now: this one stops a
   document.body.append(el('div', { class: 'handoff' }, el('div', {}, el('b', {}, '다른 창에서 플레이 중'), el('button', { class: 'gold', on: { click: () => location.reload() } }, '여기서 하기'))));
 };
 hooks.tracked = track;   // model.js cannot import persist.js (persist imports model): level-ups are logged through here
-hooks.live = () => { const seen = S.myDoc?.wallet?.seenAt; sessionStart(seen ? (Date.now() - seen) / 60000 : null); fillVault(); loadGuest(); const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // back at my island: what it made while I was away waits at the pier   // a shop of mine opened while waiting: open it again as mine
+hooks.live = () => { const seen = S.myDoc?.wallet?.seenAt; sessionStart(seen ? (Date.now() - seen) / 60000 : null); keyHint(seen); fillVault(); loadGuest(); const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // back at my island: what it made while I was away waits at the pier   // a shop of mine opened while waiting: open it again as mine
+// The island key (panel.js keyCard): said once, on the first visit back after an hour away, when keeping the island matters
+function keyHint(seen) {
+  const w = S.myDoc?.wallet; if (!site?.key || !w || w.keyHint || !seen || Date.now() - seen < 3600e3) return;
+  w.keyHint = 1; S.dirty = true; setTimeout(() => toast('폰을 바꿔도 이어 하려면 · 내 섬 창의 ‘내 섬 열쇠’', 4200), 5000);
+}
+// back from an island key's link (server /k/<key>): say which way it went, then take it off the address
+{ const q = new URLSearchParams(location.search), b = q.get('back');
+  if (b !== null) { q.delete('back'); history.replaceState(null, '', location.pathname + (q.size ? '?' + q : '') + location.hash); setTimeout(() => toast(b === '1' ? '열쇠로 내 섬을 찾았어요' : '열쇠가 맞지 않아요 · 새로 만든 열쇠인지 확인해 주세요', 3200), 1200); } }
 hooks.lost = () => showHome('그 섬은 다른 친구가 먼저 들어갔어요. 다른 섬을 골라 주세요.');   // my first save never landed, and the island was taken
 hooks.namesChanged = () => { const c = S.current; if (c?.kind === 'island' && panelOpen()) showIsland(c.slot); };   // the name arrived after the panel was drawn
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };

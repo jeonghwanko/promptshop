@@ -39,9 +39,22 @@ function session(req, res, { make = true } = {}) {
   // the row comes with the first API call that brings back the cookie the page was given (a request with no cookie makes nothing)
   if (make && c && uid === c[1]) store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at) VALUES (?, ?, ?)`).run(uid, `${pick(ADJ)} ${pick(ANIMAL)}`, Date.now());
   if (c && uid === c[1]) return uid;
+  setSession(req, res, uid);
+  return uid;
+}
+// ---------- the island key: one link that brings an account to another device or browser (2026-11-28) ----------
+// A random key per player, kept server side; opening /k/<key> puts that player's cookie on this browser. A new key ends the old link.
+store.sql.exec(`CREATE TABLE IF NOT EXISTS keys (key TEXT PRIMARY KEY, uid TEXT NOT NULL UNIQUE, at INTEGER NOT NULL)`);
+function keyOf(uid, fresh) {
+  const kept = !fresh && store.sql.prepare(`SELECT key FROM keys WHERE uid = ?`).get(uid); if (kept) return kept.key;
+  const key = crypto.randomBytes(18).toString('base64url');
+  store.sql.prepare(`INSERT INTO keys (key, uid, at) VALUES (?, ?, ?) ON CONFLICT(uid) DO UPDATE SET key = excluded.key, at = excluded.at`).run(key, uid, Date.now());
+  return key;
+}
+const keyUid = (key) => /^[\w-]{24}$/.test(key) ? store.sql.prepare(`SELECT uid FROM keys WHERE key = ?`).get(key)?.uid ?? null : null;
+function setSession(req, res, uid) {
   const secure = req.headers['x-forwarded-proto'] === 'https' ? '; Secure' : '';
   res.setHeader('set-cookie', `sid=${uid}.${sign(uid)}; Path=/; HttpOnly; SameSite=Lax; Max-Age=${400 * 86400}${secure}`);
-  return uid;
 }
 const nameOf = (uid) => store.sql.prepare(`SELECT name FROM users WHERE uid = ?`).get(uid)?.name ?? null;
 
@@ -140,6 +153,11 @@ http.createServer(async (req, res) => {
     if (req.url.includes('\\') || req.url.startsWith('//')) { res.writeHead(400); return res.end(); }
     url = new URL(req.url, 'http://x'); p = url.pathname;
     if (p === '/' || p === '/isles.html') { session(req, res, { make: false }); res.writeHead(200, { 'content-type': TYPES['.html'], 'cache-control': 'no-cache' }); return res.end(page(url)); }
+    if (p.startsWith('/k/')) {   // an island key: this browser becomes that player, then on to their archipelago
+      const uid = keyUid(p.slice(3)), b = url.searchParams.get('board'), to = '/?' + (b && /^[a-z0-9]{3,24}$/.test(b) ? `board=${b}&` : '');
+      if (uid) setSession(req, res, uid);
+      res.writeHead(302, { location: to + (uid ? 'back=1' : 'back=0'), 'cache-control': 'no-store', 'referrer-policy': 'no-referrer' }); return res.end();
+    }
     if (p.startsWith('/og/')) {
       const f = p === '/og/default.png' ? OG_DEFAULT : path.join(DATA, 'og', path.basename(p)); if (!/^\/og\/[a-z0-9]{3,24}\.png$/.test(p) || !fs.existsSync(f)) { res.writeHead(404); return res.end(); }
       res.writeHead(200, { 'content-type': 'image/png', 'cache-control': 'public, max-age=300' }); return fs.createReadStream(f).pipe(res);
@@ -154,6 +172,7 @@ http.createServer(async (req, res) => {
     if (req.method !== 'GET' && req.headers['x-isles'] !== '1') return json(res, { error: 'bad request' }, 400);   // only the page's own calls (a header a form cannot send)
     if (p === '/api/me') { const board = url.searchParams.get('board') ?? 'main'; return json(res, { uid, name: nameOf(uid), left: left(store, uid), owner: store.get('boards', board)?.owner === uid }); }
     if (p === '/api/profiles') { const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 50); return json(res, Object.fromEntries(ids.map(i => [i, { name: nameOf(i) ?? '친구' }]))); }
+    if (p === '/api/key' && req.method === 'POST') { if (tooFast(uid)) return json(res, { error: 'too many writes' }, 429); let fresh = false; try { fresh = !!JSON.parse(String(await body(req, 200)) || '{}').fresh; } catch {} return json(res, { key: keyOf(uid, fresh) }); }
     if (p === '/api/name' && req.method === 'POST') {
       const name = String(JSON.parse(await body(req, 2000)).name ?? '').trim().slice(0, 12);
       if (!name || bad(name)) return json(res, { error: 'bad name' }, 400);

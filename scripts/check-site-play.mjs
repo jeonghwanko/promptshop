@@ -90,5 +90,13 @@ check('no token: told to make their own', (await C.text()).includes('초대받�
 const free = await C.ev(`(() => { for (let s = 1; s <= 10; s++) if (!__isles.S.owners.has(s)) return s; })()`);
 const st = await C.ev(`(async () => { const me = await (await fetch('/api/me', { headers: { 'x-isles': '1' } })).json(); const r = await fetch('/api/doc/i-${board}/' + me.uid, { method: 'PUT', headers: { 'x-isles': '1', 'content-type': 'application/json' }, body: JSON.stringify({ slot: ${free}, plots: {}, half: {}, wallet: {} }) }); return r.status + ' ' + (await r.text()); })()`);
 check('no token: the server refuses', String(st).startsWith('403'), st);
+// 8. the island key: A copies it from their island window; a new browser opens it and is A, on A's island
+await A.front(); await A.ev(`(()=>{ window.__copied = null; document.getElementById('d-home').click(); })()`); await sleep(1000);
+await A.ev(`[...document.querySelectorAll('#panel .card.tile')].find(c => c.textContent.includes('내 섬 열쇠'))?.querySelector('button.gold')?.click()`);
+await A.shot('8-key'); check('island key copied', await until(() => A.ev('!!window.__copied'), 5000));
+const keyLink = await A.ev('window.__copied'), slotA = await A.ev('__isles.S.mySlot'); check('key link names the board', new RegExp(`/k/[\\w-]{24}\\?board=${board}$`).test(keyLink), keyLink);
+const K = await person(keyLink.replace(/^https?:\/\/[^/]+/, base));
+check('the key opens my island in a new browser', await until(async () => (await K.ev(`window.__isles?.S?.mySlot === ${slotA}`)) === true, 15000), await K.ev('location.search + " " + __isles.S.mySlot'));
+check('told it worked, and the address is clean', await until(async () => (await K.ev(`!!document.getElementById('toast')?.textContent.includes('찾았어요') && !location.search.includes('back')`)) === true, 6000), await K.ev(`location.search + ' ' + document.getElementById('toast').textContent`));
 check('no errors', errs.length === 0, errs.slice(0, 3).join(' || '));
 process.exit();

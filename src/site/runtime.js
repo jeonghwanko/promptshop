@@ -72,6 +72,7 @@
       showcase: board === 'main',   // the first board is a showcase: look around, then make your own archipelago
       me: () => call('me?board=' + enc(board)),
       rename: (name) => call('name', { method: 'POST', body: JSON.stringify({ name }) }),
+      key: async (fresh = false) => (await call('key', { method: 'POST', body: JSON.stringify({ fresh }) })).key,   // my island key (a new one ends the old link)
       invite: async (b) => (await call('invite', { method: 'POST', body: JSON.stringify({ board: b }) })).token,
       thumb: (b, blob) => call('thumb/' + enc(b), { method: 'POST', body: blob, headers: { 'content-type': 'image/png' } }),
     },

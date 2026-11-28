@@ -8,7 +8,7 @@ import { renderView } from '../v2/render.js';
 import { iconEl } from '../ui/icons.js';
 import { START_COINS, BRIDGE, PLOTS_PER_LAND, LAND_COST, LAND_LEVEL, LEVELS, levelOf } from './rules.js';
 import { $, el, xbtn } from './ui.js';
-import { S, db, me, site, pr, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN } from './state.js';
+import { S, db, me, site, pr, isOwner, now, canWrite, FROM, PICK, SHOWCASE, MAY_JOIN, BOARD } from './state.js';
 import { nameOf, maxPlots, allPlots, starsInfo, starText, tilesOf, boatPlan, G, rebuild, myUse, mySupply, waterOn } from './model.js';
 import { plantWindow, PLANT } from './utility.js';
 import { save, createMine, removeOthers, track } from './persist.js';
@@ -86,7 +86,7 @@ export function showHome(msg) {
   show(el('h2', {}, `${mySlot}번 섬 `, el('small', {}, `Lv.${lv + 1} ${LEVELS[lv].name}`)),
     el('div', { class: 'row' }, ...(waterOn() ? [0, 1] : [0]).map(k => el('button', { class: 'card tile', on: { click: (e) => plantWindow(k, null, e.currentTarget) } }, iconEl(k ? 'drop' : 'bolt', 32, ''), el('span', { class: 'tt' }, el('b', {}, PLANT[k]), el('small', {}, `${su[k] - u[k]} 남음`))))),
     el('div', { class: 'stats3' }, stat('people', w.served.toLocaleString('ko-KR'), '받은 손님'), stat('boat', bp.shops ? `${bp.every}초` : '—', bp.shops ? `${bp.people}명씩` : '가게 없음'), stat('door', `${mine}/${maxPlots()}`, '건물')),
-    landCard(), nameCard(), msg ? el('div', { class: 'err' }, msg) : null,
+    landCard(), nameCard(), keyCard(), msg ? el('div', { class: 'err' }, msg) : null,
     el('h3', {}, '이웃'), el('div', { class: 'nb' }, bridges.filter(x => x.tagName === 'SPAN')), ...bridges.filter(x => x.tagName !== 'SPAN'), inviteCard());
 }
 /** The name my friends see (the hosted game starts everyone with one like "느긋한 수달"): tap to change it. */
@@ -107,6 +107,23 @@ function nameCard() {
     card.replaceChildren(iconEl('people', 40, ''), el('span', { class: 'tt' }, input, err), ok); input.focus(); input.select();
   };
   return card;
+}
+/** My island key: a link that opens this account on another phone or browser (the hosted game has no sign-in; the cookie is the account). */
+function keyCard() {
+  if (!site?.key) return null;
+  const note = el('small', {}, '다른 기기에서 이어 하는 링크'), copy = el('button', { class: 'gold' }, '복사'), renew = el('button', { class: 'keynew' }, '새 열쇠로 바꾸기');
+  const give = async (fresh) => {
+    copy.disabled = renew.disabled = true;
+    try {
+      const link = `${location.origin}/k/${await site.key(fresh)}?board=${encodeURIComponent(BOARD)}`;
+      track(fresh ? 'key_new' : 'key_copy');
+      if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title: '내 섬 열쇠', url: link }); } catch {} }
+      else { await navigator.clipboard.writeText(link); toast(fresh ? '새 열쇠를 복사했어요 · 예전 링크는 이제 안 열려요' : '복사했어요 · 나만 아는 곳에 두세요', 2600); }
+    } catch { toast('열쇠를 만들지 못했어요. 다시 눌러 주세요', 2000); }
+    copy.disabled = renew.disabled = false;
+  };
+  copy.onclick = () => give(false); renew.onclick = () => give(true);
+  return el('div', { class: 'card tile' }, iconEl('lock', 40, ''), el('span', { class: 'tt' }, note, el('b', {}, '내 섬 열쇠'), renew), copy);
 }
 export async function join(s) {
   if (S.owners.has(s)) return showHome('그 섬은 이미 주인이 있어요.');

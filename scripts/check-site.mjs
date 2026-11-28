@@ -116,4 +116,13 @@ const png = Buffer.from('89504e470d0a1a0a0000000d4948445200000001000000010806000
 check('thumb: members only', (await C.go('/api/thumb/' + board, { method: 'POST', body: png, headers: { 'content-type': 'image/png' } })).status === 403);
 check('thumb: a member sends it', (await B.go('/api/thumb/' + board, { method: 'POST', body: png, headers: { 'content-type': 'image/png' } })).status === 200);
 check('preview picture served', (await fetch(`${base}/og/${board}.png`)).status === 200 && (await C.go(`/?board=${board}`)).text.includes(`/og/${board}.png`));
+// the island key: the same link each time, it brings the account to a new browser, a new key ends the old link
+{ const K = player(), uK = (await K.go('/api/me')).v.uid, k1 = (await K.go('/api/key', { method: 'POST', body: '{}' })).v.key, k2 = (await K.go('/api/key', { method: 'POST', body: '{}' })).v.key;
+  check('island key kept', !!k1 && k1 === k2 && k1.length === 24);
+  const open = async (k) => { const r = await fetch(`${base}/k/${k}?board=${board}`, { redirect: 'manual' }), c = (r.headers.get('set-cookie') ?? '').split(';')[0];
+    const me = c ? await (await fetch(base + '/api/me', { headers: { cookie: c, 'x-isles': '1' } })).json() : null; return { to: r.headers.get('location'), uid: me?.uid }; };
+  const o = await open(k1); check('the key opens the account in a new browser', o.uid === uK && o.to === `/?board=${board}&back=1`, o.to);
+  const k3 = (await K.go('/api/key', { method: 'POST', body: JSON.stringify({ fresh: true }) })).v.key, old = await open(k1), neu = await open(k3);
+  check('a new key ends the old link', k3 !== k1 && !old.uid && old.to.endsWith('back=0') && neu.uid === uK);
+  check('a key needs the page header', (await fetch(base + '/api/key', { method: 'POST', body: '{}' })).status === 400); }
 srv.kill(); process.exit();

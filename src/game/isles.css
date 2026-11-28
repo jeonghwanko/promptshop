@@ -583,3 +583,7 @@ body.hide-level.buildmode #who { display:none; }
 /* phones: the cut-away sits in the upper middle and the zoomed street below competed with it — darken around the building */
 @media (max-width:760px) { .shopwrap { background:radial-gradient(ellipse 85% 42% at 50% 45%, rgba(10,25,40,.12) 35%, rgba(10,25,40,.72) 100%); } }
 @media (max-width:440px) { .want:not(.on) .rw { display:none; } }   /* a phone fits three faces and +N: the coin shows on the chosen one */
+
+/* the island key card (panel.js keyCard): a new key is a quiet line under the name, not a second button */
+.keynew { all: unset; cursor: pointer; font-size: 12px; color: var(--ink2, #6b5a48); text-decoration: underline; margin-top: 2px; }
+.keynew:disabled { opacity: .5; cursor: default; }
