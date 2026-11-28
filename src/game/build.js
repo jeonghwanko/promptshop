@@ -17,7 +17,7 @@ import { faceEl } from '../ui/faces.js';
 import { START_STOCK, REQ_BONUS, UTIL, levelOf, sizesOpen, bad } from './rules.js';
 import { refundOf } from './migrate.js';
 import { $, el } from './ui.js';
-import { S, me, sample, pr, sim, now, canWrite, splash, nextBoat } from './state.js';
+import { S, me, myAnimal, sample, pr, sim, now, canWrite, splash, nextBoat } from './state.js';
 import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf, shortOf, myPlots, isOff } from './model.js';
 import { noSupply, pipeCost } from './utility.js';
 import { stakeSite, dustSite, hookDrop } from './mapfx.js';
@@ -231,13 +231,14 @@ async function build() {
   const done = (msg) => { if (msg) logFail(msg); S.building = null; input.value = msg === undefined ? '' : line; S.current?.kind === 'build' && (S.current = null); if (msg) say(msg); stakeSite(null); setBuildMode(msg !== undefined); };
   const seen = []; let raw = '', broken = 0;
   const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
+    if (s.step === 'building') b.input.owner = myAnimal;   // my animal runs it: at the door from the first line
     if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } logStep(s);
     const st = stamps.querySelector(`[data-k="${s.step}"]:not(.on)`); if (st) st.classList.add('on');
     if (ch.view === 'ext' || st) { thud(x, z, n); if (S.building) { S.building.parts++; S.building.bumpAt = performance.now(); } }
   };
   try {
     const rd = lineReader(apply, () => broken++);
-    await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
+    await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null, owner: myAnimal }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
     const c = check(b.input, { broken, line });
     const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
     if (problems.length && !seen.some(x => x.step === 'guests')) problems.push('The "guests" line is missing: {"step":"guests","who":"<who loves this place, max 14 chars>","reviews":["<3 short guest reviews, each under 26 characters, reacting to the specific things in the description, same language>"]}');   // asked only along with a fix that is going out anyway

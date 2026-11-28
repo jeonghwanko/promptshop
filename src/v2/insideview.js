@@ -1,6 +1,7 @@
 // The live cross-section of one building: the section render, an overlay canvas with the people of an InsideSim,
 // see-through fixtures that can be tapped to buy, and coins and losses that rise over the spot where they happen.
-import { renderView } from './render.js';
+import { renderView, renderVoxels } from './render.js';
+import { animalModel } from './animals.js';
 import { InsideSim, FIX_INFO, FIX_ROLE, costOf, trackOrder, nextUp, LV_MAX, upgradeCost } from './inside.js';
 
 const SHIRTS = ['#e2432f', '#2e86ab', '#e3b448', '#5b8a6a', '#8064a2', '#d97a3a'];
@@ -252,7 +253,7 @@ export class InsideView {
     list.sort((a, b) => a.y - b.y);
     const draw = this.R >= 2 ? personHD : person;   // finer pixels get finer people
     list.forEach((o, k) => { if (o.cut != null) { g.save(); g.beginPath(); g.rect(o.x - 30, o.cut - 90, 60, 90); g.clip(); }
-      o.s ? draw(g, o.x, o.y, { t: 0, id: k * 7 + 3, dir: -1 }, o.s.kind) : draw(g, o.x, o.y, o.p); if (o.cut != null) g.restore(); });
+      o.s ? (this.input.owner ? ownerStaff(g, o.x, o.y, this.input.owner, o.s.kind, this.R >= 2, k) : draw(g, o.x, o.y, { t: 0, id: k * 7 + 3, dir: -1 }, o.s.kind)) : draw(g, o.x, o.y, o.p); if (o.cut != null) g.restore(); });
     for (const e of sim.events.splice(0)) {
       if (e.kind === 'coin') paid.push(e);
       this.floats.push({ text: e.kind === 'coin' ? `+${e.n}` : e.why, x: e.x, y: sim.floorY(e.f) + 1.1, z: e.z, t: 0, bad: e.kind === 'lost', tip: e.tip });
@@ -284,6 +285,21 @@ function person(g, x, y, p, staff) {
   g.fillStyle = staff === 'cook' ? '#ffffff' : '#4a3424'; g.fillRect(x - 2, by - (staff === 'cook' ? 13 : 11) - bob, 4, staff === 'cook' ? 3 : 1);
   if (p.vip) { g.fillStyle = '#ffd23a'; g.fillRect(x - 2, by - 12 - bob, 5, 2); g.fillRect(x - 2, by - 14 - bob, 1, 2); g.fillRect(x, by - 14 - bob, 1, 2); g.fillRect(x + 2, by - 14 - bob, 1, 2); }
   if (!staff && p.mood && p.mood !== 'ok') bubble(g, x, by - 14 - bob, p.mood);
+}
+// ---------- the owner animal behind the counters (the building's owner runs it; every clerk and cook is that animal) ----------
+const STAFF_SPRITES = new Map();
+function ownerSprite(id, kind) {
+  const key = id + ':' + kind; let c = STAFF_SPRITES.get(key);
+  if (!c) { c = renderVoxels(animalModel(id, { apron: kind === 'cook' ? '#f4f1ea' : '#2e5d8a' }), { k: 2, yaw: .38, pitch: .32, character: true }); STAFF_SPRITES.set(key, c); }
+  return c;
+}
+function ownerStaff(g, x, y, id, kind, hd, k) {
+  const c = ownerSprite(id, kind), h = hd ? 25 : 15, w = c.width / c.height * h;
+  const bob = Math.sin(performance.now() / 260 + k * 1.7) > .6 ? (hd ? .5 : 1) : 0;   // a little hop now and then: alive, not walking
+  if (kind === 'clerk') y -= hd ? 6 : 3;   // on a step behind the counter: an animal's head is most of it, so its face must clear the top
+  g.fillStyle = 'rgba(0,0,0,.22)'; g.fillRect(x - w * .3, y - .5, w * .6, 1.5);
+  const sm = g.imageSmoothingEnabled; g.imageSmoothingEnabled = true; g.imageSmoothingQuality = 'high';
+  g.drawImage(c, x - w / 2, y - h - bob, w, h); g.imageSmoothingEnabled = sm;
 }
 // ---------- people on half-pixels (when the cut-away is drawn at res 2 or more) ----------
 const SKIN = ['#f3cfa6', '#e6b68c', '#c99066', '#9a6440'], HAIR = ['#3a2a20', '#1d1a19', '#6b4226', '#b9792f', '#8a8f99', '#9c3a2a', '#e0c070'];

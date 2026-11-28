@@ -4,10 +4,13 @@ import { makeIsles, islesProjection, drawIsles, WORLD } from '../v2/isles.js';
 import { TownSim } from '../v2/townsim.js';
 import { $ } from './ui.js';
 import { FEST } from './rules.js';
+import { animalFor } from '../v2/animals.js';
 
 const use = async (n) => (await window.claude?.use?.(n)?.catch?.(() => null)) ?? null;
 export const [db, user, sample, site] = await Promise.all([use('db'), use('user'), use('sample'), use('site')]);   // site: only on the hosted game (src/site/runtime.js)
 export const me = user ? await user.id() : null, isOwner = user ? await user.isOwner() : false;
+// my animal: it runs every shop I build (the server picks it with my account; a runtime without it gets one from my id)
+export const myAnimal = (user?.animal ? await user.animal().catch(() => null) : null) ?? animalFor(me);
 
 // which board (ten islands of one group of friends) this page shows; the first board keeps the old collection name
 export const BOARD = new URLSearchParams(location.search).get('board') || 'main';

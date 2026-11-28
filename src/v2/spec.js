@@ -5,6 +5,7 @@ import { TYPES, STYLES, SCALE, FAMILY_LOOK, TYPE_LOOK } from './catalog.js';
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
 import { ZONE_NAMES, FIXTURE_NAMES, defaultFloors } from './interior.js';
+import { ANIMAL_IDS } from './animals.js';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const color = (v, d) => (typeof v === 'string' && HEX.test(v) ? v : d);
@@ -16,11 +17,11 @@ export const GROUNDS = ['stairs_down', 'shopfront', 'arcade', 'portico', 'canopy
 export const RHYTHMS = ['punched', 'bands', 'grid', 'curtain', 'lattice', 'arched', 'none'];
 export const MASS_SHAPES = ['box', 'round', 'canopy', 'bowl', 'saucer'];
 export const SIDES = ['main', 'left', 'right', 'back', 'front', 'top'];
-export const HEROES = ['none', 'sculpture', 'outdoor_pool', 'giant_glove', 'stall_row', 'food_cart', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
+export const HEROES = ['none', 'owner_statue', 'sculpture', 'outdoor_pool', 'giant_glove', 'stall_row', 'food_cart', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
   'postbox', 'slide', 'banners', 'marquee_lights', 'dumbbell', 'floodlights', 'giant_pin', 'chimney_stack', 'weathervane', 'mailbox', 'water_tank', 'chimney', 'spire', 'minaret', 'lamp', 'sails'];
 export const ICONS = ['fish', 'fork', 'cup', 'bread', 'glass', 'burger', 'noodle', 'cart', 'bag', 'pill', 'news', 'pc', 'bed', 'flag', 'badge', 'fire', 'mail', 'book', 'star', 'cap', 'cross',
   'column', 'frame', 'mask', 'film', 'music', 'dumbbell', 'wave', 'ball', 'train', 'bus', 'fuel', 'car', 'gear', 'box', 'wrench', 'wheat', 'house', 'tree', 'cross_r', 'lotus', 'moon', 'clock', 'crown'];
-export const PROPS = ['plant', 'bench', 'stool', 'lantern', 'flag', 'crate', 'barrel', 'bike', 'aboard', 'parasol', 'bollard', 'tree', 'vending', 'car', 'cat'];
+export const PROPS = ['plant', 'bench', 'stool', 'lantern', 'flag', 'crate', 'barrel', 'bike', 'aboard', 'parasol', 'bollard', 'tree', 'vending', 'car', 'cat', 'owner'];
 export const MAX_SHOWN_LEVELS = 5;   // floors drawn on the map; taller buildings show a band for the rest (2026-11-28: 8 → 5, a tower no longer as tall as the island)
 
 function roofOf(input, type, style) {
@@ -107,5 +108,6 @@ export function normalize(input = {}) {
     props: (Array.isArray(input.props) ? input.props : [{ type: 'plant', x: -0.4 }, { type: 'plant', x: 0.4 }]).slice(0, 8)
       .filter(p => PROPS.includes(p?.type)).map(p => ({ type: p.type, x: num(p.x, -4, 4, 0), color: color(p.color, accent) })),
     night: !!input.night,
+    owner: oneOf(input.owner, ANIMAL_IDS, null),   // the animal who runs it (the builder's animal): at the door, behind the counters
   });
 }

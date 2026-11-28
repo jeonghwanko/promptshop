@@ -4,6 +4,7 @@ import * as THREE from 'three';
 import { surface, mat, glow, shade, texMat, tex } from './materials.js';
 import { buildRoof } from './roofs.js';
 import { MAX_SHOWN_LEVELS } from './spec.js';
+import { animalModel } from './animals.js';
 
 const GH = 1.45, FH = 1.25, PL = 0.12;                    // ground floor, upper floor, default plinth height
 const levelY = (n) => (n <= 0 ? 0 : GH + (n - 1) * FH);
@@ -18,6 +19,14 @@ export function buildExterior(spec, section) {
   const box = (w, h, d, m, x, y, z) => { const o = new THREE.Mesh(new THREE.BoxGeometry(w, h, d), m); o.position.set(x, y + h / 2, z); return add(o); };
   const cyl = (r1, r2, h, m, x, y, z, seg = 10) => { const o = new THREE.Mesh(new THREE.CylinderGeometry(r1, r2, h, seg), m); o.position.set(x, y + h / 2, z); return add(o); };
   const ball = (r, m, x, y, z) => { const o = new THREE.Mesh(new THREE.SphereGeometry(r, 10, 8), m); o.position.set(x, y, z); return add(o); };
+  // a voxel figure (the owner animal), h units tall, standing at (x, y, z) facing the street (+z)
+  const figure = (vox, h, x, y, z, turn = 0) => {
+    const ys = vox.map(q => q[1]), xs = vox.map(q => q[0]), zs = vox.map(q => q[2]), top = Math.max(...ys) + 1, u = h / top;
+    const cx = (Math.min(...xs) + Math.max(...xs) + 1) / 2, cz = (Math.min(...zs) + Math.max(...zs) + 1) / 2;
+    const im = new THREE.InstancedMesh(new THREE.BoxGeometry(u, u, u), new THREE.MeshLambertMaterial(), vox.length), m4 = new THREE.Matrix4(), col = new THREE.Color();
+    vox.forEach(([vx, vy, vz, c], i) => { m4.makeTranslation((vx + .5 - cx) * u, (vy + .5) * u, (vz + .5 - cz) * u); im.setMatrixAt(i, m4); im.setColorAt(i, col.set(c)); });
+    const g = new THREE.Group(); g.add(im); g.position.set(x, y, z); g.rotation.y = turn; return add(g);
+  };
   const st = spec.style_, trim = mat(spec.trim), accent = spec.accent;
   // daylight glass: sky blue with a lighter lower band and one diagonal glint per pane (the map is a sunny day)
   const glassM = mat(0xffffff, { map: GLINT ??= tex(8, 8, (g) => { g.fillStyle = '#8fd8ee'; g.fillRect(0, 0, 8, 8); g.fillStyle = '#6cc0e0'; g.fillRect(0, 5, 8, 3); g.fillStyle = '#eafcff'; for (let q = 0; q < 5; q++) g.fillRect(5 - q, q, 1, 1); }), emissive: 0x2a6f84 });
@@ -286,6 +295,9 @@ export function buildExterior(spec, section) {
     const top = Math.max(main.top ?? gy + 1.5, (kind === 'spire' || kind === 'lamp' || kind === 'siren' || kind === 'weathervane') ? skyTop : 0), roofY = plinthH + levelY(main.shown) + (main.shownBase ? levelY(main.shownBase) : 0);
     const a = mat(accent), white = mat('#f4f1ea');
     switch (kind) {
+      case 'owner_statue': if (spec.owner) { // the owner as a big painted figure on a plinth beside the door: whose shop this is, at a glance
+        const sx = fx - mw / 2 + .32, sz = fz + .78; box(.62, .22, .5, mat('#e8e2d6'), sx, 0, sz); box(.68, .05, .56, mat('#c9c1b0'), sx, .22, sz);
+        figure(animalModel(spec.owner), 1.35, sx, .27, sz, .25); } break;
       case 'giant_cup': cyl(.3, .24, .5, white, fx - mw * .2, roofY + .1, main.z, 12); cyl(.28, .28, .04, mat('#6b4026'), fx - mw * .2, roofY + .58, main.z, 12); { const t = new THREE.Mesh(new THREE.TorusGeometry(.12, .04, 6, 10), white); t.position.set(fx - mw * .2 + .32, roofY + .35, main.z); t.rotation.y = Math.PI / 2; add(t); } break;
       case 'giant_bread': { const b = ball(.38, mat('#c98a4b'), fx - mw * .15, roofY + .35, main.z); b.scale.set(1.3, .6, .8); for (const k of [-1, 0, 1]) box(.06, .05, .3, mat('#e8c088'), fx - mw * .15 + k * .2, roofY + .55, main.z); break; }
       case 'big_fork': for (const k of [-1, 0, 1]) box(.06, .5, .06, mat('#d8d8d8'), fx + mw * .3 + k * .1, roofY + .7, main.z); box(.3, .08, .08, mat('#d8d8d8'), fx + mw * .3, roofY + .62, main.z); box(.08, .6, .08, mat('#d8d8d8'), fx + mw * .3, roofY, main.z); break;
@@ -382,8 +394,11 @@ export function buildExterior(spec, section) {
       case 'vending': box(.42, .9, .35, mat(p.color), x, 0, z - .1); box(.3, .4, .02, glow('#c8f4ff'), x, .35, z + .08); break;
       case 'car': box(.95, .3, .5, mat(p.color), x, .1, z + .3); box(.55, .22, .46, mat(shade(p.color, .8)), x - .05, .4, z + .3); for (const s of [-1, 1]) for (const t of [-1, 1]) cyl(.1, .1, .08, mat('#222222'), x + s * .3, .02, z + .3 + t * .25, 8); break;
       case 'cat': box(.28, .14, .14, mat('#2a2a2a'), x, 0, z); box(.13, .12, .13, mat('#2a2a2a'), x + .17, .1, z); break;
+      case 'owner': if (spec.owner) figure(animalModel(spec.owner), .62, x, 0, z); break;
     }
   });
+  // the owner always stands by the door to greet the street (unless a line already put it out front)
+  if (spec.owner && !spec.props.some(p => p.type === 'owner')) { enter('owner'); figure(animalModel(spec.owner, { apron: accent }), .64, fx + mw * .16, plinthH > .2 ? plinthH : 0, fz + .38); }
   root.userData.shownLevels = Object.values(placed).reduce((a, m) => Math.max(a, m.shownBase + m.shown), 0);
   return root;
 }

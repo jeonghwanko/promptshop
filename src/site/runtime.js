@@ -51,7 +51,7 @@
   const IDLE_MS = 45000;
   const NS = {
     db: { collection, doc: (p) => { const i = p.lastIndexOf('/'); return docRef(p.slice(0, i), p.slice(i + 1)); } },
-    user: { id: async () => (await me()).uid, isOwner: async () => (await me()).owner, profiles: (ids) => call('profiles?ids=' + ids.map(enc).join(',')) },
+    user: { id: async () => (await me()).uid, isOwner: async () => (await me()).owner, animal: async () => (await me()).animal ?? null, profiles: (ids) => call('profiles?ids=' + ids.map(enc).join(',')) },
     sample: async (input, opts = {}) => {
       const prompt = typeof input === 'string' ? input : input.map(m => m.content).join('\n\n');
       const ctl = new AbortController(); opts.signal?.addEventListener('abort', () => ctl.abort());

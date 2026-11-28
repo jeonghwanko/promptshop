@@ -17,6 +17,7 @@ import { guestOf } from './special.mjs';
 import { createShop, shopConfig } from './shop.mjs';
 import { bad } from '../src/game/rules.js';
 import { BRAND, brandPage } from '../src/brand.js';
+import { ANIMALS, ANIMAL_IDS } from '../src/v2/animals.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +(process.env.PORT ?? 5310), DATA = path.resolve(process.env.DATA_DIR ?? path.join(root, 'server-data'));
@@ -31,8 +32,16 @@ const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('base64
 
 // ---------- players: anonymous at first, a cookie keeps them ----------
 const ADJ = ['느긋한', '용감한', '졸린', '반짝이는', '수줍은', '씩씩한', '배고픈', '다정한', '엉뚱한', '부지런한', '신난', '조용한'];
-const ANIMAL = ['수달', '갈매기', '거북이', '고래', '해달', '펭귄', '물개', '게', '문어', '돌고래', '복어', '불가사리'];
+// every player is an animal (src/v2/animals.js): it is in their first name and it runs every shop they build (2026-11-28)
 const pick = (a) => a[crypto.randomInt(a.length)];
+if (!store.sql.prepare(`SELECT 1 FROM pragma_table_info('users') WHERE name = 'animal'`).get()) store.sql.exec(`ALTER TABLE users ADD COLUMN animal TEXT`);
+/** My animal; a player from before animals gets one now (the one their name names, if any) and keeps it. */
+function animalOf(uid) {
+  const row = store.sql.prepare(`SELECT name, animal FROM users WHERE uid = ?`).get(uid); if (!row) return null;
+  if (ANIMAL_IDS.includes(row.animal)) return row.animal;
+  const a = ANIMAL_IDS.find(id => row.name?.includes(ANIMALS[id].ko)) ?? pick(ANIMAL_IDS);
+  store.sql.prepare(`UPDATE users SET animal = ? WHERE uid = ?`).run(a, uid); return a;
+}
 // The page only hands out a signed cookie; the player's row is made on their first API call, so link-preview bots
 // (which fetch the page and run nothing) leave no players behind. The cookie comes with the page, before any API call,
 // so parallel first calls share one id.
@@ -40,7 +49,7 @@ function session(req, res, { make = true } = {}) {
   const c = /(?:^|;\s*)sid=([\w-]+)\.([\w-]+)/.exec(req.headers.cookie ?? '');
   const uid = c && sign(c[1]) === c[2] ? c[1] : crypto.randomBytes(12).toString('base64url').replace(/[-_]/g, 'x');
   // the row comes with the first API call that brings back the cookie the page was given (a request with no cookie makes nothing)
-  if (make && c && uid === c[1]) store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at) VALUES (?, ?, ?)`).run(uid, `${pick(ADJ)} ${pick(ANIMAL)}`, Date.now());
+  if (make && c && uid === c[1]) { const a = pick(ANIMAL_IDS); store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at, animal) VALUES (?, ?, ?, ?)`).run(uid, `${pick(ADJ)} ${ANIMALS[a].ko}`, Date.now(), a); }
   if (c && uid === c[1]) return uid;
   setSession(req, res, uid);
   return uid;
@@ -175,7 +184,7 @@ http.createServer(async (req, res) => {
     if (p === '/api/polar/webhook' && req.method === 'POST') { const r = shop.webhook(req.headers, await body(req, 256 * 1024)); return json(res, r.body, r.status); }
     const uid = session(req, res);
     if (req.method !== 'GET' && req.headers['x-isles'] !== '1') return json(res, { error: 'bad request' }, 400);   // only the page's own calls (a header a form cannot send)
-    if (p === '/api/me') { const board = url.searchParams.get('board') ?? 'main'; return json(res, { uid, name: nameOf(uid), left: left(store, uid), owner: store.get('boards', board)?.owner === uid }); }
+    if (p === '/api/me') { const board = url.searchParams.get('board') ?? 'main'; return json(res, { uid, name: nameOf(uid), animal: animalOf(uid), left: left(store, uid), owner: store.get('boards', board)?.owner === uid }); }
     if (p === '/api/shop' && req.method === 'GET') return json(res, shop.view(uid, url.searchParams.get('checkout')));   // ?checkout=: that order's state, back from Polar
     if (p === '/api/shop/checkout' && req.method === 'POST') {   // a Polar checkout for one pack; back to the board the player came from
       if (tooFast(uid)) return json(res, { error: 'too many writes' }, 429);
@@ -183,7 +192,7 @@ http.createServer(async (req, res) => {
       const back = `${ORIGIN}/` + (/^[a-z0-9]{3,24}$/.test(board) && board !== 'main' ? `?board=${board}` : '');
       const r = await shop.checkout(uid, String(sku), back); return json(res, r.url ? { url: r.url } : { error: r.error }, r.status);
     }
-    if (p === '/api/profiles') { const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 50); return json(res, Object.fromEntries(ids.map(i => [i, { name: nameOf(i) ?? '친구' }]))); }
+    if (p === '/api/profiles') { const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 50); return json(res, Object.fromEntries(ids.map(i => [i, { name: nameOf(i) ?? '친구', animal: animalOf(i) }]))); }
     if (p === '/api/key' && req.method === 'POST') { if (tooFast(uid)) return json(res, { error: 'too many writes' }, 429); let fresh = false; try { fresh = !!JSON.parse(String(await body(req, 200)) || '{}').fresh; } catch {} return json(res, { key: keyOf(uid, fresh) }); }
     if (p === '/api/name' && req.method === 'POST') {
       const name = String(JSON.parse(await body(req, 2000)).name ?? '').trim().slice(0, 12);

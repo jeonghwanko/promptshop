@@ -6,6 +6,7 @@ import { GROUNDS, RHYTHMS, ICONS, HEROES, PROPS, MASS_SHAPES, normalize } from '
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
 import { ZONE_NAMES, FIXTURE_NAMES, zoneFixtures } from './interior.js';
+import { ANIMALS } from './animals.js';
 
 export function emptyBuilding() { return { input: null }; }
 
@@ -72,13 +73,15 @@ const list = (a) => a.join('|');
 const TYPE_LIST = Object.keys(TYPES).map(t => `${t}(${TYPE_KO[t] ?? t})`).join(' ');
 const STYLE_LIST = Object.keys(STYLES).map(t => `${t}(${STYLE_KO[t] ?? t})`).join(' ');
 
-export function buildPrompt(line, { lot, place, request } = {}) {
+export function buildPrompt(line, { lot, place, request, owner } = {}) {
   // a request card: the island asked for a kind of place; the type must be one that serves it
   const requestRule = request ? `\nThe islanders asked for ${request.en}. The building must be one of these types: ${request.types.join(', ')} (pick the one that fits the description best).` : '';
   const placeRule = place ? `\nThe building stands in ${place}. When the description does not say otherwise, let the local architecture, materials and climate of that place shape it.` : '';
   const lotRule = lot ? `\nThe building stands on a lot of size ${lot.size} (${lot.w} x ${lot.d} tiles). Use "scale":"${lot.size}" and keep the footprint, wings included, within ${(lot.w - .6).toFixed(1)} x ${(lot.d - .8).toFixed(1)} tiles; leave the front edge for props.` : '';
+  // the owner: the builder's animal runs every shop they build (2026-11-28); the engine draws it, the model makes the building its own
+  const an = ANIMALS[owner], ownerRule = an ? `\nThis shop is run by its owner, a ${an.en} (${an.ko}). The engine already draws the ${an.en} standing at the door and working behind every counter, so you do not need to. Make the building itself unmistakably a ${an.en}'s place too, through what you choose: ${an.kit}. Use hero "owner_statue" (a big painted ${an.en} figure by the door) unless the description needs another hero to be recognisable. Let the name, the notes and the guests' reviews play with the ${an.en} running it.` : '';
   return `You design one building for an isometric pixel-art town, outside and inside, from this one-line description:
-"${line}"${placeRule}${lotRule}${requestRule}
+"${line}"${placeRule}${lotRule}${requestRule}${ownerRule}
 
 How it works: you pick the closest building TYPE and a STYLE, and the engine already knows good defaults for both (size, floors, roof, front, sign, hero prop). Then you override only what this description needs, so the building is recognisably THIS building. If no type fits exactly, pick the closest one and override its parts.
 
