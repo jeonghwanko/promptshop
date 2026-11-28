@@ -683,3 +683,13 @@ body.hide-level.buildmode #who { display:none; }
 .ledger .lwarm, .ledger .lpay { display: inline-flex; align-items: center; gap: 2px; font-size: 15px; white-space: nowrap; } .ledger .lwarm { color: #b4501c; } .ledger .lpay { color: #8a5a00; }
 .ledger .lwarm img, .ledger .lpay img { image-rendering: pixelated; }
 .ledger .lcard > .lgo { justify-content: center; width: 100%; font-size: 19px; }
+/* the arrival payoff: stars stamped one by one, the wallet gulping each coin */
+.toystars { position: fixed; left: 0; top: 0; z-index: 16; display: flex; gap: 2px; pointer-events: none; }
+.toystars .st { display: grid; place-items: center; width: 34px; height: 34px; opacity: 0; filter: drop-shadow(0 2px 0 #2e241a) drop-shadow(2px 0 0 #2e241a) drop-shadow(-2px 0 0 #2e241a) drop-shadow(0 -2px 0 #2e241a); }
+.toystars .st img { image-rendering: pixelated; }
+.toystars .st.on { opacity: 1; animation: starslam .32s cubic-bezier(.2,1.5,.4,1) both; }
+.toystars .st.off { opacity: .9; filter: grayscale(1) brightness(.75) drop-shadow(0 2px 0 #2e241a); animation: starslam .32s .45s cubic-bezier(.2,1.5,.4,1) both; }
+@keyframes starslam { from { opacity: 0; transform: translateY(-26px) scale(2.2) rotate(-20deg); } 60% { opacity: 1; transform: translateY(2px) scale(.9) rotate(4deg); } to { opacity: 1; transform: none; } }
+.toystars { animation: starsout 2.2s linear forwards; } @keyframes starsout { 0%, 80% { opacity: 1; } to { opacity: 0; } }
+.coinb.gulp .cic { animation: gulp .22s cubic-bezier(.2,1.6,.4,1); } @keyframes gulp { 40% { transform: scale(1.35) rotate(-8deg); } to { transform: none; } }
+@media (prefers-reduced-motion: reduce) { .toystars .st.on, .toystars .st.off, .coinb.gulp .cic { animation: none; } }

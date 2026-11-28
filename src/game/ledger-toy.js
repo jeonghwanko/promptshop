@@ -16,7 +16,7 @@ import { el } from './ui.js';
 import { iconEl } from '../ui/icons.js';
 import { faceEl } from '../ui/faces.js';
 
-const CAP = 1, ORDER = [3, 6], TTL = [90, 180], K = { near: .045, far: .075, neighbor: .12 }, VMAX = 3.6, STAY = 2.4;   // top speed in tiles a second; seconds at the door (the handoff)
+const CAP = 1, ORDER = [3, 6], TTL = [90, 180], K = { near: .045, far: .075, neighbor: .12 }, VMAX = 3.6, STAY = 3;   // top speed in tiles a second; seconds at the door (the handoff: lettering, stars, coins into the wallet)
 const MENU = { food: ['국밥', '백반', '떡볶이', '김밥'], cafe: ['라떼', '쿠키', '케이크', '스무디'], shop: ['생필품', '꽃다발', '새 옷', '간식'], fun: ['간식 세트', '팝콘', '음료'], rest: ['수건 세트', '조식', '베개'] };
 const WHO = { food: '배고픈 단골', cafe: '커피 단골', shop: '장보는 단골', fun: '놀러 온 단골', rest: '쉬러 온 단골' };
 const rnd = (a, b) => a + Math.random() * (b - a), pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -215,7 +215,9 @@ function makeSound() {
     return { set(v, on) { const t = ctx.currentTime; osc.frequency.setTargetAtTime(48 + v * 38, t, .08); eg.gain.setTargetAtTime(on && soundOn ? .07 : 0, t, .1); },
       skid() { if (soundOn) burst(2200, 3, .22, .45); }, crash() { if (soundOn) { burst(300, .7, .5, .5, 'lowpass'); burst(3000, 2, .15, .3); } },
       vroom() { if (soundOn) { const t = ctx.currentTime; osc.frequency.cancelScheduledValues(t); osc.frequency.setValueAtTime(60, t); osc.frequency.linearRampToValueAtTime(170, t + .35); osc.frequency.linearRampToValueAtTime(110, t + .7); } },
-      coins(n) { if (soundOn) for (let i = 0; i < n; i++) ding(1320 + i * 220, i * .07); } };
+      coins(n) { if (soundOn) for (let i = 0; i < n; i++) ding(1320 + i * 220, i * .07); },
+      tick(i) { if (soundOn) ding(988 * 2 ** (Math.min(i, 14) / 12), 0); },   // a coin lands: each a semitone up
+      stamp(i) { if (soundOn) { burst(160, .8, .55, .22, 'lowpass'); ding(784 * 2 ** (i * 4 / 12), .02); } } };   // a star slams: a thud and a ding a third higher each
   } catch { return null; }
 }
 
@@ -237,11 +239,39 @@ function handoff(c) {
   c.tier = f < 0 ? 'cold' : f >= HOT ? 'hot' : 'ok'; c.handoff = 0;
   if (c.tier === 'cold') { c.soggy = true; redone++; if (orders.length < CAP) orders.push({ ...c.o, id: Math.random(), ttl: 70, ttl0: 70, redo: true }); else missed++;
     setTimeout(() => popAt(x, z, '식었어요…', 'loud cold'), 350); }
-  else { const tip = Math.ceil(c.o.reward * (c.tier === 'hot' ? .6 : .15)); coins += c.o.reward + tip; tips += tip; S.myDoc.wallet.coins += c.o.reward + tip; S.dirty = true;   // into my island's wallet (the HUD's coins) if (c.tier === 'hot') hot++;
-    if (c.tier === 'hot') setTimeout(() => popAt(x, z, '따끈!', 'loud hot'), 350);
-    setTimeout(() => { emit(x, z, 'coin', c.tier === 'hot' ? 14 : 6, 1.2); popAt(x, z, `+${c.o.reward + tip}`, 'gold'); sound?.coins(c.tier === 'hot' ? 4 : 2); }, 900);
-    const line = c.tier === 'hot' ? reviewLine(c.o.shop) : null; if (line) setTimeout(() => bubble(c, line), 1200); }   // a hot one: the regular says a line of the shop's own reviews
+  else {
+    const tip = Math.ceil(c.o.reward * (c.tier === 'hot' ? .6 : .15)), pay = c.o.reward + tip, [dx, dz] = c.path[c.path.length - 1];
+    coins += pay; tips += tip; if (c.tier === 'hot') hot++;
+    // the payoff, one beat after another (2026-11-28 "도파민 터지게"): the lettering, the stars stamped one by one, the coins
+    // flying into the wallet (the number rolls up as each lands), and only then the regular's words
+    if (c.tier === 'hot') setTimeout(() => { popAt(x, z, '따끈!', 'loud hot'); buzz([18, 40, 18]); }, 300);
+    setTimeout(() => stars(dx + .5, dz + .5, c.tier === 'hot' ? 3 : 2), 650);
+    setTimeout(() => { popAt(x, z, `+${pay.toLocaleString('ko-KR')}`, 'gold'); payout(pay, dx + .5, dz + .5, c.tier === 'hot' ? 10 : 6); }, 1250);
+    const line = c.tier === 'hot' ? reviewLine(c.o.shop) : null; if (line) setTimeout(() => bubble(c, line), 2300); }   // a hot one: the regular says a line of the shop's own reviews
   draw();
+}
+const buzz = (pattern) => { try { navigator.vibrate?.(pattern); } catch { /* no vibration here */ } };
+/** Stars stamped over the regular's door one by one: each slams down with a thud and a higher ding; the rest stay grey. */
+function stars(x, z, n) {
+  const row = el('div', { class: 'toystars' }, ...[0, 1, 2].map(() => el('span', { class: 'st' }, iconEl('star', 30, ''))));
+  document.body.append(row); pops.push({ el: row, x, z, t: 0, max: 2.2, rise: 0, dy: -118 });
+  [...row.children].forEach((s, i) => { if (i >= n) { s.classList.add('off'); return; } setTimeout(() => { s.classList.add('on'); sound?.stamp(i); if (i === n - 1) buzz(12); }, i * 170); });
+}
+/** The pay flies into the wallet: coins burst from the door and arc to the HUD's coin; each one that lands adds its share, so
+ *  the wallet's number rolls up coin by coin, each with a ding a step higher than the last. */
+function payout(amount, x, z, n) {
+  const cb = document.querySelector('#coinb .cic'), w = S.myDoc.wallet;
+  if (!cb || document.getElementById('coinb')?.hidden || !cb.getClientRects().length) { w.coins += amount; S.dirty = true; return; }   // no wallet on screen yet: just pay
+  const [x0, y0] = screenAt(x, z), per = Math.floor(amount / n); let paid = 0;
+  for (let i = 0; i < n; i++) setTimeout(() => {
+    const b = cb.getBoundingClientRect(), x1 = b.left + b.width / 2, y1 = b.top + b.height / 2, sx = x0 + (Math.random() - .5) * 40, sy = y0 - 40;
+    const bx = sx + (Math.random() - .5) * 140, by = sy - 70 - Math.random() * 60, coin = iconEl('coin', 26, '');
+    Object.assign(coin.style, { position: 'fixed', left: '0', top: '0', zIndex: 17, pointerEvents: 'none', imageRendering: 'pixelated' }); document.body.append(coin);
+    coin.animate([{ transform: `translate(${sx - 13}px, ${sy - 13}px) scale(.4)` }, { transform: `translate(${bx - 13}px, ${by - 13}px) scale(1.3)`, offset: .3 }, { transform: `translate(${x1 - 13}px, ${y1 - 13}px) scale(.8)` }],
+      { duration: 620 + i * 25, easing: 'cubic-bezier(.45,0,.55,1)' }).onfinish = () => {
+      coin.remove(); const add = i === n - 1 ? amount - paid : per; paid += add; w.coins += add; S.dirty = true; sound?.tick(i);
+      const k = document.getElementById('coinb'); k?.classList.remove('gulp'); void k?.offsetWidth; k?.classList.add('gulp'); };
+  }, i * 60);
 }
 function bubble(c, text) {
   const [x, z] = c.path[c.path.length - 1], b = el('div', { class: 'toysay' }, text); document.body.append(b);
