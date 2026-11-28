@@ -44,6 +44,10 @@ Do this only when the owner asks for it.
 
 An update is a new release folder, a new `current` link and `systemctl restart we-oddbout`. `DATA_DIR` stays where it is. `scripts/release.sh` does all of it for the committed HEAD and prints the way back.
 
+## Renaming stored board names
+
+Board names are data, so a code change does not rename boards already made. `scripts/rename-boards.mjs` changes "군도" to "팝업섬" in them. Without `--apply` it only lists the changes. With `--apply` it refuses while the server runs, writes a checked copy of the store to `BACKUP_DIR`, and renames through the store so each change gets a new number. A name that would pass 24 characters is skipped and listed. The steps and the way back are at the top of the script.
+
 ## Backups
 
 - **On the VM.** `deploy/we-oddbout-backup.timer` runs `server/backup.mjs` daily at 04:30 KST. It writes `/opt/we-oddbout/backups/isles-<day>.db.gz` (checked with `PRAGMA integrity_check`), the session `secret` and the `og/` pictures, and keeps 14 days. Install: copy the `.service` and `.timer` to `/etc/systemd/system/`, then `systemctl daemon-reload && systemctl enable --now we-oddbout-backup.timer`.
