@@ -630,3 +630,27 @@ body.hide-level.buildmode #who { display:none; }
 .reviews .rv { padding: 7px 10px; border-radius: 10px; background: #fffaf0; font-size: 14px; line-height: 1.4; }
 .reviews .rv .rs { display: block; font-size: 10px; letter-spacing: 1px; color: #e0a020; }
 @media (prefers-reduced-motion: reduce) { .review { animation: none; } }
+
+/* the regulars' ledger toy (ledger-toy.js, ?ledger) */
+.ledger { position: fixed; left: 12px; top: 150px; z-index: 15; width: 280px; max-height: calc(100vh - 300px); overflow: auto; padding: 10px; border-radius: 14px; background: #fff8ea; color: #2b2117; box-shadow: 0 4px 0 rgba(0,0,0,.25); font: 13px var(--f-ui); }
+.ledger.min { width: auto; }
+.ledger .lh { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; } .ledger .lh b { font-size: 15px; } .ledger .lh small { color: #7a6a58; margin-left: auto; }
+.ledger .lx { border: 0; border-radius: 8px; background: #efe2c8; padding: 3px 8px; font: inherit; font-weight: 700; cursor: pointer; }
+.ledger .lr { display: grid; gap: 2px; margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid #ead9b6; }
+.ledger .lr.going { background: #e6f2ff; border-color: #8fbbe8; }
+.ledger .lw { display: flex; align-items: center; justify-content: space-between; }
+.ledger .ld { border: 0; background: none; color: #a8937a; cursor: pointer; font-size: 12px; }
+.ledger .lm { display: flex; align-items: center; justify-content: space-between; gap: 6px; } .ledger .lm small { color: #7a6a58; }
+.ledger .lgo { display: inline-flex; align-items: center; gap: 3px; border: 0; border-radius: 8px; padding: 4px 10px; background: #f2c12e; color: #2b2117; font: inherit; font-weight: 800; cursor: pointer; box-shadow: 0 2px 0 #9a6f14; }
+.ledger .lgo:disabled { background: #e8dcc4; box-shadow: none; color: #9a8a76; cursor: default; }
+.ledger .lempty { margin-top: 8px; color: #9a8a76; text-align: center; }
+.ledger .lf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e0cfaa; }
+.ledger .lf span { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; } .ledger .lf small { color: #7a6a58; }
+.ledger .lplus { margin-left: auto; border: 0; border-radius: 8px; padding: 3px 8px; background: #efe2c8; font: inherit; cursor: pointer; }
+.toycourier { position: fixed; left: 0; top: 0; z-index: 14; pointer-events: none; filter: drop-shadow(0 2px 0 rgba(0,0,0,.3)); }
+.toypop { position: fixed; left: 0; top: 0; z-index: 16; pointer-events: none; padding: 2px 8px; border-radius: 8px; background: #fffdf6; color: #2b2117; font: 800 13px var(--f-ui); white-space: nowrap; animation: toypop 1.4s ease-out forwards; }
+@keyframes toypop { from { opacity: 0; margin-top: 0; } 15% { opacity: 1; } to { opacity: 0; margin-top: -36px; } }
+@media (max-width: 760px) { .ledger { top: auto; bottom: 110px; left: 8px; right: 8px; width: auto; max-height: 40vh; } }
+.ledger .lx, .ledger .lplus { color: #2b2117; box-shadow: none; padding: 3px 9px; font: 700 12px var(--f-ui); background: #efe2c8; }
+.ledger .ld { color: #a8937a; background: none; box-shadow: none; padding: 2px 4px; font: 400 12px var(--f-ui); }
+.ledger .lgo { padding: 4px 10px; }

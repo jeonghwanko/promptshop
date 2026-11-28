@@ -55,6 +55,8 @@ function keyHint(seen) {
 // diamonds: the top bar's count opens the shop; back from a payment, wait for it (dia.js)
 document.getElementById('diab')?.addEventListener('click', () => openDiaShop());
 loadDia().then(() => paidReturn());
+// the regulars' ledger, a toy to feel the delivery loop (ledger-toy.js), only with ?ledger
+if (new URLSearchParams(location.search).has('ledger')) import('./ledger-toy.js').then(m => m.startLedgerToy());
 hooks.lost = () => showHome('그 섬은 다른 친구가 먼저 들어갔어요. 다른 섬을 골라 주세요.');   // my first save never landed, and the island was taken
 hooks.namesChanged = () => { const c = S.current; if (c?.kind === 'island' && panelOpen()) showIsland(c.slot); };   // the name arrived after the panel was drawn
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };
