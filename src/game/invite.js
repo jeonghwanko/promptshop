@@ -69,6 +69,8 @@ export async function newBoard() {
 }
 /** Open a board of mine. */
 export function goBoard(id) { const u = new URL(location.href); u.searchParams.set('board', id); for (const k of ['from', 'k', 'world']) u.searchParams.delete(k); location.href = u.toString(); }
+/** One of my boards on a button: its name, then its shops (one I live on) or the day I made it (still empty). */
+export function boardLabel(b) { const d = new Date(b.at ?? 0); return `${b.name} · ${Array.isArray(b.users) && b.users.includes(me) ? `가게 ${b.bld ?? 0}` : `빈 섬 ${d.getMonth() + 1}/${d.getDate()}`}`; }
 /** The boards I made or live on: the ones I live on first (most buildings), then the empty ones I made (newest). Read once a page. */
 let mineP = null;
 export function myBoards() {

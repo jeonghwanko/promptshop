@@ -19,7 +19,7 @@ import { loadDia } from './dia.js';
 import { openShop } from './shop.js';
 import { startMove } from './move.js';
 import { riseLand, planks } from './mapview.js';
-import { inviteCard, newBoard } from './invite.js';
+import { inviteCard, newBoard, myBoards, goBoard, boardLabel } from './invite.js';
 import { BRAND } from '../brand.js';
 
 const panel = () => $('panel');
@@ -147,12 +147,21 @@ export async function halfBridge(n, fromMap = null) {
   track('bridge_half', { to: n, free: !cost, done: !!S.docs.get(S.owners.get(n))?.half?.[S.mySlot] });
   planks(S.mySlot, n, true); if (!fromMap) showHome();
 }
+/** On an island card of a board that is not mine: go to my own board (the list of them, when several), or make one. */
+function toMine() {
+  const b = el('button', { class: 'gold', on: { click: async () => { b.disabled = true; const l = await myBoards();
+    if (l.length === 1) return goBoard(l[0].id);
+    if (l.length) return b.replaceWith(el('div', { class: 'gmine' }, ...l.map(x => el('button', { class: 'gold', on: { click: () => goBoard(x.id) } }, boardLabel(x)))));
+    if (!await newBoard()) b.disabled = false; } } }, '내 팝업섬 세우기');
+  myBoards().then(l => { if (l.length) b.textContent = '내 팝업섬으로'; });
+  return b;
+}
 export function showIsland(s) { S.choosing = false;
   const uid = S.owners.get(s); S.current = { kind: 'island', slot: s, uid };
   if (!uid) {   // an empty island: live here (no island yet), or call a friend to it
     const by = FROM && neighbours(s).includes(FROM) && S.owners.get(FROM);
     return show(el('h2', {}, `${s}번 섬`, el('small', {}, by ? ` · ${nameOf(by)} 옆` : ' · 비어 있어요')),
-      S.mySlot ? inviteCard() : SHOWCASE || !MAY_JOIN ? el('button', { class: 'gold', on: { click: () => newBoard() } }, '내 팝업섬 세우기') : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
+      S.mySlot ? inviteCard() : SHOWCASE || !MAY_JOIN ? toMine() : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
   }
   if (s === S.mySlot) return showHome();
   const ps = allPlots().filter(p => p.slot === s && p.b);

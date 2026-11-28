@@ -9,7 +9,7 @@ import { allPlots, nameOf, plantTiles } from './model.js';
 import { save, track } from './persist.js';
 import { INVITE_AT, levelOf } from './rules.js';
 import { toScreen, scrollToSlot, applyZoom, chooseZoom } from './camera.js';
-import { emptyNeighbours, newBoard, myBoards, goBoard } from './invite.js';
+import { emptyNeighbours, newBoard, myBoards, goBoard, boardLabel } from './invite.js';
 
 // The guide only talks: every step moves on when the thing it points at is done (no buttons in the bubble), so there is
 // one place to press at a time — the faces and the bar at the bottom, or the map when it points there.
@@ -89,9 +89,7 @@ function showcaseTalk() {
     return;
   }
   speak('어느 팝업섬으로 갈까?');
-  const when = (t) => { const d = new Date(t ?? 0); return `${d.getMonth() + 1}/${d.getDate()}`; };
-  const label = (b) => `${b.name} · ${b.users?.includes(me) ? `가게 ${b.bld ?? 0}` : `빈 섬 ${when(b.at)}`}`;
-  $('gbtns').replaceChildren(el('div', { class: 'gmine' }, ...mine.map(b => el('button', { class: 'gold', on: { click: () => goBoard(b.id) } }, label(b)))));
+  $('gbtns').replaceChildren(el('div', { class: 'gmine' }, ...mine.map(b => el('button', { class: 'gold', on: { click: () => goBoard(b.id) } }, boardLabel(b)))));
 }
 
 let panned = -1, inAutoT = 0, inAutoK = -1, waitT = 0, waitK = -1;
