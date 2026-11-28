@@ -45,6 +45,13 @@ export function applyStep(b, step) {
       i.floors.push({ ...pick(step, ['range', 'name', 'zones', 'tint']), fixtures: [] });
       return { view: 'int', key: 'floor:' + (i.floors.length - 1) };
     }
+    case 'guests': {   // who loves this place and what they say about it (2026-11-28: the line I wrote comes back as my guests' words)
+      const t = (v, n) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, n) : '');
+      const reviews = (Array.isArray(step.reviews) ? step.reviews : []).map(r => t(r, 32)).filter(Boolean).slice(0, 4);
+      if (!reviews.length) return null;
+      i.guests = { who: t(step.who, 16), reviews };
+      return { view: 'int', key: 'guests' };
+    }
     case 'order': {   // the order the owner furnishes the shop as it grows: fixture kinds, first = first bought
       const kinds = (Array.isArray(step.kinds) ? step.kinds : []).filter(k => typeof k === 'string' && FIXTURE_NAMES.includes(k));
       if (!kinds.length) return null;
@@ -102,7 +109,9 @@ Make it recognisable at a glance. Rules that help:
 - Words about age and mood change the materials: old, retro, traditional = brick, wood or stone, warm "night": true lights, punched or arched windows; modern, new, minimal = style "modern_glass" or white concrete, rhythm "curtain" or "bands"; luxurious = more floors, a canopy, gold accent; cute or kids = bright accent, rounded props.
 - Pick the inside zones for the actual activity (a boxing gym has "ring", a ballpark has "diamond" and "stands", a library has "stacks" and "reading").
 
-Write every "note" in the same language as the description, under 20 characters, saying what that line builds.`;
+10. Last, one line {"step":"guests","who":"<who loves this place most, a kind of person, max 14 chars>","reviews":["<a guest's review>", "<another>", "<another>"]}: three short reviews (each under 26 characters, spoken like a real guest, casual) that react to the SPECIFIC things in the description and in what you built — the cat, the sea view, the window seats, the grandmother's cooking — never generic praise like "맛있어요" alone. Make at least one of them funny or warm.
+
+Write every "note", "who" and review in the same language as the description; every "note" under 20 characters, saying what that line builds.`;
 }
 
 // ---------- extending a building: one more floor on top, from one line ----------

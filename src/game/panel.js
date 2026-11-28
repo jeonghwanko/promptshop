@@ -16,6 +16,7 @@ import { scrollToSlot, startZoom, applyZoom, scrollToPoint, inSafe } from './cam
 import { toast, celebrate, why } from './hud.js';
 import { guide } from './guide.js';
 import { loadDia } from './dia.js';
+import { guestsOf } from './reviews.js';
 import { openShop } from './shop.js';
 import { startMove } from './move.js';
 import { riseLand, planks } from './mapview.js';
@@ -176,6 +177,7 @@ export function showBuilding(key) {
   show(el('h2', {}, n.name || TYPE_KO[n.type] || '건물', ' ', el('small', {}, `${nameOf(p.owner)} · ${n.levels}층`)),
     st ? el('div', { class: 'stars' }, starText(st)) : null,
     el('div', { class: 'quote' }, `“${p.b.line}”`), el('div', { class: 'pics' }, renderView(p.b.input, 'ext').canvas),
+    (() => { const g = guestsOf(key); return g?.reviews?.length ? el('div', { class: 'reviews' }, g.who ? el('small', {}, `단골 · ${g.who}`) : null, ...g.reviews.map(r => el('div', { class: 'rv' }, el('span', { class: 'rs' }, '★★★★★'), r))) : null; })(),   // what my guests say about it (reviews.js)
     el('div', { class: 'row' }, el('button', { class: 'gold', id: mineP ? 'go-inside' : null, on: { click: () => { closePanel(); openShop(p.key); } } }, mineP ? '가게 안으로' : '안 구경하기'),
       mineP ? el('button', { class: 'ghost', on: { click: () => startMove(p.key) } }, '↔ 옮기기') : null,
       me && (mineP || isOwner) ? el('button', { class: 'warn', on: { click: () => demolish(p) } }, '철거') : null));

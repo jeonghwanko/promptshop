@@ -30,6 +30,7 @@ import { tutEvent, tutOn } from './guide.js';
 import { show, showHome, closePanel, showBuilding } from './panel.js';
 import { openShop, closeInside, renderActs, placeActs } from './shop.js';
 import { loadDia, openDiaShop } from './dia.js';
+import { say as sayReview } from './reviews.js';
 
 // what the island asks for, by kind of guest
 const REQ = {
@@ -260,6 +261,7 @@ async function build() {
     // finished: the building lands with a squash, my line rises over its roof, the first boat leaves now, and the camera
     // stays a moment before going back to where it was
     S.landing = { key, t0: performance.now(), line, rev0 }; nextBoat.set(S.mySlot, 0);   // rev0: how much of it had filled in
+    setTimeout(() => sayReview(key), 3900);   // its first guest's words, as its name settles (reviews.js)
     // then it is dark until power reaches it: a light runs along the cable from the plant and its windows come on (shorter after the first)
     // one thing after another: the scaffold comes down, then the light sets off, then the name and stars rise as it lights up,
     // then 끼룩이 speaks, and last the 요청 해결 / 완공 words

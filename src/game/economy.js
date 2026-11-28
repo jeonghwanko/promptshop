@@ -9,6 +9,7 @@ import { S, me, sim, pops, earned, boats, nextBoat, canWrite } from './state.js'
 import { hooks, allPlots, fixturesOf, ownedOf, helpersOf, levelsOf, starsInfo, ratesOf, servesOf, islandShops, boatPlan, countGuest, rebuild, shortOf, myUse } from './model.js';
 import { save } from './persist.js';
 import { toast, celebrate, flyCoin, flyCoinNow, festHud } from './hud.js';
+import { guestPaid } from './reviews.js';
 
 /** What buying by itself leaves in the wallet: the next bill, and a batch of supplies. */
 const reserve = () => Math.max(RESTOCK.coins, billOf(myUse()));
@@ -30,7 +31,7 @@ export function takeEvents() {
     if (mine && e.vip) vip(e, -.4);
     if (mine && e.fest) festServed(e);
     if (mine) flyCoin(e.lot);
-    if (mine) { hooks.happened('coin'); countGuest(); earn(e.coins); useStock(e.lot, e.used); S.dirty = true; }
+    if (mine) { hooks.happened('coin'); countGuest(); earn(e.coins); useStock(e.lot, e.used); S.dirty = true; guestPaid(e.lot); }   // now and then the guest says a review (reviews.js)
     pops.push({ key: e.lot, text: '+' + e.coins, mine, t: 0 });
   }
 }
