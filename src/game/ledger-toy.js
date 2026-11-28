@@ -70,7 +70,8 @@ function newOrder() {
   const shops = myPlots().filter(p => p.door && servesOf(p)); if (!shops.length) return null;
   const p = pick(shops), n = normalize(p.b.input), need = servesOf(p), mine = new Set(tilesOf(S.mySlot).map(([x, z]) => key(x, z)));
   const w = walk(p.door), here = [], away = [];
-  for (const [k, d] of w.dist) { if (d < 8) continue; const t = [Math.floor(k / 1000), k % 1000]; (mine.has(k) ? here : away).push([t, d]); }   // 8 tiles at least: a ride over in a blink is no ride
+  const jammed = new Set(jams.flatMap(j => j.list.flatMap(([x, z]) => [[0, 0], ...DIRS].map(([dx, dz]) => key(x + dx, z + dz)))));   // no regular lives where cars stand (or are gathering)
+  for (const [k, d] of w.dist) { if (d < 8 || jammed.has(k)) continue; const t = [Math.floor(k / 1000), k % 1000]; (mine.has(k) ? here : away).push([t, d]); }   // 8 tiles at least: a ride over in a blink is no ride
   if (!here.length) return null;
   here.sort((a, b) => a[1] - b[1]); const half = here[Math.floor(here.length / 2)][1];
   const r = Math.random(), kind = away.length && r < .15 ? 'neighbor' : r < .6 ? 'near' : 'far';
@@ -103,8 +104,10 @@ function newCloud(kind, over = false) {
 const CARS = ['#e2685a', '#5fb6e0', '#f2c12e', '#7bc47f', '#f4f0e6', '#a07ad0'];
 /** A jam: three to five road tiles in a row, on my island (or in the middle of the given path). */
 function newJam(path, start = 0) {
-  // never at a shop's door: every route leaves through it, so a jam there would leave no way round (2026-11-28)
-  const door = new Set(myPlots().filter(p => p.door).flatMap(({ door: [x, z] }) => [[0, 0], ...DIRS].map(([dx, dz]) => key(x + dx, z + dz))));
+  // never at a shop's door nor at a regular's door: every route leaves and arrives through them, so a jam there would leave no
+  // way round (2026-11-28)
+  const ends = [...myPlots().filter(p => p.door).map(p => p.door), ...orders.map(o => o.path[o.path.length - 1]), ...couriers.filter(c => !c.back).map(c => c.path[c.path.length - 1])];
+  const door = new Set(ends.flatMap(([x, z]) => [[0, 0], ...DIRS].map(([dx, dz]) => key(x + dx, z + dz))));
   const A = sim.A, roads = path ? path.slice(2, -2) : tilesOf(S.mySlot).filter(([x, z]) => A.isRoad(x, z) && !door.has(key(x, z))); if (!roads.length) return null;
   const make = (seg, ttl, start = rnd(8, 12)) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl: ttl + start, start, start0: start, age: 0,   // start: seconds of cars gathering before the road jams (it can be seen coming)
     cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
@@ -517,7 +520,7 @@ export function startLedgerToy() {
     if (!S.myDoc || !S.mySlot || !sim.A || !myPlots().length) return; clearInterval(wait);
     panel = el('aside', { class: 'ledger', 'aria-label': '단골 장부' }); document.body.append(panel);
     S.mapGround = mapGround;
-    window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, get jams() { return jams; }, screenAt, routesFor, route, forecast, newJam };   // for the recording checks
+    window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, get jams() { return jams; }, screenAt, routesFor, route, forecast, newJam, newOrder };   // for the recording checks
     box()?.addEventListener('pointerdown', () => { if (cam.on) { for (const c of couriers) c.follow = false; cam.back = false; camRelease(); } }, true);   // a drag on the map: the camera lets go
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && choosing) cancelChoose(); });
     let t0 = performance.now(), acc = 0;
