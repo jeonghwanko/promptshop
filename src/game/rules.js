@@ -63,11 +63,11 @@ export const billOf = (use) => Math.round((use[0] + use[1]) * UTIL.rate);
  *  what the island sells; the rest want any kind, which is what asks for new buildings. take: guests a second the
  *  island's shops serve together (Σ 1 / interval). Before, boats grew with the number of shops alone and soon brought
  *  several times what the shops could serve: the faces showed dozens waiting and the only answer was another building. */
-export const BOAT = { slack: .15, share: .75, maxPeople: 14, every: [5, 16] };
+export const BOAT = { slack: .15, share: .75, minPeople: 3, maxPeople: 14, every: [5, 16] };   // minPeople: one slow first shop still sees a boat of people (two every 16 s looked deserted)
 export const boatPlanOf = (shops, fixtures, take = 0) => {
   if (!shops || !(take > 0)) return { every: 16, people: 3, shops, fx: fixtures };
   const rate = take * (1 + BOAT.slack) / BOAT.share, first = Math.max(8, 14 - 2 * shops);   // guests a second; a boat every `first` s to start from
-  const people = Math.max(2, Math.min(BOAT.maxPeople, Math.round(rate * first))), every = Math.round(Math.max(BOAT.every[0], Math.min(BOAT.every[1], people / rate)));
+  const people = Math.max(BOAT.minPeople, Math.min(BOAT.maxPeople, Math.round(rate * first))), every = Math.round(Math.max(BOAT.every[0], Math.min(BOAT.every[1], people / rate)));
   return { every, people, shops, fx: fixtures };
 };
 

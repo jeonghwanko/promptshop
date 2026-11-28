@@ -10,6 +10,7 @@ import { TYPE_KO } from '../v2/catalog.js';
 import { PLOT, dockOf, centerOf, placePlot } from '../v2/isles.js';
 import { buildSection, LAYOUT, remapFixtures } from '../v2/interior.js';
 import { NEED_KEYS, roleOf, typesFor } from '../v2/townsim.js';
+import { LV_MAX } from '../v2/inside.js';
 import { startingFixtures } from '../v2/insideview.js';
 import { iconEl } from '../ui/icons.js';
 import { faceEl } from '../ui/faces.js';
@@ -78,7 +79,7 @@ let moreWants = [];
 function moreList(anchor) {
   document.getElementById('why')?.remove();
   const box = el('div', { class: 'why wantlist', id: 'why', on: { pointerdown: (e) => e.stopPropagation() } }, ...moreWants.map(x => el('button', { class: 'wrow', on: { click: () => { box.remove(); pickWant(x.need); } } },
-    faceEl(x.need), el('b', {}, REQ[x.need].ko), el('span', { class: 'cnt' }, String(x.waiting)), servedKinds().has(x.need) ? el('small', { class: 'rw grow' }, iconEl('up', 16, '')) : el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`))));
+    faceEl(x.need), el('b', {}, REQ[x.need].ko), el('span', { class: 'cnt' }, String(x.waiting)), servedKinds().has(x.need) ? el('small', { class: 'rw grow', title: '가게 키우기', 'aria-label': '가게 키우기' }, iconEl('up', 16, '')) : el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`))));
   document.body.append(box);
   const r = anchor.getBoundingClientRect(), W = box.offsetWidth, H = box.offsetHeight; box.style.left = Math.max(8, Math.min(innerWidth - W - 8, r.left + r.width / 2 - W / 2)) + 'px'; box.style.top = Math.max(8, r.top - H - 10) + 'px';
   const close = (e) => { if (e && box.contains(e.target)) return; box.remove(); removeEventListener('pointerdown', close, true); };   // (a press inside is not a press elsewhere) setTimeout(() => addEventListener('pointerdown', close, true), 0);
@@ -114,13 +115,16 @@ function pickWant(need) {
   $('line').placeholder = '예: ' + ideasOf()[0]; drawAsk(true); tutEvent('card');
   if (matchMedia('(pointer: fine)').matches) $('line').focus();
 }
-/** My shop of a kind with the longest line (the one to grow first), or null when my island has none of that kind. */
+/** A shop that can still take more guests from inside: a piece not bought yet, or one below the top level. */
+const canGrow = (p) => { const fx = fixturesOf(p), own = ownedOf(p), lv = levelsOf(p); return own.size < fx.length || [...own].some(j => (lv[j] ?? 1) < LV_MAX); };
+/** My shop of a kind with the longest line that can still grow (the one to grow first). Null when my island has none of
+ *  that kind, or every one is full grown: then the face builds, as for a kind I do not have. */
 function shopFor(need) {
-  const mine = myPlots().filter(p => servesOf(p) === need && !isOff(p)); if (!mine.length) return null;
+  const mine = myPlots().filter(p => servesOf(p) === need && !isOff(p) && canGrow(p)); if (!mine.length) return null;
   const line = (p) => sim.shops.get(p.key)?.queue?.length ?? 0;
   return mine.sort((a, b) => line(b) - line(a))[0].key;
 }
-const servedKinds = () => new Set(myPlots().filter(p => !isOff(p)).map(servesOf));
+const servedKinds = () => new Set(NEED_KEYS.filter(k => shopFor(k)));   // the kinds whose face grows a shop
 /** The one way to build: a spot on my island (null: the free one nearest the middle) — the window opens there. */
 export function openAt(spot) {
   if (S.building || !S.mySlot) return;
@@ -160,7 +164,7 @@ export function drawAsk(force) {
     const b = el('button', { class: 'want' + (on ? ' on' : '') + (need ? '' : ' free') + (fresh ? ' fresh' : ''), 'data-need': need ?? '', on: { click: () => pickWant(need) } },
       waiting ? el('span', { class: 'cnt' }, String(waiting)) : null, faceEl(need),
       el('span', { class: 'wt' }, el('b', { class: 'lg' }, r ? r.ko : '마음대로'), el('b', { class: 'sh' }, r ? r.short : '마음대로')),
-      r ? (have.has(need) && !S.buildMode ? el('small', { class: 'rw grow' }, iconEl('up', 16, '')) : el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`)) : null);   // a kind I serve: grow that shop (pickWant); else what building it pays
+      r ? (have.has(need) && !S.buildMode ? el('small', { class: 'rw grow', title: '가게 키우기', 'aria-label': '가게 키우기' }, iconEl('up', 16, '')) : el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`)) : null);   // a kind I serve: grow that shop (pickWant); else what building it pays
     b.disabled = busy; return b; };
   // with the bar open, the last chip closes it (Esc does too; the key is shown where there is a keyboard)
   const cancel = (S.buildMode || S.choosing) && !busy ? el('button', { class: 'want cancel', on: { click: () => cancelBuild() } }, iconEl('close', 22, ''), el('span', { class: 'wt' }, el('b', {}, '취소')), matchMedia('(pointer: fine)').matches ? el('kbd', {}, 'Esc') : null) : null;
