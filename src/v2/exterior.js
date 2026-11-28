@@ -301,6 +301,12 @@ export function buildExterior(spec, section) {
     const look = spec.look === 'peek' && isDark(spec.owner) ? 'ears' : spec.look ?? 'face';   // a dark animal behind a roof is a black blob
     if (look === 'peek') { // a giant owner standing behind the shop: its head and paws rise over the roof
       const h = Math.min(6, Math.max(2.6, mw * 2.2)); figure(animalModel(spec.owner), h, fx, Math.max(0, top - h * .6 + .15), main.z - md / 2 - .2); return; }
+    if (look === 'cling') { // the owner clinging to a back wall, north-west (left) or north-east (right), as big as the building: it leans out past the corner
+      let hs = 0; for (const ch of String(spec.name || spec.type)) hs = (hs * 31 + ch.codePointAt(0)) >>> 0;
+      const h = Math.min(4.2, Math.max(1.6, roofY * .95)), slide = ((hs >> 3) % 100) / 100;   // where along the wall
+      if (hs % 2) figure(animalModel(spec.owner), h, fx - mw / 2 - .22, 0, main.z - md * .35 + slide * md * .55, -Math.PI / 3.2);   // north-west wall, turned to peer round toward the street
+      else figure(animalModel(spec.owner), h, fx - mw * .3 + slide * mw * .6, 0, main.z - md / 2 - .22, Math.PI / 3.6);           // north-east wall
+      return; }
     for (const k of [-1, 1]) {
       const x = fx + k * mw * .3, z = main.z + md * .12, earM = a.pattern === 'calico' ? mat(k < 0 ? '#f0a050' : '#3a3238') : a.points ? mat(a.points) : earM0;
       if (a.ears === 'point') { const g = new THREE.Group(), c = new THREE.Mesh(new THREE.ConeGeometry(eh * .5, eh, 14), earM), n = new THREE.Mesh(new THREE.ConeGeometry(eh * .3, eh * .66, 12), inner);
@@ -335,7 +341,7 @@ export function buildExterior(spec, section) {
       const pawM = a.arms === 'dark' ? mat(a.en === 'panda' ? '#2a2a30' : shade(a.body, .45)) : bodyM, pw = ball(.2, pawM, px, py, pz); pw.scale.set(1.1, .75, 1);
       const bean = mat('#ffb3c0'); for (const d of [-.09, 0, .09]) ball(.04, bean, px + d, py + .07, pz + .18); const pad = ball(.06, bean, px, py - .01, pz + .2); pad.scale.set(1.3, .8, .5); }
     if (ex.has('yuzu')) { ball(.42, mat('#ffb52e'), fx, top + .32, main.z); box(.1, .14, .1, mat('#4f8f46'), fx, top + .7, main.z); box(.22, .04, .12, mat('#4f8f46'), fx + .12, top + .76, main.z); }
-    if (ex.has('wool')) { for (let i = 0; i < 7; i++) ball(.26, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw / 2 + (i + .5) * mw / 7, roofY + .08, fz + .12); for (let i = 0; i < 5; i++) ball(.34, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw * .36 + i * mw * .18, top + .05, main.z + md * .1); }
+    if (ex.has('wool')) { const w1 = a.body, w2 = shade(a.body, .93); for (let i = 0; i < 7; i++) ball(.26, mat(i % 2 ? w1 : w2), fx - mw / 2 + (i + .5) * mw / 7, roofY + .08, fz + .12); for (let i = 0; i < 5; i++) ball(.34, mat(i % 2 ? w1 : w2), fx - mw * .36 + i * mw * .18, top + .05, main.z + md * .1); }
     if (ex.has('tuft')) for (const d of [-.12, 0, .12]) { const c = new THREE.Mesh(new THREE.ConeGeometry(.08, .4, 5), bodyM); c.position.set(fx + d, top + .2, main.z); c.rotation.z = d * 2; add(c); }
     // the tail down the sunny side wall
     const tailM = a.points ? mat(a.points) : a.pattern === 'calico' ? mat('#f0a050') : null;

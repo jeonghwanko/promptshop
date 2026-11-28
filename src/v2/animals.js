@@ -68,6 +68,16 @@ export const COATS = {
     black:    { ko: '까만 고양이', en: 'black cat', body: '#2a2630', belly: '#3a3440', face: null, inner: '#8a6a78', eye: '#f2c94a', nose: '#8a6a78', extra: [] },
     siamese:  { ko: '샴 고양이', en: 'siamese cat', body: '#f3e6cf', belly: '#fbf3e4', face: '#5a4034', inner: '#5a4034', points: '#5a4034', pattern: 'points', eye: '#4a8fd8', extra: [] },
   },
+  dog: {
+    shiba:     { ko: '시바견', en: 'shiba inu', body: '#e0954a', belly: '#fff4e6', face: '#fff4e6', ears: 'point', inner: '#fff4e6' },
+    golden:    { ko: '골든 리트리버', en: 'golden retriever', body: '#e8b860', belly: '#f6dca0', face: '#f6dca0', inner: '#d49a40' },
+    poodle:    { ko: '푸들', en: 'poodle', body: '#f0d8b8', belly: '#f0d8b8', face: null, inner: '#e0bc96', nose: '#5a3a2a', extra: ['wool'] },
+    dalmatian: { ko: '달마시안', en: 'dalmatian', body: '#fbfbf8', belly: '#ffffff', face: null, inner: '#2a2630', pattern: 'spots' },
+    maltese:   { ko: '말티즈', en: 'maltese', body: '#ffffff', belly: '#ffffff', face: null, inner: '#f2ede6' },
+    beagle:    { ko: '비글', en: 'beagle', blaze: true, body: '#d9a060', belly: '#ffffff', face: '#ffffff', inner: '#7a4a2a', pattern: 'saddle' },
+    corgi:     { ko: '웰시코기', en: 'welsh corgi', blaze: true, body: '#d9783a', belly: '#ffffff', face: '#ffffff', ears: 'point', inner: '#f7b8a8', tail: 'puff' },
+    husky:     { ko: '허스키', en: 'husky', body: '#8e98a4', belly: '#ffffff', face: '#ffffff', ears: 'point', inner: '#f0f0f0', eye: '#4a8fd8' },
+  },
 };
 /** The animal behind a key ("cat" or "cat:calico"): its shape with the coat's colours over it, and its id. */
 export function animalOf(key) {
@@ -126,7 +136,7 @@ export function animalModel(key, { apron = null, statue = null } = {}) {
     v.ball(10, by + 2.5, 6, 8.6, 8.8, 5.8, (x, y, z) => ((x + y + z) % 5 === 0 || (x * 3 + z) % 7 === 0) ? '#a8cf78' : '#5e8a3e');
     v.box(1, by - 3, 2, 19, by - 3, 9, '#4a6e30');   // the rim
   } else if (!ex.has('tentacles')) v.ball(10, by, 9, 6, 6.6, 5.6, (x, y, z) => z > 11 && Math.abs(x + .5 - 10) < 4.2 && y < by + 4 ? belly : body);
-  if (ex.has('wool')) for (const [cx, cy, cz] of [[5, 9, 8], [15, 9, 8], [10, 12, 6], [7, 4, 10], [13, 4, 10], [10, 6, 13], [6, 12, 11], [14, 12, 11], [10, 3, 6]]) v.ball(cx, cy, cz, 2.6, 2.6, 2.6, (x, y) => (x + y) % 3 ? body : '#ece4d4');
+  if (ex.has('wool')) for (const [cx, cy, cz] of [[5, 9, 8], [15, 9, 8], [10, 12, 6], [7, 4, 10], [13, 4, 10], [10, 6, 13], [6, 12, 11], [14, 12, 11], [10, 3, 6]]) v.ball(cx, cy, cz, 2.6, 2.6, 2.6, (x, y) => (x + y) % 3 ? body : dark(body, .93));
   // apron: a coloured bib and skirt on the front, with ties
   if (apron) { for (let x = 6; x <= 14; x++) for (let y = by - 4; y <= by + 4; y++) { let z = 16; while (z > 9 && !v.has(x, y, z)) z--; if (v.has(x, y, z)) v.put(x, y, z + 1, y === by + 4 || x === 6 || x === 14 ? dark(apron, .8) : apron); }
     v.put(10, by + 1, 16, '#fff3c4'); }   // a little pocket
@@ -151,7 +161,7 @@ export function animalModel(key, { apron = null, statue = null } = {}) {
     if (ex.has('stripes') && z < hz + 3 && y > hy + 3 && (x === 8 || x === 10 || x === 12)) return dark(body, .78);
     return body;
   });
-  if (ex.has('wool')) for (const [cx, cz] of [[6, 9], [10, 7], [14, 9], [8, 12], [12, 12]]) v.ball(cx, hy + 5, cz, 2.4, 2, 2.4, (x, y) => (x + y) % 3 ? '#fbf7ef' : '#ece4d4');
+  if (ex.has('wool')) for (const [cx, cz] of [[6, 9], [10, 7], [14, 9], [8, 12], [12, 12]]) v.ball(cx, hy + 5, cz, 2.4, 2, 2.4, (x, y) => (x + y) % 3 ? body : dark(body, .93));
   if (ex.has('yuzu')) { v.ball(10, hy + 7.5, hz - 1, 2.2, 1.9, 2.2, '#ffb52e'); v.put(10, hy + 9, hz - 1, '#4f8f46'); v.put(11, hy + 9, hz - 1, '#4f8f46'); }
   if (ex.has('tuft')) { v.box(10, hy + 6, hz, 10, hy + 8, hz, body); v.put(11, hy + 8, hz, body); v.put(9, hy + 7, hz, body); }
   if (ex.has('spikes')) for (let k = 0; k < 6; k++) { const z = Math.round(hz + 1 - k * 2.2), y = Math.round(hy + 5.6 - k * k * .55); v.box(9, y, z, 11, y + 1, z, '#ff9a3e'); v.box(10, y + 2, z, 10, y + 3, z, '#ffb86a'); }
@@ -189,6 +199,13 @@ export function animalModel(key, { apron = null, statue = null } = {}) {
   if (a.pattern === 'calico') { // patches of orange and black over the white, in big soft blocks
     const hash = (x, y, z) => { let h = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791); h = Math.imul(h ^ (h >>> 13), 1274126177); return (h >>> 0) % 7; };
     out = out.map(([x, y, z, c]) => { if (c !== body) return [x, y, z, c]; const k = hash(Math.floor(x / 6), Math.floor(y / 5), Math.floor(z / 6)); return [x, y, z, k < 2 ? '#f0a050' : k === 2 ? '#3a3238' : c]; }); }
+  if (a.blaze) { // a white stripe up the middle of the face
+    out = out.map(([x, y, z, c]) => [x, y, z, c === body && Math.abs(x + .5 - 10) < 1.6 && y >= 18 && y <= 26 && z >= 13 ? '#ffffff' : c]); }
+  if (a.pattern === 'spots') { // dalmatian: small black spots
+    const hash = (x, y, z) => { let h = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791); h = Math.imul(h ^ (h >>> 13), 1274126177); return (h >>> 0) % 9; };
+    out = out.map(([x, y, z, c]) => [x, y, z, c === body && hash(Math.floor(x / 2), Math.floor(y / 2), Math.floor(z / 2)) === 0 ? '#2a2630' : c]); }
+  if (a.pattern === 'saddle') { // beagle: a dark brown saddle over the back
+    out = out.map(([x, y, z, c]) => [x, y, z, c === body && z < 8 && y > 4 && y < 14 ? '#5a3a24' : c]); }
   if (a.pattern === 'points') { // siamese: the ears, the tail and the face's middle go dark
     const hy0 = 19; out = out.map(([x, y, z, c]) => [x, y, z, c === body && (y > hy0 + 4 || z <= 3 || (y < hy0 + 1 && y > hy0 - 5 && z > 13 && Math.abs(x + .5 - 10) < 4)) ? a.points : c]); }
   if (statue) out = out.map(([x, y, z, c]) => [x, y, z, c === INK || c === GLINT ? c : tone(statue, c)]);
