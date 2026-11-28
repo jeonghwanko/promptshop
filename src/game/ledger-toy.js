@@ -110,7 +110,7 @@ function newCloud(kind, over = false) {
   const tx = mx + rnd(-4, 4), tz = mz + rnd(-4, 4);
   return { kind, x: tx - Math.cos(a) * far, z: tz - Math.sin(a) * far, r, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, life: (far + 16 + r) / sp };
 }
-const CARS = ['#e2685a', '#5fb6e0', '#f2c12e', '#7bc47f', '#f4f0e6', '#a07ad0'];
+const CARS = ['#e2685a', '#5fb6e0', '#f4f0e6', '#a07ad0', '#c98a5a'];   // never the routes' yellow and teal: a car must not read as a dash
 const makeJam = (seg, ttl, start) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl: ttl + start, start, start0: start, age: 0,   // start: seconds of cars gathering before the road jams (it can be seen coming)
   cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
 /** A jam: three to five road tiles in a row, on my island (or in the middle of the given path). */
@@ -222,7 +222,8 @@ function send(o, path) {
   for (const q of couriers) q.follow = false;
   const c = { o, path, at: 0, v: 0, back: false, turns: turnsOf(path), drifted: new Set(), drift: 0, dsign: 1, start: .7, puff: 0, lastSaid: 0, follow: true,
     wx: null, wxSaid: false, jamSaid: false, took: 0, soggy: false, flip: 1, up: false, wheel: 0, crashT: 0, handoff: null };
-  couriers.push(c); camGrab(); cam.back = false; sound?.vroom();
+  c.marks = forecast(path).marks; couriers.push(c); camGrab();   // marks: where the way ahead meets the jam (red dashes)
+   cam.back = false; sound?.vroom();
   const [x, z] = tileAt(path, 0); emit(x, z, 'exhaust', 10, 1.4); popAt(x, z, '부릉!', 'loud'); draw();
 }
 
@@ -393,6 +394,7 @@ function mapGround(g) {
 const alphaOf = new WeakMap();
 /** Is map point (mx, my) behind a building nearer than depth d? */
 function hidden(mx, my, d) {
+  if ((S.fadeBuildings ?? 1) < .8) return false;   // the buildings are see-through: nothing is behind them
   for (const it of S.drawn ?? []) { if (!it.s?.canvas || it.d <= d) continue; const c = it.gh?.solid ?? it.s.canvas, x = Math.round(mx - Math.round(it.px - it.s.anchor.x)), y = Math.round(my - Math.round(it.py - it.s.anchor.y));
     if (x < 0 || y < 0 || x >= c.width || y >= c.height) continue;
     let a = (it.gh ? null : it.s.alpha) ?? alphaOf.get(c); if (a === undefined) { try { a = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; } catch { a = null; } alphaOf.set(c, a); }   // a building's sprite keeps its own alpha (mapview sprite())
@@ -406,7 +408,7 @@ function drawSprites(g, d) {
   // routes along the ground: true scale, the dashes a building stands in front of are left out
   g.setTransform(d * k, 0, 0, d * k, d * r.left, d * r.top);
   const wait = !couriers.length && orders[0]; if (wait?.risky) wait.routes.forEach((q, i) => drawRoute(g, q.path, ROUTE[i], true, 0, q.f.marks));
-  for (const c of couriers) if (!c.back && c.handoff == null && c.crashT <= 0) drawRoute(g, c.path, 'rgba(255,248,234,.9)', false, c.at + 1);   // the way ahead, faint
+  for (const c of couriers) if (!c.back && c.handoff == null && c.crashT <= 0) drawRoute(g, c.path, '#fffdf6', true, c.at + 1, c.marks);   // the way ahead, bold over the faded town
   for (const j of jams) j.list.forEach(([x, z], i) => { const [px, py] = pr.P(x + .5, z + .5); one(px, py, x + z + 1, () => drawCar(g, j, i)); });
   for (const c of couriers) { const [x, z] = tileAt(c.path, c.at), [px, py] = pr.P(x, z); one(px, py, x + z + .3, () => drawBike(g, c));
     if (c.handoff != null) { const [ex, ez] = c.path[c.path.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, ex + ez + 1.4, () => drawRegular(g, c)); } }
@@ -469,6 +471,13 @@ function placePops(dt) {
 // ---------- the ledger panel ----------
 /** A route's arrival in seconds, red when the food would be cold by then. */
 const secs = (f, fresh) => [el('span', { class: 'sec' + (f.t > fresh ? ' late' : '') }, `${Math.ceil(f.t)}초`)];
+/** Delivering, or choosing between two ways: the buildings fade to see-through (2026-11-28 "배달할때는 건물이 반 투명해지면서
+ *  길과 장애물, 목표물이 잘 보여야 돼"), so the road, the cars in the way, the pin and the bike are all in sight. */
+const FADE = .3;
+function fadeStep(dt) {
+  const want = couriers.some(c => !c.back) || (!couriers.length && orders[0]?.risky) ? FADE : 1, now = S.fadeBuildings ?? 1;
+  const next = now + (want - now) * (1 - Math.exp(-6 * dt)); S.fadeBuildings = Math.abs(next - want) < .01 ? want : next;
+}
 let held = false, dirty = false;
 // The ledger, cut back to the core (2026-11-28): one order: the regular's face with a ring for how long they wait, what they
 // ordered, how long it stays warm (clock) and the pay; one "배달" button, or, when cars are gathering on the big road, two:
@@ -507,7 +516,7 @@ export function startLedgerToy() {
     for (const id of ['zin', 'zout']) document.getElementById(id)?.addEventListener('pointerdown', camLetGo, true);
     panel.addEventListener('pointerdown', () => { held = true; }); addEventListener('pointerup', () => { held = false; if (dirty) draw(); }, true); addEventListener('pointercancel', () => { held = false; if (dirty) draw(); }, true);
     let acc = 0;   // on the game's own frame (main.js), so the camera, the map, its labels and these sprites never drift a frame apart
-    S.preDraw = (dt) => { weatherTick(dt); moveCouriers(dt); camStep(dt); refreshOffer(dt); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } };
+    S.preDraw = (dt) => { weatherTick(dt); moveCouriers(dt); camStep(dt); refreshOffer(dt); fadeStep(dt); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } };
     S.postDraw = (dt) => { drawOver(dt); placePops(dt); };
     draw();
   }, 500);
