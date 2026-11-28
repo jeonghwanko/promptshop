@@ -18,6 +18,8 @@ function wordsOf(key) {
   return reviews.length ? { who: ok(g.who, 20) ? g.who : '', reviews } : null;
 }
 
+/** The shop's next review line, for a regular to say somewhere else (the ledger toy's doorstep), or null. */
+export function reviewLine(key) { const g = wordsOf(key); if (!g) return null; const i = nextOf.get(key) ?? 0; nextOf.set(key, i + 1); return g.reviews[i % g.reviews.length]; }
 /** A guest of shop `key` paid: maybe say one of its reviews (not too often, one bubble at a time). */
 export function guestPaid(key) {
   const n = (paidOf.get(key) ?? 0) + 1; paidOf.set(key, n);

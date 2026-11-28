@@ -262,6 +262,7 @@ export function drawMap(dt) {
   { const box = map.parentElement, z = S.zoom || 1, x0 = (box.scrollLeft - map.offsetLeft) / z, y0 = (box.scrollTop - map.offsetTop) / z;   // only what is on screen
     drawWaves(g, S.ground.waves, performance.now() / 1000, [x0, y0, x0 + box.clientWidth / z, y0 + box.clientHeight / z]); }
   drawChoice();
+  S.mapGround?.(g);   // a toy's marks on the ground (the ledger toy's wet roads and routes): under every building
   if (hover && !building) outline(hover.x, hover.z, moving ? PLOT[moving.size] : PLOT[S.size], hover.idle ? 'rgba(255,255,255,.7)' : hover.door || hover.swap ? '#2fbf71' : '#e2432f');
   if (moving) { const mp0 = myDoc.plots[moving.key]; if (mp0) outline(mp0.x, mp0.z, PLOT[mp0.size], 'rgba(255,255,255,.55)'); }
   const all = allPlots(); if (!S.zoomShop) { drawPoles(all); if (S.showPipe) for (const p of all) if (p.slot === mySlot && p.b) drawPipe(p); drawConnect(); }
@@ -304,6 +305,7 @@ export function drawMap(dt) {
   const fest = S.fest; if (fest) items.push({ d: fest.x + fest.z, draw: () => drawFestBoat(g, pr, fest) });
   { const sb = building ?? site.done ?? site.pending; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
       items.push({ d: sb.x + sb.z - .01, draw: () => drawSite(g, pr, 'back', building) }, { d: sb.x + sb.z + n + .02, draw: () => drawSite(g, pr, 'front', building) }); } else site.parts.length = 0; }
+  S.mapItems?.(items, g, dt);   // a toy's things on the map (the ledger toy's bikes and cars), sorted in with the buildings
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
   // island labels under each island's front shore (never over a roof): owner names; empty islands invite a friend (mine known) or ask to be chosen (no island yet: the
   // ones next to the friend who sent the link glow, else every free one does, softly)
