@@ -131,8 +131,10 @@ export function renderActs(w, p) {
     } else { b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; }; }
     if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
     return b; }));   // (closing is also the back button at the top left, or Esc)
-  // the last button closes, where the hand already is after the list (2026-11-28: a close at the top left alone was too far)
-  box.append(el('button', { class: 'act shut', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, iconEl('close', 32), el('span', {}, '닫기')));
+  // the last row: move and close side by side, where the hand already is after the list (2026-11-28: the close at the top left alone was too far)
+  const shut = el('button', { class: 'act shut', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, iconEl('close', 32), el('span', {}, '닫기'));
+  const move = [...box.children].find(b => b.classList?.contains('act') && b.textContent.trim() === '옮기기');
+  box.append(el('div', { class: 'actrow' }, ...(move ? [move] : []), shut));
   placeActs();
 }
 /** Run the open shop for one frame: its guests, who pays, where it is slow, and the buttons beside it. */

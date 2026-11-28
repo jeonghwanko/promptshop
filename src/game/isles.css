@@ -131,6 +131,7 @@
   .act .price { margin-left:auto; display:flex; align-items:center; gap:3px; font:400 17px var(--f-disp); color:#9a6a10; } .act .price .pxi { width:18px; height:18px; }
   .act.buy { background:#fff3cf; box-shadow:0 4px 0 #9a6f14; } .act:disabled { opacity:.55; } .act:active:not(:disabled) { transform:translateY(2px); box-shadow:0 2px 0 rgba(0,0,0,.3); }
   .act.close { min-width:0; align-self:flex-start; padding:6px 10px; }
+  .actrow { display:grid; grid-template-columns:1fr 1fr; gap:8px; } .actrow .act { min-width:0; }   /* move and close, one row (shop.js renderActs) */
   #map { transition:transform .35s cubic-bezier(.3,.9,.4,1); }
   .slots { display:grid; grid-template-columns:repeat(5, 1fr); gap:6px; } .slots button { padding:8px 0; font-size:13px; }
 
@@ -299,6 +300,7 @@ body:has(.world:not([hidden])) :is(.guide, .garrow) { display:none; }
   .shopacts .act { min-width:0; padding:6px 8px 6px 6px; gap:6px; font-size:14px; } .shopacts .act small { font-size:11px; } .shopacts .act .pxi { width:26px; height:26px; }
   .shopacts .act.close { position:fixed; top:12px; left:12px; }
   .shopacts:has(.extcard) { display:flex; }
+  .shopacts .actrow { grid-column:1 / -1; gap:6px; }
   /* floor buttons: a row above the cut-away (1F on the left), in the open sea there, not over the room's left side */
   .floortabs { left:50%; top:-10px; transform:translate(-50%, -100%); flex-direction:row-reverse; border-radius:14px; max-width:calc(100vw - 24px); overflow-x:auto; }
   .ftab { width:44px; height:40px; flex:none; font-size:16px; } .ftab + .ftab { border-top:0; border-right:1px solid rgba(251,241,220,.2); }
