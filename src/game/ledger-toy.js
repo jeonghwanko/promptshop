@@ -99,7 +99,7 @@ const shopColor = (p) => ACCENTS[([...String(p.key)].reduce((h, ch) => (h * 31 +
 // the regular asks again). The forecasts read these same clouds and jams where they will be when the bike gets there.
 const CLOUD_PUFFS = [[-.62, .25, .3], [-.3, -.05, .38], [.08, -.3, .42], [.45, -.05, .36], [.72, .28, .26], [0, .3, .5]];   // the cloud's silhouette: puffs in -1..1
 const WX = { rain: { crash: .35, say: '비가 와요', ko: '비' }, snow: { crash: .55, say: '눈이 와요', ko: '눈' } }, JAMV = .25, CORNER = .3;
-const HOT = .15;   // a share of the "식기 전" time still left at the door that counts as hot: a grass detour round a jam gets there with .16-.39 left (measured 2026-11-28), so dodging pays
+const HOT = .15, JAM_EARLY = 1.2;   // a share of the "식기 전" time still left at the door that counts as hot: a grass detour round a jam gets there with .16-.39 left (measured 2026-11-28), so dodging pays
 let clouds = [], jams = [], home = null;   // clouds stay empty for now: weather is out until the core is fun (2026-11-28)
 const skyAt = (x, z, t = 0) => { for (const cl of clouds) { if (t > cl.life) continue; const cx = cl.x + cl.vx * t, cz = cl.z + cl.vz * t; if ((x - cx) ** 2 + (z - cz) ** 2 <= cl.r ** 2) return cl.kind; } return null; };
 const jamAt = (k, t = 0) => jams.some(j => j.ttl > t && t >= j.start && j.tiles.has(k));   // jammed at t seconds from now (a forming jam only once its cars are all in)
@@ -135,11 +135,15 @@ const turnsOf = (path) => { const t = [], R = (q) => sim.A.isRoad(q[0], q[1]); f
 const segLen = (path, i) => { const a = path[Math.max(0, Math.min(path.length - 2, i))], b = path[Math.max(1, Math.min(path.length - 1, i + 1))]; return Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; };
 /** The route's forecast: when the bike would reach each tile, is it wet there, is the road jammed. clear: no sky, no jams. */
 function forecast(path, clear = false) {
-  let t = 0, wet = 0, jam = 0, soon = 0, kind = null; const turns = new Set(turnsOf(path)), marks = new Map();
-  for (let i = 1; i < path.length; i++) { const [x, z] = path[i], road = sim.A.isRoad(x, z), j = !clear && road && jamAt(key(x, z), t), s = clear ? null : skyAt(x + .5, z + .5, t);
+  // the pull-away counts from the start (the bike reaches every tile that much later), and a jam still gathering counts as shut
+  // if it shuts within JAM_EARLY of the bike getting there: a forecast that says "you'll slip through" and is wrong makes the
+  // choice a lie (2026-11-28, the bike was caught on a road shown as on time)
+  let t = .6, wet = 0, jam = 0, soon = 0, kind = null; const turns = new Set(turnsOf(path)), marks = new Map();
+  const shut = (k, at) => jams.some(j => j.tiles.has(k) && j.ttl > at && at + JAM_EARLY >= j.start);
+  for (let i = 1; i < path.length; i++) { const [x, z] = path[i], road = sim.A.isRoad(x, z), j = !clear && road && shut(key(x, z), t), s = clear ? null : skyAt(x + .5, z + .5, t);
     t += segLen(path, i - 1) / (VMAX * (j ? JAMV : road ? 1 : GRASS) * (s ? .85 : 1)); if (j) { jam++; if (!jamAt(key(x, z))) soon++; marks.set(i, 'jam'); } else if (s) marks.set(i, 'wet');
     if (turns.has(i)) { t += CORNER; if (s) { wet++; kind = kind === 'snow' ? kind : s; } } }
-  t += .6 + jam * .25;   // pulling away from the shop and braking into and out of a jam (measured on rides, 2026-11-28)
+  t += jam * .25;   // braking into and out of a jam (measured on rides, 2026-11-28)
   return { t, wet, jam, soon, kind, marks };
 }
 
