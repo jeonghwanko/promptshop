@@ -69,7 +69,7 @@ const link = await A.ev('window.__copied'); check('link has board, island, token
 await sleep(1500); const board = /board=(\w+)/.exec(link)[1];
 check('preview picture sent', (await fetch(`${base}/og/${board}.png`)).status === 200);
 const html = await (await fetch(link.replace(/^https?:\/\/[^/]+/, base))).text();
-check('link preview: board name and free islands', /og:title" content="[^"]+의 섬마을 · 빈 섬 9개/.test(html), (html.match(/og:title" content="([^"]+)/) ?? [])[1]);
+check('link preview: board name and free islands', /og:title" content="[^"]+의 팝업섬 · 빈 섬 9개/.test(html), (html.match(/og:title" content="([^"]+)/) ?? [])[1]);
 // 5. the friend, in their own browser: lands next to A, moves in with the token, builds the free half
 const B = await person(link.replace(/^https?:\/\/[^/]+/, base)); await sleep(6000); await B.shot('4-friend');
 await until(async () => (await B.text()).includes('옆'), 15000); await sleep(1500);

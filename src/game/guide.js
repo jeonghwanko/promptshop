@@ -87,8 +87,8 @@ export function guide() {
     return;
   }
   if (SHOWCASE || (!S.mySlot && !MAY_JOIN && S.scrolled)) {   // the showcase, or a private board I was not invited to: look around, then make my own
-    g.hidden = false; speak(SHOWCASE ? '끼룩! 여기는 구경하는 섬마을이야.\n내 섬마을을 세우고 친구들을 불러 봐!' : '끼룩! 여긴 초대받은 친구들의 섬마을이야.\n내 섬마을을 세우고 친구들을 불러 봐!');
-    $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: (e) => { e.currentTarget.disabled = true; newBoard(); } } }, '내 섬마을 세우기'));
+    g.hidden = false; speak(SHOWCASE ? '끼룩! 여기는 구경하는 팝업섬이야.\n내 팝업섬을 세우고 친구들을 불러 봐!' : '끼룩! 여긴 초대받은 친구들의 팝업섬이야.\n내 팝업섬을 세우고 친구들을 불러 봐!');
+    $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: (e) => { e.currentTarget.disabled = true; newBoard(); } } }, '내 팝업섬 세우기'));
     return;
   }
   if (picking()) {

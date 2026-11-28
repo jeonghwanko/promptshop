@@ -46,7 +46,7 @@ export const S = {
   owners: new Map(),             // slot → uid (first to take it)
   myDoc: null, mySlot: 0,
   dirty: false,                  // myDoc changed since the last save
-  names: {}, boardName: BOARD === 'main' ? '첫 섬마을' : '',
+  names: {}, boardName: BOARD === 'main' ? '첫 팝업섬' : '',
   world: makeIsles(new Set(), new Map()),
   ground: null,                  // the islands drawn once, under everything
   // the camera

@@ -62,8 +62,8 @@ export function inviteCard() {
 export async function newBoard() {
   if (!db || !me) return;
   const who = site ? (await site.me()).name : '나', id = 'b' + Date.now().toString(36) + Math.floor(Math.random() * 36 ** 2).toString(36);
-  try { await db.doc('boards/' + id).set({ name: `${who}의 섬마을`.slice(0, 24), lat: 34.5 + Math.random() * 3.5, lng: 126.3 + Math.random() * 3, owner: me, at: Date.now(), n: 0, bld: 0, users: [] }); }
-  catch (e) { return toast(e?.message?.startsWith('too many boards') ? '섬마을은 다섯 개까지, 하루에 몇 개만 만들 수 있어요' : '섬마을을 만들지 못했어요. 다시 눌러 주세요', 2400); }
+  try { await db.doc('boards/' + id).set({ name: `${who}의 팝업섬`.slice(0, 24), lat: 34.5 + Math.random() * 3.5, lng: 126.3 + Math.random() * 3, owner: me, at: Date.now(), n: 0, bld: 0, users: [] }); }
+  catch (e) { return toast(e?.message?.startsWith('too many boards') ? '팝업섬은 다섯 개까지, 하루에 몇 개만 만들 수 있어요' : '팝업섬을 만들지 못했어요. 다시 눌러 주세요', 2400); }
   track('board_new', { id });
   const u = new URL(location.href); u.searchParams.set('board', id); for (const k of ['from', 'k', 'world']) u.searchParams.delete(k); location.href = u.toString();
 }

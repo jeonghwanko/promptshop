@@ -119,7 +119,7 @@ function frame(t) {
 requestAnimationFrame(frame);
 
 initPersist({
-  onError: () => show(el('p', { class: 'err' }, '섬마을을 불러오지 못했어요.')),
+  onError: () => show(el('p', { class: 'err' }, '팝업섬을 불러오지 못했어요.')),
   onRefund: (coins) => setTimeout(() => toast(`가게 안을 넓게 다시 놓았어요 · 자리 없는 가구 값 ${coins}동전 돌려받음`, 3200), 1500),
 });
 if (!db) showHome();   // without a database there is nothing to wait for

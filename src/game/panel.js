@@ -132,7 +132,7 @@ export async function join(s) {
   track('pick', { slot: s, from: FROM, nextToInviter: byInviter, pick: PICK });
   // invited next to a friend: my half of the bridge to them is free, so we are joined in the first session
   const ok = await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, ups: [0, 0], tut: 0, tutV: 3, ...(byInviter ? { freeHalf: FROM } : {}) } });
-  if (!ok) { closePanel(); return toast('초대 링크를 받은 친구만 이 섬마을에 살 수 있어요', 2600); }
+  if (!ok) { closePanel(); return toast('초대 링크를 받은 친구만 이 팝업섬에 살 수 있어요', 2600); }
   closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide();
 }
 /** What my half of the bridge to island n costs: free to the friend who invited me, once. */
@@ -151,7 +151,7 @@ export function showIsland(s) { S.choosing = false;
   if (!uid) {   // an empty island: live here (no island yet), or call a friend to it
     const by = FROM && neighbours(s).includes(FROM) && S.owners.get(FROM);
     return show(el('h2', {}, `${s}번 섬`, el('small', {}, by ? ` · ${nameOf(by)} 옆` : ' · 비어 있어요')),
-      S.mySlot ? inviteCard() : SHOWCASE || !MAY_JOIN ? el('button', { class: 'gold', on: { click: () => newBoard() } }, '내 섬마을 세우기') : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
+      S.mySlot ? inviteCard() : SHOWCASE || !MAY_JOIN ? el('button', { class: 'gold', on: { click: () => newBoard() } }, '내 팝업섬 세우기') : el('button', { class: 'gold', on: { click: () => join(s) } }, '이 섬에 살기'));
   }
   if (s === S.mySlot) return showHome();
   const ps = allPlots().filter(p => p.slot === s && p.b);

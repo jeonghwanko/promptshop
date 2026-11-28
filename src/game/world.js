@@ -30,13 +30,13 @@ async function loadBoards() {
   let meta = [];
   try { meta = db ? (await db.collection('boards').get()).docs.map(d => ({ id: d.id, ...d.data() })) : []; } catch {}
   let main = meta.find(b => b.id === 'main'); if (!main) { main = { id: 'main' }; meta.unshift(main); }
-  Object.assign(main, { name: main.name ?? '첫 섬마을', lat: main.lat ?? 37.5, lng: main.lng ?? 127 });
-  // a board nobody moved into is someone's unfinished start ("내 섬마을 세우기", then gone): only its owner and the page it is on see it
+  Object.assign(main, { name: main.name ?? '첫 팝업섬', lat: main.lat ?? 37.5, lng: main.lng ?? 127 });
+  // a board nobody moved into is someone's unfinished start ("내 팝업섬 세우기", then gone): only its owner and the page it is on see it
   meta = meta.filter(b => b.id === 'main' || b.id === BOARD || b.owner === me || (b.n ?? 0) > 0);
   for (const b of meta) if (b.n === undefined && b.id === 'main') { const sh = boardShape(await boardEntries(b.id)); b.n = sh.joined.size; b.bld = sh.buildings; b.users = [...sh.owners.values()]; }
   const demo = +(new URLSearchParams(location.search).get('demo') ?? 0);   // ?demo=N adds N made-up boards (for checks)
   for (let i = 0; i < demo; i++) { const r = (k) => { const x = Math.sin(i * 12.9898 + k * 78.233) * 43758.5453; return x - Math.floor(x); }, seoul = i % 3 !== 2;
-    meta.push({ id: 'demo' + i, name: `예시 섬마을 ${i + 1}`, lat: seoul ? 35 + r(1) * 3.2 : 20 + r(1) * 40, lng: seoul ? 126.4 + r(2) * 3 : -120 + r(2) * 260, n: Math.floor(r(3) * 11), bld: Math.floor(r(4) * 40), demo: true }); }
+    meta.push({ id: 'demo' + i, name: `예시 팝업섬 ${i + 1}`, lat: seoul ? 35 + r(1) * 3.2 : 20 + r(1) * 40, lng: seoul ? 126.4 + r(2) * 3 : -120 + r(2) * 260, n: Math.floor(r(3) * 11), bld: Math.floor(r(4) * 40), demo: true }); }
   return meta;
 }
 const mineIn = (b) => Array.isArray(b.users) && b.users.includes(me);   // users is checked on the server now; old rows may still be odd
@@ -89,8 +89,8 @@ function drawSpots() {
       voxelEl('isles', 3), el('b', {}, n >= 1000 ? (n / 1000).toFixed(1) + 'k' : String(n)), el('span', { class: 'where' }, where));
     Object.assign(btn.style, { left: c.x + 'px', top: c.y + 'px' }); box.append(btn);
   }
-  if (placing?.lat !== undefined) { const [x, y] = wv.toPx(placing.lat, placing.lng), s = el('div', { class: 'spot new' }, el('span', { class: 'tag' }, '새 섬마을'), voxelEl('isleMine', 3)); s.style.left = x + 'px'; s.style.top = y + 'px'; box.append(s); }
-  $('wcount').textContent = placing ? '새 섬마을을 세울 곳을 누르세요' : `섬마을 ${wboards.length.toLocaleString('ko-KR')}개 · 친구 ${wboards.reduce((t, b) => t + (b.n ?? 0), 0).toLocaleString('ko-KR')}명`;
+  if (placing?.lat !== undefined) { const [x, y] = wv.toPx(placing.lat, placing.lng), s = el('div', { class: 'spot new' }, el('span', { class: 'tag' }, '새 팝업섬'), voxelEl('isleMine', 3)); s.style.left = x + 'px'; s.style.top = y + 'px'; box.append(s); }
+  $('wcount').textContent = placing ? '새 팝업섬을 세울 곳을 누르세요' : `팝업섬 ${wboards.length.toLocaleString('ko-KR')}개 · 친구 ${wboards.reduce((t, b) => t + (b.n ?? 0), 0).toLocaleString('ko-KR')}명`;
 }
 function zoomTo(lat, lng, k, ms = 280) {   // glide the view
   const a = { ...wv }, b = { cx: lng + 180, cy: 90 - lat }; let dx = b.cx - a.cx; if (dx > 180) dx -= 360; if (dx < -180) dx += 360;
@@ -104,7 +104,7 @@ function openCluster(c) {
   // the list of its boards: free islands first, then the busiest
   const list = [...c.list].sort((a, b) => (mineIn(b) - mineIn(a)) || ((b.n ?? 0) < 10) - ((a.n ?? 0) < 10) || (b.n ?? 0) - (a.n ?? 0) || (b.bld ?? 0) - (a.bld ?? 0));
   const card = $('wcard'); card.hidden = false;
-  card.replaceChildren(el('h2', {}, `섬마을 ${list.length.toLocaleString('ko-KR')}개`), 
+  card.replaceChildren(el('h2', {}, `팝업섬 ${list.length.toLocaleString('ko-KR')}개`), 
     el('div', { class: 'wlist' }, list.slice(0, 60).map(b => el('button', { class: 'wrow' + (mineIn(b) ? ' mine' : ''), on: { click: () => showBoard(b) } }, el('span', {}, b.name), el('small', {}, `${b.n ?? 0}/10 · 건물 ${b.bld ?? 0}`)))),
     list.length > 60 ? el('div', { class: 'note' }, `외 ${list.length - 60}개 — 더 확대해 보세요`) : null,
     el('button', { class: 'ghost', on: { click: () => { card.hidden = true; } } }, '닫기'));
@@ -121,7 +121,7 @@ async function showBoard(b) {
       if (me0) { tg.strokeStyle = '#ffcf3f'; tg.lineWidth = 3; tg.beginPath(); tg.ellipse(x, y, 34, 18, 0, 0, 7); tg.stroke(); }
       tg.font = '400 13px Jua, sans-serif'; tg.lineWidth = 3; tg.strokeStyle = '#2e241a'; const lab = me0 ? '내 섬' : sh.joined.has(sl) ? String(sl) : ''; if (!lab) continue; tg.strokeText(lab, x, y + 5); tg.fillStyle = me0 ? '#ffe08a' : '#fff'; tg.fillText(lab, x, y + 5); } }
   card.replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, b.name), xbtn(() => { card.hidden = true; })), el('div', { class: 'note' }, geo.placeLabel(b.lat, b.lng).text), el('div', { class: 'nb' }, el('span', {}, `친구 ${sh.joined.size || b.n || 0}/10`), el('span', {}, `건물 ${sh.buildings || b.bld || 0}`), sh.mine ? el('span', { class: 'ok' }, '내 섬') : null), th,
-    el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기로 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 섬마을이에요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '섬 고르기' : '구경하기')));
+    el('div', { class: 'row' }, b.id === BOARD ? el('button', { on: { click: closeWorld } }, '여기로 돌아가기') : b.demo ? el('span', { class: 'note' }, '예시 팝업섬이에요') : el('button', { class: 'gold', on: { click: go } }, sh.mine ? '내 섬으로' : sh.joined.size < 10 ? '섬 고르기' : '구경하기')));
 }
 // the coastlines (about 1 MB) load the first time the world opens, not with the game
 let geo = null;
@@ -157,16 +157,16 @@ function placeAt(x, y) {
   // never exactly on top of another board: nudge until there is a little room
   for (let i = 0; i < 20 && wboards.some(b => Math.abs(b.lat - lat) < .02 && Math.abs(b.lng - lng) < .02); i++) { lat += (Math.random() - .5) * .06; lng += (Math.random() - .5) * .06; }
   placing = { lat, lng }; drawSpots();
-  const input = el('input', { type: 'text', maxlength: '12', placeholder: '섬마을 이름 (예: 붕어빵 연합)' }), err = el('div', { class: 'err' });
+  const input = el('input', { type: 'text', maxlength: '12', placeholder: '팝업섬 이름 (예: 붕어빵 연합)' }), err = el('div', { class: 'err' });
   const make = async () => {
     const name = input.value.trim(); if (!name) { err.textContent = '이름을 써 주세요'; return; } if (bad(name)) { err.textContent = '그 이름은 쓸 수 없어요'; return; }
     const id = 'b' + Date.now().toString(36);
     try { await db.doc('boards/' + id).set({ name, lat, lng, owner: me, at: Date.now(), n: 0, bld: 0, users: [] }); }
-    catch (e) { err.textContent = e?.message?.startsWith('too many boards') ? '섬마을은 다섯 개까지, 하루에 몇 개만 만들 수 있어요' : '만들지 못했어요. 다시 눌러 주세요'; return; }
+    catch (e) { err.textContent = e?.message?.startsWith('too many boards') ? '팝업섬은 다섯 개까지, 하루에 몇 개만 만들 수 있어요' : '만들지 못했어요. 다시 눌러 주세요'; return; }
     const q = new URLSearchParams(location.search); q.set('board', id); q.delete('world'); location.search = q.toString();
   };
   $('wcard').hidden = false;
-  $('wcard').replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, '새 섬마을'), xbtn(() => { placing = null; $('wcard').hidden = true; drawSpots(); })),
+  $('wcard').replaceChildren(el('div', { class: 'row' }, el('h2', { style: 'flex:1' }, '새 팝업섬'), xbtn(() => { placing = null; $('wcard').hidden = true; drawSpots(); })),
     el('div', { class: 'note' }, geo.placeLabel(lat, lng).text), el('div', { class: 'nb' }, el('span', {}, '섬 10개'), el('span', {}, '친구 10명까지')), el('div', { class: 'row' }, input, el('button', { class: 'gold', on: { click: make } }, '세우기')), err);
   input.focus(); input.addEventListener('keydown', (ev) => { if (ev.key === 'Enter') make(); });
 }
