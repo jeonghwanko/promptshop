@@ -92,7 +92,7 @@ const CLOUD_PUFFS = [[-.62, .25, .3], [-.3, -.05, .38], [.08, -.3, .42], [.45, -
 const WX = { rain: { crash: .35, say: '비가 와요', ko: '비' }, snow: { crash: .55, say: '눈이 와요', ko: '눈' } }, JAMV = .25, CORNER = .3;
 let clouds = [], jams = [], cloudIn = rnd(3, 6), jamIn = rnd(2, 5), home = null;
 const skyAt = (x, z, t = 0) => { for (const cl of clouds) { if (t > cl.life) continue; const cx = cl.x + cl.vx * t, cz = cl.z + cl.vz * t; if ((x - cx) ** 2 + (z - cz) ** 2 <= cl.r ** 2) return cl.kind; } return null; };
-const jamAt = (k, t = 0) => jams.some(j => j.ttl > t && j.tiles.has(k));
+const jamAt = (k, t = 0) => jams.some(j => j.ttl > t && t >= j.start && j.tiles.has(k));   // jammed at t seconds from now (a forming jam only once its cars are all in)
 function islandMid() { if (!home) { const ts = tilesOf(S.mySlot); home = [ts.reduce((s, t) => s + t[0], 0) / ts.length + .5, ts.reduce((s, t) => s + t[1], 0) / ts.length + .5]; } return home; }
 /** A cloud aimed across my island, from one side to the other (over: a slow one right over it now). */
 function newCloud(kind, over = false) {
@@ -104,8 +104,9 @@ const CARS = ['#e2685a', '#5fb6e0', '#f2c12e', '#7bc47f', '#f4f0e6', '#a07ad0'];
 /** A jam: three to five road tiles in a row, on my island (or in the middle of the given path). */
 function newJam(path) {
   const A = sim.A, roads = path ? path.slice(2, -2) : tilesOf(S.mySlot).filter(([x, z]) => A.isRoad(x, z)); if (!roads.length) return null;
-  const make = (seg, ttl) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl, age: 0, cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
-  if (path) { const i = Math.floor(roads.length / 2); return make(roads.slice(Math.max(0, i - 2), i + 2), rnd(30, 45)); }
+  const make = (seg, ttl, start = rnd(8, 12)) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl: ttl + start, start, start0: start, age: 0,   // start: seconds of cars gathering before the road jams (it can be seen coming)
+    cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
+  if (path) { const i = Math.floor(roads.length / 2); return make(roads.slice(Math.max(0, i - 2), i + 2), rnd(30, 45), 0); }
   for (let tries = 0; tries < 20; tries++) { const [x, z] = pick(roads), [dx, dz] = pick(DIRS), seg = [];
     for (let i = 0; i < 5 && A.isRoad(x + dx * i, z + dz * i); i++) seg.push([x + dx * i, z + dz * i]);
     if (seg.length >= 3) return make(seg, rnd(25, 50)); }
@@ -113,7 +114,7 @@ function newJam(path) {
 }
 function weatherTick(dt) {
   for (const cl of clouds) { cl.x += cl.vx * dt; cl.z += cl.vz * dt; cl.life -= dt; } clouds = clouds.filter(cl => cl.life > 0);
-  for (const j of jams) { j.ttl -= dt; j.age += dt; } jams = jams.filter(j => j.ttl > 0);
+  for (const j of jams) { j.ttl -= dt; j.age += dt; j.start -= dt; } jams = jams.filter(j => j.ttl > 0);
   if ((cloudIn -= dt) <= 0) { cloudIn = rnd(14, 26); if (clouds.length < 2) clouds.push(newCloud(Math.random() < .7 ? 'rain' : 'snow')); }
   if ((jamIn -= dt) <= 0) { jamIn = rnd(8, 16); if (jams.length < 3) { const j = newJam(); if (j) jams.push(j); } }
 }
@@ -121,12 +122,12 @@ const turnsOf = (path) => { const t = [], R = (q) => sim.A.isRoad(q[0], q[1]); f
 const segLen = (path, i) => { const a = path[Math.max(0, Math.min(path.length - 2, i))], b = path[Math.max(1, Math.min(path.length - 1, i + 1))]; return Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; };
 /** The route's forecast: when the bike would reach each tile, is it wet there, is the road jammed. clear: no sky, no jams. */
 function forecast(path, clear = false) {
-  let t = 0, wet = 0, jam = 0, kind = null; const turns = new Set(turnsOf(path));
+  let t = 0, wet = 0, jam = 0, soon = 0, kind = null; const turns = new Set(turnsOf(path));
   for (let i = 1; i < path.length; i++) { const [x, z] = path[i], road = sim.A.isRoad(x, z), j = !clear && road && jamAt(key(x, z), t), s = clear ? null : skyAt(x + .5, z + .5, t);
-    t += segLen(path, i - 1) / (VMAX * (j ? JAMV : road ? 1 : GRASS) * (s ? .85 : 1)); if (j) jam++;
+    t += segLen(path, i - 1) / (VMAX * (j ? JAMV : road ? 1 : GRASS) * (s ? .85 : 1)); if (j) { jam++; if (!jamAt(key(x, z))) soon++; }
     if (turns.has(i)) { t += CORNER; if (s) { wet++; kind = kind === 'snow' ? kind : s; } } }
   t += .6 + jam * .25;   // pulling away from the shop and braking into and out of a jam (measured on rides, 2026-11-28)
-  return { t, wet, jam, kind };
+  return { t, wet, jam, soon, kind };
 }
 
 // ---------- the camera (2026-11-28 "카메라 워킹"): it springs after a target instead of snapping to it ----------
@@ -344,13 +345,17 @@ function drawRegular(g, c) {
 }
 /** A car stuck in a jam: a little side-on hatchback, brake lights blinking, inching. */
 function drawCar(g, j, i) {
-  const [x, z] = j.list[i], car = j.cars[i], t = performance.now() / 1000, [px, py] = pr.P(x + .5, z + .5), fade = Math.max(0, Math.min(1, j.ttl / 2, j.age * 2)), nudge = Math.sin(t * 2 + car.ph) > .85 ? 1 : 0;
-  const X = Math.round(px - 7 + nudge), Y = Math.round(py); g.globalAlpha = fade;
+  const n = j.list.length, [x, z] = j.list[i], car = j.cars[i], t = performance.now() / 1000;
+  const elapsed = j.start0 - Math.max(0, j.start), due = (n - 1 - i) / n * .85 * j.start0, u = j.start0 ? Math.max(0, Math.min(1, (elapsed - due) / .8)) : 1;   // the front car first, then each behind it
+  if (u <= 0) return;
+  const [ax, az] = j.list[0], [bx, bz] = j.list[Math.min(1, n - 1)], back = (1 - u) ** 2 * 2.5;   // coming in from behind the queue, braking to a stop
+  const [px, py] = pr.P(x + .5 - (bx - ax) * back, z + .5 - (bz - az) * back), fade = Math.max(0, Math.min(1, j.ttl / 2, u * 3)), stopped = u >= 1, nudge = stopped && Math.sin(t * 2 + car.ph) > .85 ? 1 : 0;
+  const X = Math.round(px - 7 + nudge), Y = Math.round(py); g.globalAlpha = GA * fade;
   rect(g, X - 1, Y - 1, 16, 3, 'rgba(23,40,70,.25)');
   outlined(g, [[X, Y - 7, 14, 4, car.col], [X + 3, Y - 10, 8, 3, car.col], [X + 4, Y - 9, 3, 2, '#bfe3f5'], [X + 8, Y - 9, 2, 2, '#bfe3f5']]);
   rect(g, X + 1, Y - 3, 3, 3, OUT); rect(g, X + 10, Y - 3, 3, 3, OUT);
-  if (Math.sin(t * 5 + car.ph) > 0) rect(g, X, Y - 6, 1, 2, '#ff3b2f');
-  g.globalAlpha = 1;
+  if (!stopped || Math.sin(t * 5 + car.ph) > 0) rect(g, X, Y - 6, 1, 2, '#ff3b2f');   // brake lights: on while pulling up, blinking once stuck
+  g.globalAlpha = GA;
 }
 /** Where the bike is going: a bouncing pin over the door. */
 function drawPin(g, path, col) {
@@ -371,7 +376,8 @@ function mapGround(g) {
   const A = sim.A; if (!A) return;
   for (const cl of clouds) { const a = Math.min(1, cl.life / 3); g.fillStyle = cl.kind === 'rain' ? `rgba(40,90,170,${.4 * a})` : `rgba(240,248,255,${.7 * a})`;
     for (let z = Math.floor(cl.z - cl.r); z <= cl.z + cl.r; z++) for (let x = Math.floor(cl.x - cl.r); x <= cl.x + cl.r; x++) if (A.isRoad(x, z) && (x + .5 - cl.x) ** 2 + (z + .5 - cl.z) ** 2 <= cl.r ** 2) diamond(g, x, z); }   // the wet roads: what the forecast counts
-  for (const j of jams) { g.fillStyle = `rgba(226,60,40,${.38 * Math.max(0, Math.min(1, j.ttl / 2, j.age * 2))})`; for (const [x, z] of j.list) diamond(g, x, z); }
+  for (const j of jams) { const forming = j.start > 0, a = forming ? (.1 + .14 * (1 - j.start / j.start0)) * (.75 + .25 * Math.sin(performance.now() / 180)) : .38 * Math.min(1, j.ttl / 2);   // faint and pulsing while the cars gather, solid once jammed
+    g.fillStyle = `rgba(226,60,40,${a})`; for (const [x, z] of j.list) diamond(g, x, z); }
   if (choosing) { choosing.routes.forEach((r, i) => { if (i !== choosing.hover) drawRoute(g, r.path, ROUTE[i], false); }); drawRoute(g, choosing.routes[choosing.hover].path, ROUTE[choosing.hover], true); }
   for (const c of couriers) if (!c.back && c.handoff == null && c.crashT <= 0) drawRoute(g, c.path, 'rgba(255,248,234,.9)', false, c.at + 1);   // the way ahead, faint
 }
@@ -440,7 +446,7 @@ const WHERE = { near: '가까움', far: '섬 끝', neighbor: '이웃 섬' };
 function fcChips(f, fresh) {
   const chips = [];
   if (f.wet) chips.push(el('span', { class: 'fc bad' }, `${WX[f.kind].ko} 모퉁이 ${f.wet}`));
-  if (f.jam) chips.push(el('span', { class: 'fc warn' }, `막힘 ${f.jam}칸`));
+  if (f.jam) chips.push(el('span', { class: 'fc warn' }, `${f.soon * 2 >= f.jam ? '곧 막힘' : '막힘'} ${f.jam}칸`));   // most of it not jammed yet, but will be when the bike gets there
   if (!chips.length) chips.push(el('span', { class: 'fc ok' }, '맑은 길'));
   return el('span', { class: 'fcs' }, ...chips, el('small', { class: f.t > fresh ? 'late' : '' }, `${Math.ceil(f.t)}초 / 식기 전 ${fresh}초`));
 }
@@ -477,7 +483,7 @@ export function startLedgerToy() {
     if (!S.myDoc || !S.mySlot || !sim.A || !myPlots().length) return; clearInterval(wait);
     panel = el('aside', { class: 'ledger', 'aria-label': '단골 장부' }); document.body.append(panel);
     S.mapGround = mapGround; S.mapItems = mapItems;
-    window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, routesFor, route, forecast };   // for the recording checks
+    window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, get jams() { return jams; }, screenAt, routesFor, route, forecast };   // for the recording checks
     box()?.addEventListener('pointerdown', () => { if (cam.on) { for (const c of couriers) c.follow = false; cam.back = false; camRelease(); } }, true);   // a drag on the map: the camera lets go
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && choosing) cancelChoose(); });
     let t0 = performance.now(), acc = 0;
