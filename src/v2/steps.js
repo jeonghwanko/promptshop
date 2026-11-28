@@ -17,7 +17,7 @@ export function applyStep(b, step) {
   if (!step || typeof step !== 'object') return null;
   const s = step.step;
   if (s === 'building') {
-    b.input = { ...pick(step, ['type', 'style', 'name', 'levels', 'scale', 'size', 'trim', 'accent', 'night']) };
+    b.input = { ...pick(step, ['type', 'style', 'name', 'levels', 'scale', 'size', 'trim', 'accent', 'night', 'look']) };
     return { view: 'ext', key: 'all' };
   }
   if (!b.input) return null;
@@ -73,15 +73,23 @@ const list = (a) => a.join('|');
 const TYPE_LIST = Object.keys(TYPES).map(t => `${t}(${TYPE_KO[t] ?? t})`).join(' ');
 const STYLE_LIST = Object.keys(STYLES).map(t => `${t}(${STYLE_KO[t] ?? t})`).join(' ');
 
-export function buildPrompt(line, { lot, place, request, owner } = {}) {
+/** One of my buildings, as the prompt describes a neighbour: what it is and how it looks. */
+export function neighbourOf(i) {
+  if (!i) return null;
+  const w = i.wall, r = i.roof;
+  return { name: i.name, type: i.type, style: i.style, levels: i.levels, look: i.look, wall: w ? `${w.material ?? ''} ${w.color ?? ''}`.trim() : null, roof: r ? `${r.shape ?? ''} ${r.color ?? ''}`.trim() : null };
+}
+export function buildPrompt(line, { lot, place, request, owner, neighbours = [] } = {}) {
   // a request card: the island asked for a kind of place; the type must be one that serves it
   const requestRule = request ? `\nThe islanders asked for ${request.en}. The building must be one of these types: ${request.types.join(', ')} (pick the one that fits the description best).` : '';
   const placeRule = place ? `\nThe building stands in ${place}. When the description does not say otherwise, let the local architecture, materials and climate of that place shape it.` : '';
   const lotRule = lot ? `\nThe building stands on a lot of size ${lot.size} (${lot.w} x ${lot.d} tiles). Use "scale":"${lot.size}" and keep the footprint, wings included, within ${(lot.w - .6).toFixed(1)} x ${(lot.d - .8).toFixed(1)} tiles; leave the front edge for props.` : '';
   // the owner: the builder's animal runs every shop they build (2026-11-28); the engine draws it, the model makes the building its own
-  const an = ANIMALS[owner], ownerRule = an ? `\nThis shop is run by its owner, a ${an.en} (${an.ko}). The engine already draws the ${an.en} standing at the door and working behind every counter, and shapes the building itself like a ${an.en} (its ears on the roof, its tail down the side, and so on), so you do not need to. Make the building itself unmistakably a ${an.en}'s place too, through what you choose: ${an.kit}. The hero must show WHAT the business is (the type's own hero is usually right: a 찜질방 has steam vents, a 꽃집 a flower stand), since the ${an.en} already shows WHO runs it; use hero "owner_statue" only when the place has no business cue at all. Let the name, the notes and the guests' reviews play with the ${an.en} running it.` : '';
+  const an = ANIMALS[owner], ownerRule = an ? `\nThis shop is run by its owner, a ${an.en} (${an.ko}). The engine draws the ${an.en} at the door and behind every counter, and adds the ${an.en} to the building in the way your "look" says: "face" = the building itself is the ${an.en} (ears on the roof, a cute face under the eaves, paws on the eave), "ears" = only its ears and tail, "peek" = a giant ${an.en} peeking over the roof from behind. You may borrow one or two touches from this ${an.en} mood: ${an.kit} — never all of them, and do not paint every shop of this owner in the same colours. The hero must show WHAT the business is (the type's own hero is usually right: a 찜질방 has steam vents, a 꽃집 a flower stand), since the ${an.en} already shows WHO runs it; use hero "owner_statue" only when the place has no business cue at all. Let the name, the notes and the guests' reviews play with the ${an.en} running it.` : '';
+  // the owner's other buildings on the island: this one must not look like a copy of them (2026-11-29: nine shops of one owner came out alike)
+  const nb = neighbours.slice(-12), nbRule = nb.length ? `\nThe owner already has these buildings on the island:\n${nb.map(n => `- ${n.name || n.type}: type ${n.type}, style ${n.style ?? 'default'}, ${n.levels ?? 1} floors, wall ${n.wall ?? '?'}, roof ${n.roof ?? '?'}, look ${n.look ?? 'face'}`).join('\n')}\nMake this one clearly different from all of them: another style, another roof shape and roof colour, another wall colour or material, a different height or silhouette (wings, a tower, a canopy, a round block), and preferably another "look" than the most used one. Together they should read as a lively, varied street, not a row of copies.` : '';
   return `You design one building for an isometric pixel-art town, outside and inside, from this one-line description:
-"${line}"${placeRule}${lotRule}${requestRule}${ownerRule}
+"${line}"${placeRule}${lotRule}${requestRule}${ownerRule}${nbRule}
 
 How it works: you pick the closest building TYPE and a STYLE, and the engine already knows good defaults for both (size, floors, roof, front, sign, hero prop). Then you override only what this description needs, so the building is recognisably THIS building. If no type fits exactly, pick the closest one and override its parts.
 
@@ -90,7 +98,7 @@ Styles: ${STYLE_LIST}. Leave "style" out to use the type's own look.
 
 Output ONLY JSON Lines, one JSON object per line, no other text, no code fences, in this order. Each line is built on screen the moment it arrives:
 
-1. {"step":"building","type":"<type>","style":"<style>","name":"<name, max 10 chars, same language as the description>","levels":<floors, 1-60, the real count; tall buildings are drawn shortened>,"scale":"S|M|L|XL","size":[w,d] (optional, tiles, w 0.9-6, d 0.9-5),"accent":"#rrggbb","night":<bool>,"note":"..."}
+1. {"step":"building","type":"<type>","style":"<style>","name":"<name, max 10 chars, same language as the description>","levels":<floors, 1-60, the real count; tall buildings are drawn shortened>,"scale":"S|M|L|XL","size":[w,d] (optional, tiles, w 0.9-6, d 0.9-5),"accent":"#rrggbb","night":<bool>,${an ? '"look":"face|ears|peek",' : ''}"note":"..."}
 2. Optional {"step":"main", override the main block: "shape":"${list(MASS_SHAPES)}","taper":<0.4-1, round towers narrow toward the top>,"crenel":<bool, battlements>,"bands":"#rrggbb" (stripes on a round tower), "wall":{"material":"${list(WALL_MATERIALS)}","color":"#rrggbb"},"roof":{"shape":"${list(ROOF_SHAPES)}","material":"${list(ROOF_MATERIALS)}","color":"#rrggbb","pitch":0.15-1.4,"overhang":0-0.6,"eave":"straight|curl"},"ground":"${list(GROUNDS)}","rhythm":"${list(RHYTHMS)}","balconies":<bool>,"note":"..."}
 3. 0-4 lines {"step":"mass","shape":"${list(MASS_SHAPES)}","at":"left|right|back|front|top","size":[w,d],"levels":<n>,"roof":{...},"wall":{...},"rhythm":"...","note":"..."} for wings, towers, a tower on top, a canopy. Writing any mass line replaces the type's default extra blocks.
 4. {"step":"sign","icon":"${list(ICONS)}","place":"front|roof|blade|pole","bg":"#rrggbb","fg":"#rrggbb","note":"..."}

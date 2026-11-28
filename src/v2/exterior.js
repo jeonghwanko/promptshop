@@ -298,6 +298,9 @@ export function buildExterior(spec, section) {
     const roofY = plinthH + levelY(main.shown) + (main.shownBase ? levelY(main.shownBase) : 0), top = main.top ?? roofY + .5, ex = new Set(a.extra);
     const bodyM = mat(a.body), inner = mat(a.inner ?? shade(a.body, .8)), earM = ex.has('darkears') ? mat('#2a2a30') : bodyM, ink = mat('#1f1a1c'), eh = Math.min(1.25, Math.max(.75, mw * .42));
     const earY = roofY + (top - roofY) * .55, sideX = fx + mw / 2;
+    const look = spec.look ?? 'face';
+    if (look === 'peek') { // a giant owner standing behind the shop: its head and paws rise over the roof
+      const h = Math.min(6, Math.max(2.6, mw * 2.2)); figure(animalModel(spec.owner), h, fx, Math.max(0, top - h * .6 + .15), main.z - md / 2 - .2); return; }
     for (const k of [-1, 1]) {
       const x = fx + k * mw * .3, z = main.z + md * .12;
       if (a.ears === 'point') { const g = new THREE.Group(), c = new THREE.Mesh(new THREE.ConeGeometry(eh * .5, eh, 14), earM), n = new THREE.Mesh(new THREE.ConeGeometry(eh * .3, eh * .66, 12), inner);
@@ -317,7 +320,7 @@ export function buildExterior(spec, section) {
       for (let j = 0; j < 9; j++) { const t = j / 8, y = roofY + .2 - t * (roofY - .1), w = Math.sin(t * Math.PI * 1.6) * .16; ball(.17 - t * .06, bodyM, cx + (cx > fx ? w : -w), y, cz + (cz > main.z ? .06 : 0)); if (j % 2) ball(.05, mat(a.belly), cx + (cx > fx ? w + .1 : -w - .1), y, cz + .1); } }
     if (ex.has('eyestop')) for (const k of [-1, 1]) { const x = fx + k * mw * .26; ball(.32, bodyM, x, top + .05, main.z + md * .2); ball(.2, mat('#ffffff'), x, top + .1, main.z + md * .2 + .2); ball(.11, ink, x, top + .1, main.z + md * .2 + .36); }
     // a cute face under the eaves: big glossy black eyes with two sparkles, pink blush, a little ω mouth (a beak for birds)
-    if (!ex.has('eyestop')) { const ey = roofY - .55, gap = Math.min(.56, mw * .2), pink = glow('#ff9fb0'), white = glow('#ffffff'), eyeM = glow('#1a1416');
+    if (look === 'face' && !ex.has('eyestop')) { const ey = roofY - .55, gap = Math.min(.56, mw * .2), pink = glow('#ff9fb0'), white = glow('#ffffff'), eyeM = glow('#1a1416');
       for (const k of [-1, 1]) { const ex2 = fx + k * gap;
         if (ex.has('mask')) { const m2 = ball(.4, ink, ex2 + k * .03, ey - .02, fz + .01); m2.scale.set(.95, 1.15, .25); m2.rotation.z = -k * .5; }
         const e = ball(.27, eyeM, ex2, ey, fz + .08); e.scale.set(.85, 1.1, .45);
@@ -327,7 +330,7 @@ export function buildExterior(spec, section) {
       else { if (a.nose) { const n = ball(.1, mat(a.nose), fx, ey - .2, fz + .08); n.scale.set(1.3, .8, .8); }
         for (const k of [-1, 1]) { const m = new THREE.Mesh(new THREE.TorusGeometry(.09, .03, 4, 10, Math.PI), ink); m.rotation.z = Math.PI; m.position.set(fx + k * .09, ey - .3, fz + .06); add(m); } } }
     // two front paws resting on the eave, toe beans showing: the animal hugs its shop
-    if (!ex.has('tentacles') && !ex.has('eyestop')) for (const k of [-1, 1]) { const px = fx + k * mw * .38, py = roofY - .02, pz = fz + .1;
+    if (look === 'face' && !ex.has('tentacles') && !ex.has('eyestop')) for (const k of [-1, 1]) { const px = fx + k * mw * .38, py = roofY - .02, pz = fz + .1;
       if (a.arms === 'flippers') { const f = ball(.24, mat(shade(a.body, .9)), px, py, pz); f.scale.set(.7, .4, 1.2); f.rotation.z = k * .3; continue; }
       const pawM = a.arms === 'dark' ? mat(a.en === 'panda' ? '#2a2a30' : shade(a.body, .45)) : bodyM, pw = ball(.2, pawM, px, py, pz); pw.scale.set(1.1, .75, 1);
       const bean = mat('#ffb3c0'); for (const d of [-.09, 0, .09]) ball(.04, bean, px + d, py + .07, pz + .18); const pad = ball(.06, bean, px, py - .01, pz + .2); pad.scale.set(1.3, .8, .5); }
