@@ -16,10 +16,10 @@ export const NEED_KEYS = Object.keys(NEEDS);
 const SERVES = {
   restaurant: 'food', fast_food: 'food', pojangmacha: 'food', bar: 'food', market_hall: 'food',
   cafe: 'cafe', bakery: 'cafe', kiosk: 'cafe',
-  convenience_store: 'shop', supermarket: 'shop', boutique: 'shop', pharmacy: 'shop', post_office: 'shop', clinic: 'shop', hospital: 'shop', gas_station: 'shop', sangga: 'shop',
+  convenience_store: 'shop', supermarket: 'shop', boutique: 'shop', florist: 'shop', pharmacy: 'shop', post_office: 'shop', clinic: 'shop', hospital: 'shop', gas_station: 'shop', sangga: 'shop',
   pc_bang: 'fun', cinema: 'fun', theater: 'fun', gym: 'fun', bowling_alley: 'fun', stadium: 'fun', museum: 'fun', gallery: 'fun', concert_hall: 'fun', swimming_pool: 'fun',
   castle: 'fun', lighthouse: 'fun', windmill: 'fun', clock_tower: 'fun', library: 'fun',
-  hotel: 'rest', motel: 'rest', guesthouse: 'rest', temple: 'rest', church: 'rest', mosque: 'rest',
+  sauna: 'rest', hotel: 'rest', motel: 'rest', guesthouse: 'rest', temple: 'rest', church: 'rest', mosque: 'rest',
 };
 const SOURCE = { house: 2, hanok_house: 2, cabin: 1, villa: 2, sangga: 2, apartment: 0, hotel: 0, motel: 3, guesthouse: 2, train_station: 8, bus_terminal: 6, school: 4, university: 5, kindergarten: 2, town_hall: 3, factory: 4, warehouse: 2, workshop: 1, hospital: 3, police: 1, fire_station: 1 };
 /** Building types that serve a want. */

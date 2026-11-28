@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { surface, mat, glow, shade, texMat, tex } from './materials.js';
 import { buildRoof } from './roofs.js';
 import { MAX_SHOWN_LEVELS } from './spec.js';
-import { animalModel } from './animals.js';
+import { animalModel, ANIMALS } from './animals.js';
 
 const GH = 1.45, FH = 1.25, PL = 0.12;                    // ground floor, upper floor, default plinth height
 const levelY = (n) => (n <= 0 ? 0 : GH + (n - 1) * FH);
@@ -291,6 +291,49 @@ export function buildExterior(spec, section) {
   // ---------- hero prop ----------
   enter('hero');
   hero(spec.hero);
+  if (spec.owner) { enter('animal'); animalForm(ANIMALS[spec.owner]); }
+  // the building itself takes the owner's shape: ears on the roof, a tail down the side, spikes, a shell, tentacles, a beak over the door
+  function animalForm(a) {
+    if (!a) return;
+    const roofY = plinthH + levelY(main.shown) + (main.shownBase ? levelY(main.shownBase) : 0), top = main.top ?? roofY + .5, ex = new Set(a.extra);
+    const bodyM = mat(a.body), inner = mat(a.inner ?? shade(a.body, .8)), earM = ex.has('darkears') ? mat('#2a2a30') : bodyM, ink = mat('#1f1a1c'), eh = Math.min(1.25, Math.max(.75, mw * .42));
+    const earY = roofY + (top - roofY) * .55, sideX = fx + mw / 2;
+    for (const k of [-1, 1]) {
+      const x = fx + k * mw * .3, z = main.z + md * .12;
+      if (a.ears === 'point') { const c = new THREE.Mesh(new THREE.ConeGeometry(eh * .5, eh, 4), earM); c.rotation.y = Math.PI / 4; c.position.set(x, earY + eh / 2, z); add(c);
+        const n = new THREE.Mesh(new THREE.ConeGeometry(eh * .28, eh * .62, 4), inner); n.rotation.y = Math.PI / 4; n.position.set(x, earY + eh * .36, z + eh * .2); add(n); }
+      if (a.ears === 'round') { const d = new THREE.Mesh(new THREE.CylinderGeometry(eh * .45, eh * .45, .16, 14), earM); d.rotation.x = Math.PI / 2; d.position.set(x, earY + eh * .45, z); add(d);
+        const n = new THREE.Mesh(new THREE.CylinderGeometry(eh * .26, eh * .26, .04, 12), inner); n.rotation.x = Math.PI / 2; n.position.set(x, earY + eh * .42, z + .1); add(n); }
+      if (a.ears === 'tiny') ball(eh * .22, earM, x, earY + eh * .12, z);
+      if (a.ears === 'long') { const g = new THREE.Group(), e = new THREE.Mesh(new THREE.CapsuleGeometry(eh * .22, eh * 1.3, 4, 10), earM), n = new THREE.Mesh(new THREE.CapsuleGeometry(eh * .12, eh * 1.05, 4, 8), inner);
+        e.scale.z = .55; n.scale.z = .4; e.position.y = eh * .9; n.position.set(0, eh * .9, eh * .1); g.add(e, n); g.position.set(x, earY, z); g.rotation.z = -k * .3; add(g); }
+      if (a.ears === 'flop') { const e = new THREE.Mesh(new THREE.CapsuleGeometry(eh * .28, eh * .9, 4, 10), inner); e.scale.z = .5; e.position.set(fx + k * mw * .42, earY + eh * .15, z); e.rotation.z = k * 2.2; add(e); }
+    }
+    if (ex.has('spikes')) { const n = Math.max(3, Math.round(mw / .45)); for (let i = 0; i < n; i++) { const s = .32 + .14 * Math.sin(i / (n - 1) * Math.PI), c = new THREE.Mesh(new THREE.ConeGeometry(s * .55, s, 4), mat('#ff9a3e')); c.rotation.y = Math.PI / 4; c.position.set(fx - mw / 2 + (i + .5) * mw / n, top + s * .3, main.z); add(c); } }
+    if (ex.has('shell')) { const sh = ball(1, mat('#5e8a3e'), fx, roofY - .05, main.z); sh.scale.set(mw * .62, Math.max(.7, mw * .32), md * .62);
+      for (let i = 0; i < 7; i++) { const ang = i / 7 * Math.PI * 2, p = ball(1, mat('#a8cf78'), fx + Math.cos(ang) * mw * .32, roofY + Math.max(.7, mw * .32) * .62, main.z + Math.sin(ang) * md * .3); p.scale.set(mw * .11, .07, md * .11); }
+      const p0 = ball(1, mat('#a8cf78'), fx, roofY + Math.max(.7, mw * .32) * .98, main.z); p0.scale.set(mw * .14, .07, md * .14); }
+    if (ex.has('tentacles')) for (const [cx, cz] of [[fx - mw / 2 - .05, fz + .05], [fx + mw / 2 + .05, fz + .05], [fx + mw / 2 + .05, main.z - md / 2 + .3]]) {
+      for (let j = 0; j < 9; j++) { const t = j / 8, y = roofY + .2 - t * (roofY - .1), w = Math.sin(t * Math.PI * 1.6) * .16; ball(.17 - t * .06, bodyM, cx + (cx > fx ? w : -w), y, cz + (cz > main.z ? .06 : 0)); if (j % 2) ball(.05, mat(a.belly), cx + (cx > fx ? w + .1 : -w - .1), y, cz + .1); } }
+    if (ex.has('eyestop')) for (const k of [-1, 1]) { const x = fx + k * mw * .26; ball(.32, bodyM, x, top + .05, main.z + md * .2); ball(.2, mat('#ffffff'), x, top + .1, main.z + md * .2 + .2); ball(.11, ink, x, top + .1, main.z + md * .2 + .36); }
+    // a face under the eaves: two big eyes and a nose (a beak for birds) on the top of the front wall, the building looks out at the street
+    if (!ex.has('eyestop')) { const ey = roofY - .36, gap = Math.min(.62, mw * .24);
+      for (const k of [-1, 1]) { const ex2 = fx + k * gap; ball(.25, mat('#ffffff'), ex2, ey, fz + .02); ball(.14, ink, ex2 + k * .02, ey - .02, fz + .2); ball(.05, mat('#ffffff'), ex2 - .05, ey + .05, fz + .32);
+        if (!ex.has('mask')) ball(.12, mat('#ffa8a0'), fx + k * (gap + .32), ey - .24, fz + .04); else { const m2 = ball(.34, ink, ex2, ey, fz - .04); m2.scale.z = .3; } }
+      if (a.snout === 'beak') { const bk = new THREE.Mesh(new THREE.ConeGeometry(.22, .5, 4), mat(a.nose)); bk.rotation.x = Math.PI / 2; bk.rotation.z = Math.PI / 4; bk.scale.set(1.4, 1, .6); bk.position.set(fx, ey - .26, fz + .28); add(bk); }
+      else if (a.nose) { const n = ball(.11, mat(a.nose), fx, ey - .22, fz + .1); n.scale.set(1.3, .8, 1); } }
+    if (ex.has('yuzu')) { ball(.42, mat('#ffb52e'), fx, top + .32, main.z); box(.1, .14, .1, mat('#4f8f46'), fx, top + .7, main.z); box(.22, .04, .12, mat('#4f8f46'), fx + .12, top + .76, main.z); }
+    if (ex.has('wool')) { for (let i = 0; i < 7; i++) ball(.26, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw / 2 + (i + .5) * mw / 7, roofY + .08, fz + .12); for (let i = 0; i < 5; i++) ball(.34, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw * .36 + i * mw * .18, top + .05, main.z + md * .1); }
+    if (ex.has('tuft')) for (const d of [-.12, 0, .12]) { const c = new THREE.Mesh(new THREE.ConeGeometry(.08, .4, 5), bodyM); c.position.set(fx + d, top + .2, main.z); c.rotation.z = d * 2; add(c); }
+    // the tail down the sunny side wall
+    const tz = main.z - md * .15, tm = ex.has('rings') ? (j) => (j % 2 ? mat(shade(a.body, .5)) : bodyM) : () => bodyM;
+    if (a.tail === 'thin') for (let j = 0; j < 9; j++) { const t = j / 8; ball(.11, j > 6 ? mat(shade(a.body, .8)) : bodyM, sideX + .1 + Math.sin(t * 2.2) * .35, .5 + t * 1.3, tz - Math.cos(t * 2.2) * .1); }
+    if (a.tail === 'fluffy' || a.tail === 'big') for (let j = 0; j < 6; j++) { const t = j / 5; ball(.22 + Math.sin(t * Math.PI) * .14, a.tail === 'fluffy' && j === 5 && a.en === 'fox' ? mat('#ffffff') : tm(j), sideX + .25 + Math.sin(t * 1.8) * .3, .45 + t * (a.tail === 'big' ? 1.6 : 1.0), tz); }
+    if (a.tail === 'curl') { const t = new THREE.Mesh(new THREE.TorusGeometry(.2, .08, 6, 12, 5), bodyM); t.position.set(sideX + .12, .9, tz); t.rotation.y = Math.PI / 2; add(t); }
+    if (a.tail === 'puff') ball(.2, mat(a.en === 'panda' ? '#ffffff' : a.belly === a.body ? shade(a.body, .95) : a.belly), sideX + .14, .6, tz);
+    if (a.tail === 'cone') for (let j = 0; j < 6; j++) ball(.28 - j * .04, bodyM, sideX + .18 + j * .17, .35 + j * .02, tz - j * .1);
+    if (a.tail === 'flat') box(.08, .5, .3, mat(shade(a.body, .8)), sideX + .08, .15, tz);
+  }
   function hero(kind) {
     const top = Math.max(main.top ?? gy + 1.5, (kind === 'spire' || kind === 'lamp' || kind === 'siren' || kind === 'weathervane') ? skyTop : 0), roofY = plinthH + levelY(main.shown) + (main.shownBase ? levelY(main.shownBase) : 0);
     const a = mat(accent), white = mat('#f4f1ea');
@@ -298,6 +341,20 @@ export function buildExterior(spec, section) {
       case 'owner_statue': if (spec.owner) { // the owner as a big painted figure on a plinth beside the door: whose shop this is, at a glance
         const sx = fx - mw / 2 + .32, sz = fz + .78; box(.62, .22, .5, mat('#e8e2d6'), sx, 0, sz); box(.68, .05, .56, mat('#c9c1b0'), sx, .22, sz);
         figure(animalModel(spec.owner), 1.35, sx, .27, sz, .25); } break;
+      case 'steam_vents': { // a 찜질방: brick flues breathing steam, and a split curtain (noren) over the door
+        const cm = mat('#9a5a3a'), cap = mat('#6b3f28');
+        for (const k of [-1, 1]) { const x = fx + k * mw * .27, z = main.z - md * .12, h = Math.max(.9, (top - roofY) + .45);
+          box(.24, h, .24, cm, x, roofY, z); box(.32, .07, .32, cap, x, roofY + h, z);
+          for (let j = 0; j < 4; j++) ball(.12 + j * .05, mat('#ffffff', { transparent: true, opacity: .92 - j * .14 }), x + j * .07 * k, roofY + h + .2 + j * .22, z + j * .03); }
+        for (const k of [-1, 1]) box(.24, .34, .02, mat(k < 0 ? '#c23b3b' : '#2e5d8a'), fx + k * .14, gy - .5, fz + .09);
+        break; }
+      case 'flower_stand': { // a 꽃집: tiered stands of flower buckets either side of the door, and a box of flowers under the window
+        const wood = mat('#a8703e'), C = ['#ff5a7a', '#ffd23a', '#ff8a3d', '#c86bff', '#ffffff', '#ff4a4a', '#ff9ec8'];
+        for (const k of [-1, 1]) { const x = fx + k * (mw / 2 - .36), z = fz + .42;
+          for (let r = 0; r < 3; r++) { box(.62, .16, .2, wood, x, r * .16, z - r * .14 + .1);
+            for (let c = 0; c < 3; c++) { const bx = x - .2 + c * .2, by = (r + 1) * .16, bz = z - r * .14 + .12; cyl(.065, .05, .1, mat('#6f8f9a'), bx, by, bz, 6);
+              ball(.085, mat(C[(r * 3 + c + (k > 0 ? 3 : 0)) % C.length]), bx, by + .17, bz); ball(.05, mat('#4f8f46'), bx + .05, by + .1, bz + .04); } } }
+        break; }
       case 'giant_cup': cyl(.3, .24, .5, white, fx - mw * .2, roofY + .1, main.z, 12); cyl(.28, .28, .04, mat('#6b4026'), fx - mw * .2, roofY + .58, main.z, 12); { const t = new THREE.Mesh(new THREE.TorusGeometry(.12, .04, 6, 10), white); t.position.set(fx - mw * .2 + .32, roofY + .35, main.z); t.rotation.y = Math.PI / 2; add(t); } break;
       case 'giant_bread': { const b = ball(.38, mat('#c98a4b'), fx - mw * .15, roofY + .35, main.z); b.scale.set(1.3, .6, .8); for (const k of [-1, 0, 1]) box(.06, .05, .3, mat('#e8c088'), fx - mw * .15 + k * .2, roofY + .55, main.z); break; }
       case 'big_fork': for (const k of [-1, 0, 1]) box(.06, .5, .06, mat('#d8d8d8'), fx + mw * .3 + k * .1, roofY + .7, main.z); box(.3, .08, .08, mat('#d8d8d8'), fx + mw * .3, roofY + .62, main.z); box(.08, .6, .08, mat('#d8d8d8'), fx + mw * .3, roofY, main.z); break;

@@ -92,8 +92,8 @@ export function animalModel(id, { apron = null, statue = null } = {}) {
   const by = ex.has('tentacles') ? 5 : 8;
   if (ex.has('shell')) {   // the shell over the back, a pale plate in front
     v.ball(10, by, 9, 6, 6.2, 5.6, (x, y, z) => z > 10 ? belly : body);
-    v.ball(10, by + 1, 6.5, 7.8, 7.4, 5.4, (x, y, z) => ((x + y + z) % 5 === 0 || (x * 3 + z) % 7 === 0) ? '#a8cf78' : '#5e8a3e');
-    v.box(2, by - 3, 3, 18, by - 3, 10, '#4a6e30');   // the rim
+    v.ball(10, by + 2.5, 6, 8.6, 8.8, 5.8, (x, y, z) => ((x + y + z) % 5 === 0 || (x * 3 + z) % 7 === 0) ? '#a8cf78' : '#5e8a3e');
+    v.box(1, by - 3, 2, 19, by - 3, 9, '#4a6e30');   // the rim
   } else if (!ex.has('tentacles')) v.ball(10, by, 9, 6, 6.6, 5.6, (x, y, z) => z > 11 && Math.abs(x + .5 - 10) < 4.2 && y < by + 4 ? belly : body);
   if (ex.has('wool')) for (const [cx, cy, cz] of [[5, 9, 8], [15, 9, 8], [10, 12, 6], [7, 4, 10], [13, 4, 10], [10, 6, 13], [6, 12, 11], [14, 12, 11], [10, 3, 6]]) v.ball(cx, cy, cz, 2.6, 2.6, 2.6, (x, y) => (x + y) % 3 ? body : '#ece4d4');
   // apron: a coloured bib and skirt on the front, with ties

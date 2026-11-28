@@ -14,7 +14,7 @@ function lev(a, b) {
 }
 // Some common words the model may use instead of our keys.
 const ALIAS = {
-  airport: 'train_station', terminal: 'bus_terminal', station: 'train_station', mall: 'supermarket', department_store: 'supermarket', shop: 'boutique', store: 'convenience_store',
+  jjimjilbang: 'sauna', bathhouse: 'sauna', spa: 'sauna', hot_spring: 'sauna', bath_house: 'sauna', flower_shop: 'florist', flowers: 'florist', florist_shop: 'florist', airport: 'train_station', terminal: 'bus_terminal', station: 'train_station', mall: 'supermarket', department_store: 'supermarket', shop: 'boutique', store: 'convenience_store',
   office: 'town_hall', office_building: 'apartment', tower: 'clock_tower', skyscraper: 'apartment', apartment_block: 'apartment', house_korean: 'hanok_house', hanok: 'hanok_house',
   coffee: 'cafe', coffee_shop: 'cafe', teahouse: 'cafe', tea_house: 'cafe', pub: 'bar', diner: 'restaurant', noodle: 'restaurant', ramen: 'restaurant', inn: 'guesthouse', hostel: 'guesthouse',
   arcade: 'pc_bang', gaming: 'pc_bang', school_building: 'school', college: 'university', hospital_building: 'hospital', shrine: 'temple', pagoda: 'temple', cathedral: 'church', chapel: 'church',

@@ -17,10 +17,10 @@ export const GROUNDS = ['stairs_down', 'shopfront', 'arcade', 'portico', 'canopy
 export const RHYTHMS = ['punched', 'bands', 'grid', 'curtain', 'lattice', 'arched', 'none'];
 export const MASS_SHAPES = ['box', 'round', 'canopy', 'bowl', 'saucer'];
 export const SIDES = ['main', 'left', 'right', 'back', 'front', 'top'];
-export const HEROES = ['none', 'owner_statue', 'sculpture', 'outdoor_pool', 'giant_glove', 'stall_row', 'food_cart', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
+export const HEROES = ['none', 'owner_statue', 'steam_vents', 'flower_stand', 'sculpture', 'outdoor_pool', 'giant_glove', 'stall_row', 'food_cart', 'giant_cup', 'giant_bread', 'big_fork', 'neon_arrow', 'pylon_sign', 'lantern_string', 'mannequin', 'green_cross', 'red_cross', 'clock', 'flagpoles', 'siren',
   'postbox', 'slide', 'banners', 'marquee_lights', 'dumbbell', 'floodlights', 'giant_pin', 'chimney_stack', 'weathervane', 'mailbox', 'water_tank', 'chimney', 'spire', 'minaret', 'lamp', 'sails'];
 export const ICONS = ['fish', 'fork', 'cup', 'bread', 'glass', 'burger', 'noodle', 'cart', 'bag', 'pill', 'news', 'pc', 'bed', 'flag', 'badge', 'fire', 'mail', 'book', 'star', 'cap', 'cross',
-  'column', 'frame', 'mask', 'film', 'music', 'dumbbell', 'wave', 'ball', 'train', 'bus', 'fuel', 'car', 'gear', 'box', 'wrench', 'wheat', 'house', 'tree', 'cross_r', 'lotus', 'moon', 'clock', 'crown'];
+  'column', 'frame', 'mask', 'film', 'music', 'dumbbell', 'wave', 'ball', 'train', 'bus', 'fuel', 'car', 'gear', 'box', 'wrench', 'wheat', 'house', 'tree', 'cross_r', 'lotus', 'moon', 'clock', 'crown', 'hotspring', 'flower'];
 export const PROPS = ['plant', 'bench', 'stool', 'lantern', 'flag', 'crate', 'barrel', 'bike', 'aboard', 'parasol', 'bollard', 'tree', 'vending', 'car', 'cat', 'owner'];
 export const MAX_SHOWN_LEVELS = 5;   // floors drawn on the map; taller buildings show a band for the rest (2026-11-28: 8 → 5, a tower no longer as tall as the island)
 

@@ -34,6 +34,7 @@ export const TYPES = {
   pojangmacha:       T('food', 'S', [1, 1], 'counter', 'skillion', 'lantern_string', 'noodle', [], ['counter']),
   convenience_store: T('retail', 'S', [1, 2], 'shopfront', 'flat', 'pylon_sign', 'cart', [], ['aisles', 'checkout', 'stockroom']),
   supermarket:       T('retail', 'L', [1, 1], 'shopfront', 'flat', 'pylon_sign', 'cart', ['canopy:front'], ['aisles', 'checkout', 'stockroom']),
+  florist:           T('retail', 'S', [1, 2], 'shopfront', 'gabled', 'flower_stand', 'flower', [], ['aisles', 'checkout']),
   boutique:          T('retail', 'S', [1, 2], 'shopfront', 'mansard', 'mannequin', 'bag', [], ['sales', 'fitting']),
   pharmacy:          T('retail', 'S', [1, 2], 'shopfront', 'flat', 'green_cross', 'pill', [], ['sales', 'counter']),
   market_hall:       T('retail', 'XL', [1, 1], 'arcade', 'round', 'stall_row', 'cart', [], ['stalls']),
@@ -64,6 +65,7 @@ export const TYPES = {
   concert_hall:      T('culture', 'XL', [2, 3], 'curtain', 'round', 'none', 'music', [], ['foyer', 'auditorium', 'stage']),
   // sport & leisure
   gym:               T('sport', 'M', [1, 3], 'shopfront', 'flat', 'dumbbell', 'dumbbell', [], ['reception', 'cardio', 'weights', 'lockers']),
+  sauna:             T('sport', 'M', [1, 3], 'portico', 'hipped', 'steam_vents', 'hotspring', [], ['reception', 'pool', 'lounge']),
   swimming_pool:     T('sport', 'L', [1, 1], 'curtain', 'round', 'none', 'wave', [], ['pool', 'lockers']),
   stadium:           T('sport', 'XL', [2, 3], 'arcade', 'flat', 'none', 'ball', [], ['diamond', 'stands']),
   bowling_alley:     T('sport', 'L', [1, 1], 'marquee', 'flat', 'giant_pin', 'ball', [], ['lanes', 'counter']),
@@ -135,7 +137,7 @@ export const FAMILIES = [...new Set(Object.values(TYPES).map(t => t.family))];
 
 // Korean labels for the gallery and the build log.
 export const TYPE_KO = {
-  restaurant: '식당', cafe: '카페', bakery: '빵집', bar: '바', fast_food: '패스트푸드', pojangmacha: '포장마차', convenience_store: '편의점', supermarket: '마트', boutique: '옷가게', pharmacy: '약국',
+  restaurant: '식당', cafe: '카페', bakery: '빵집', bar: '바', fast_food: '패스트푸드', pojangmacha: '포장마차', convenience_store: '편의점', supermarket: '마트', boutique: '옷가게', florist: '꽃집', sauna: '찜질방', pharmacy: '약국',
   market_hall: '시장 홀', kiosk: '가판대', pc_bang: 'PC방', hotel: '호텔', motel: '모텔', guesthouse: '게스트하우스', town_hall: '시청', police: '경찰서', fire_station: '소방서', post_office: '우체국',
   library: '도서관', kindergarten: '유치원', school: '학교', university: '대학', clinic: '의원', hospital: '병원', museum: '박물관', gallery: '미술관', theater: '극장', cinema: '영화관',
   concert_hall: '공연장', gym: '체육관', swimming_pool: '수영장', stadium: '경기장', bowling_alley: '볼링장', train_station: '기차역', bus_terminal: '버스터미널', gas_station: '주유소', parking_garage: '주차빌딩',
