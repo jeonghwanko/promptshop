@@ -300,8 +300,8 @@ export function buildExterior(spec, section) {
     const earY = roofY + (top - roofY) * .55, sideX = fx + mw / 2;
     for (const k of [-1, 1]) {
       const x = fx + k * mw * .3, z = main.z + md * .12;
-      if (a.ears === 'point') { const c = new THREE.Mesh(new THREE.ConeGeometry(eh * .5, eh, 4), earM); c.rotation.y = Math.PI / 4; c.position.set(x, earY + eh / 2, z); add(c);
-        const n = new THREE.Mesh(new THREE.ConeGeometry(eh * .28, eh * .62, 4), inner); n.rotation.y = Math.PI / 4; n.position.set(x, earY + eh * .36, z + eh * .2); add(n); }
+      if (a.ears === 'point') { const g = new THREE.Group(), c = new THREE.Mesh(new THREE.ConeGeometry(eh * .5, eh, 14), earM), n = new THREE.Mesh(new THREE.ConeGeometry(eh * .3, eh * .66, 12), inner);
+        c.scale.z = .55; c.position.y = eh / 2; n.scale.z = .3; n.position.set(0, eh * .38, eh * .14); g.add(c, n); g.position.set(x, earY, z); g.rotation.z = -k * .2; add(g); }   // soft round cones, tipped outward
       if (a.ears === 'round') { const d = new THREE.Mesh(new THREE.CylinderGeometry(eh * .45, eh * .45, .16, 14), earM); d.rotation.x = Math.PI / 2; d.position.set(x, earY + eh * .45, z); add(d);
         const n = new THREE.Mesh(new THREE.CylinderGeometry(eh * .26, eh * .26, .04, 12), inner); n.rotation.x = Math.PI / 2; n.position.set(x, earY + eh * .42, z + .1); add(n); }
       if (a.ears === 'tiny') ball(eh * .22, earM, x, earY + eh * .12, z);
@@ -316,12 +316,21 @@ export function buildExterior(spec, section) {
     if (ex.has('tentacles')) for (const [cx, cz] of [[fx - mw / 2 - .05, fz + .05], [fx + mw / 2 + .05, fz + .05], [fx + mw / 2 + .05, main.z - md / 2 + .3]]) {
       for (let j = 0; j < 9; j++) { const t = j / 8, y = roofY + .2 - t * (roofY - .1), w = Math.sin(t * Math.PI * 1.6) * .16; ball(.17 - t * .06, bodyM, cx + (cx > fx ? w : -w), y, cz + (cz > main.z ? .06 : 0)); if (j % 2) ball(.05, mat(a.belly), cx + (cx > fx ? w + .1 : -w - .1), y, cz + .1); } }
     if (ex.has('eyestop')) for (const k of [-1, 1]) { const x = fx + k * mw * .26; ball(.32, bodyM, x, top + .05, main.z + md * .2); ball(.2, mat('#ffffff'), x, top + .1, main.z + md * .2 + .2); ball(.11, ink, x, top + .1, main.z + md * .2 + .36); }
-    // a face under the eaves: two big eyes and a nose (a beak for birds) on the top of the front wall, the building looks out at the street
-    if (!ex.has('eyestop')) { const ey = roofY - .36, gap = Math.min(.62, mw * .24);
-      for (const k of [-1, 1]) { const ex2 = fx + k * gap; ball(.25, mat('#ffffff'), ex2, ey, fz + .02); ball(.14, ink, ex2 + k * .02, ey - .02, fz + .2); ball(.05, mat('#ffffff'), ex2 - .05, ey + .05, fz + .32);
-        if (!ex.has('mask')) ball(.12, mat('#ffa8a0'), fx + k * (gap + .32), ey - .24, fz + .04); else { const m2 = ball(.34, ink, ex2, ey, fz - .04); m2.scale.z = .3; } }
-      if (a.snout === 'beak') { const bk = new THREE.Mesh(new THREE.ConeGeometry(.22, .5, 4), mat(a.nose)); bk.rotation.x = Math.PI / 2; bk.rotation.z = Math.PI / 4; bk.scale.set(1.4, 1, .6); bk.position.set(fx, ey - .26, fz + .28); add(bk); }
-      else if (a.nose) { const n = ball(.11, mat(a.nose), fx, ey - .22, fz + .1); n.scale.set(1.3, .8, 1); } }
+    // a cute face under the eaves: big glossy black eyes with two sparkles, pink blush, a little ω mouth (a beak for birds)
+    if (!ex.has('eyestop')) { const ey = roofY - .55, gap = Math.min(.56, mw * .2), pink = glow('#ff9fb0'), white = glow('#ffffff'), eyeM = glow('#1a1416');
+      for (const k of [-1, 1]) { const ex2 = fx + k * gap;
+        if (ex.has('mask')) { const m2 = ball(.4, ink, ex2 + k * .03, ey - .02, fz + .01); m2.scale.set(.95, 1.15, .25); m2.rotation.z = -k * .5; }
+        const e = ball(.27, eyeM, ex2, ey, fz + .08); e.scale.set(.85, 1.1, .45);
+        ball(.09, white, ex2 - .08, ey + .11, fz + .2); ball(.045, white, ex2 + .07, ey - .1, fz + .2);
+        if (!ex.has('mask')) { const b = ball(.2, pink, fx + k * (gap + .34), ey - .26, fz + .04); b.scale.set(1.4, .7, .3); } }
+      if (a.snout === 'beak') { const bk = new THREE.Mesh(new THREE.ConeGeometry(.22, .44, 10), mat(a.nose)); bk.rotation.x = Math.PI / 2; bk.scale.set(1.5, 1, .7); bk.position.set(fx, ey - .3, fz + .26); add(bk); }
+      else { if (a.nose) { const n = ball(.1, mat(a.nose), fx, ey - .2, fz + .08); n.scale.set(1.3, .8, .8); }
+        for (const k of [-1, 1]) { const m = new THREE.Mesh(new THREE.TorusGeometry(.09, .03, 4, 10, Math.PI), ink); m.rotation.z = Math.PI; m.position.set(fx + k * .09, ey - .3, fz + .06); add(m); } } }
+    // two front paws resting on the eave, toe beans showing: the animal hugs its shop
+    if (!ex.has('tentacles') && !ex.has('eyestop')) for (const k of [-1, 1]) { const px = fx + k * mw * .38, py = roofY - .02, pz = fz + .1;
+      if (a.arms === 'flippers') { const f = ball(.24, mat(shade(a.body, .9)), px, py, pz); f.scale.set(.7, .4, 1.2); f.rotation.z = k * .3; continue; }
+      const pawM = a.arms === 'dark' ? mat(a.en === 'panda' ? '#2a2a30' : shade(a.body, .45)) : bodyM, pw = ball(.2, pawM, px, py, pz); pw.scale.set(1.1, .75, 1);
+      const bean = mat('#ffb3c0'); for (const d of [-.09, 0, .09]) ball(.04, bean, px + d, py + .07, pz + .18); const pad = ball(.06, bean, px, py - .01, pz + .2); pad.scale.set(1.3, .8, .5); }
     if (ex.has('yuzu')) { ball(.42, mat('#ffb52e'), fx, top + .32, main.z); box(.1, .14, .1, mat('#4f8f46'), fx, top + .7, main.z); box(.22, .04, .12, mat('#4f8f46'), fx + .12, top + .76, main.z); }
     if (ex.has('wool')) { for (let i = 0; i < 7; i++) ball(.26, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw / 2 + (i + .5) * mw / 7, roofY + .08, fz + .12); for (let i = 0; i < 5; i++) ball(.34, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw * .36 + i * mw * .18, top + .05, main.z + md * .1); }
     if (ex.has('tuft')) for (const d of [-.12, 0, .12]) { const c = new THREE.Mesh(new THREE.ConeGeometry(.08, .4, 5), bodyM); c.position.set(fx + d, top + .2, main.z); c.rotation.z = d * 2; add(c); }
