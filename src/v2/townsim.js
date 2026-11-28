@@ -156,10 +156,11 @@ export class TownSim {
       }
     }
   }
-  /** Unmet wants right now, per kind, and whether anything in town serves that kind. */
+  /** Unmet wants right now, per kind (people turned away or with nowhere to go), and whether anything in town serves that kind. */
   demand() {
     const out = Object.fromEntries(NEED_KEYS.map(k => [k, { waiting: 0, served: false }]));
-    for (const p of this.people) if (p.need && !p.inQueue) out[p.need].waiting++;
+    // only those who looked for a place and found none (a full queue, or nothing of that kind): not the ones walking to a shop or in its line
+    for (const p of this.people) if (p.need && !p.inQueue && !p.target && p.tried) out[p.need].waiting++;
     for (const s of this.shops.values()) if (s.serves) out[s.serves].served = true;
     return out;
   }

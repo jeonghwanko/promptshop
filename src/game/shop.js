@@ -89,7 +89,7 @@ function shopActions(w, p) {
   const caps = (o, l, hh) => flowCaps(fx, o, base, hh ?? h, l ?? lv), sup = w.supply ?? Infinity, now0 = caps(own);
   const gain = (b) => Math.min(b.gpm, sup) - Math.min(now0.gpm, sup);
   const popTxt = (b) => { const d = gain(b); return d > .05 ? `+${d.toFixed(1)}명/분` : b.price > now0.price ? `+${b.price - now0.price}동전` : ''; };
-  const gainTxt = (b, idle = '배가 더 자주 와요') => { const d = gain(b); return d > .05 ? `손님 +${d >= 1 ? Math.round(d) : d.toFixed(1)}명/분` : b.price > now0.price ? `한 명 +${b.price - now0.price}동전` : idle; };   // (a new piece brings boats sooner — rules.js boatPlanOf; a level-up only helps once guests queue)
+  const gainTxt = (b, idle = '배가 더 자주 와요') => { const d = gain(b); return d > .05 ? `손님 +${d >= 1 ? Math.round(d) : d.toFixed(1)}명/분` : b.price > now0.price ? `한 명 +${b.price - now0.price}동전` : idle; };   // (a faster shop draws more boats — rules.js boatPlanOf; a level-up only helps once guests queue)
   // what a piece adds to the island's power and water, said after what it brings
   const lvUse = (k, L) => { const a = fixUse(k, L), b = fixUse(k, L + 1); return [b[0] - a[0], b[1] - a[1]]; };
   // the next piece: the one that lifts income most

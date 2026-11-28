@@ -17,7 +17,7 @@ import { START_STOCK, REQ_BONUS, UTIL, levelOf, sizesOpen, bad } from './rules.j
 import { refundOf } from './migrate.js';
 import { $, el } from './ui.js';
 import { S, me, sample, pr, sim, now, canWrite, splash, nextBoat } from './state.js';
-import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf, shortOf } from './model.js';
+import { maxPlots, allPlots, fixturesOf, ownedOf, levelsOf, servesOf, G, rebuild, takenSet, tilesOf, shortOf, myPlots, isOff } from './model.js';
 import { noSupply, pipeCost } from './utility.js';
 import { stakeSite, dustSite, hookDrop } from './mapfx.js';
 import { save, track } from './persist.js';
@@ -78,7 +78,7 @@ let moreWants = [];
 function moreList(anchor) {
   document.getElementById('why')?.remove();
   const box = el('div', { class: 'why wantlist', id: 'why', on: { pointerdown: (e) => e.stopPropagation() } }, ...moreWants.map(x => el('button', { class: 'wrow', on: { click: () => { box.remove(); pickWant(x.need); } } },
-    faceEl(x.need), el('b', {}, REQ[x.need].ko), el('span', { class: 'cnt' }, String(x.waiting)), el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`))));
+    faceEl(x.need), el('b', {}, REQ[x.need].ko), el('span', { class: 'cnt' }, String(x.waiting)), servedKinds().has(x.need) ? el('small', { class: 'rw grow' }, iconEl('up', 16, '')) : el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`))));
   document.body.append(box);
   const r = anchor.getBoundingClientRect(), W = box.offsetWidth, H = box.offsetHeight; box.style.left = Math.max(8, Math.min(innerWidth - W - 8, r.left + r.width / 2 - W / 2)) + 'px'; box.style.top = Math.max(8, r.top - H - 10) + 'px';
   const close = (e) => { if (e && box.contains(e.target)) return; box.remove(); removeEventListener('pointerdown', close, true); };   // (a press inside is not a press elsewhere) setTimeout(() => addEventListener('pointerdown', close, true), 0);
@@ -106,12 +106,21 @@ export function setBuildMode(on) {
  *  this face chosen); a second tap lets go. In the window: build for that want (a second tap: anything I like). */
 function pickWant(need) {
   if (S.building) return;
+  // my island has that kind already: those guests were turned away at a full shop, so the face opens it to grow it inside (2026-11-28)
+  if (!S.buildMode && !S.choosing && !tutOn()) { const k = shopFor(need); if (k) { document.getElementById('why')?.remove(); track('want_shop', { need }); openShop(k); return; } }
   if (!S.buildMode && !(S.choosing && S.card?.need === need) && noSupply($('wants'), UTIL.base[S.size], () => pickWant(need))) return;   // no power or water for one more: grow first, then carry on
   if (!S.buildMode) { const again = S.choosing && S.card?.need === need; S.card = again ? null : { need }; S.choosing = !again; S.choiceAt = performance.now(); drawAsk(true); if (!again) { scrollToSlot(S.mySlot); tutEvent('card'); } return; }
   S.card = S.card?.need === need ? null : { need };
   $('line').placeholder = '예: ' + ideasOf()[0]; drawAsk(true); tutEvent('card');
   if (matchMedia('(pointer: fine)').matches) $('line').focus();
 }
+/** My shop of a kind with the longest line (the one to grow first), or null when my island has none of that kind. */
+function shopFor(need) {
+  const mine = myPlots().filter(p => servesOf(p) === need && !isOff(p)); if (!mine.length) return null;
+  const line = (p) => sim.shops.get(p.key)?.queue?.length ?? 0;
+  return mine.sort((a, b) => line(b) - line(a))[0].key;
+}
+const servedKinds = () => new Set(myPlots().filter(p => !isOff(p)).map(servesOf));
 /** The one way to build: a spot on my island (null: the free one nearest the middle) — the window opens there. */
 export function openAt(spot) {
   if (S.building || !S.mySlot) return;
@@ -144,14 +153,14 @@ export function drawAsk(force) {
   const w = G(), wants = wantsNow(), open = sizesOpen(levelOf(w.served)), busy = !!S.building;
   const need = UTIL.base[S.size], short = shortOf(need), pipe = S.buildMode ? pipeCost(S.spot?.door) : 0;
   S.preview = S.buildMode && !busy ? need : null;   // the plant's lamps it would take blink, and the meter says 3→2
-  const key = JSON.stringify([wants, moreWants, S.card, S.buildMode, S.choosing, busy, short, pipe, Math.floor(w.coins) >= pipe, S.size, open.length, Object.keys(S.myDoc.plots).length, opened('util')]);
+  const have = servedKinds(), key = JSON.stringify([wants, moreWants, [...have], S.card, S.buildMode, S.choosing, busy, short, pipe, Math.floor(w.coins) >= pipe, S.size, open.length, Object.keys(S.myDoc.plots).length, opened('util')]);
   if (!force && key === askKey) return; askKey = key;
   box.classList.toggle('open', S.buildMode); box.classList.toggle('busy', busy); box.classList.toggle('choosing', !!S.choosing);
   const chip = (need, waiting, fresh) => { const r = need ? REQ[need] : null, on = S.card?.need === need;
     const b = el('button', { class: 'want' + (on ? ' on' : '') + (need ? '' : ' free') + (fresh ? ' fresh' : ''), 'data-need': need ?? '', on: { click: () => pickWant(need) } },
       waiting ? el('span', { class: 'cnt' }, String(waiting)) : null, faceEl(need),
       el('span', { class: 'wt' }, el('b', { class: 'lg' }, r ? r.ko : '마음대로'), el('b', { class: 'sh' }, r ? r.short : '마음대로')),
-      r ? el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`) : null);   // what building it pays; the kinds of shop are the bar's examples
+      r ? (have.has(need) && !S.buildMode ? el('small', { class: 'rw grow' }, iconEl('up', 16, '')) : el('small', { class: 'rw' }, iconEl('coin', 16, ''), `+${REQ_BONUS}`)) : null);   // a kind I serve: grow that shop (pickWant); else what building it pays
     b.disabled = busy; return b; };
   // with the bar open, the last chip closes it (Esc does too; the key is shown where there is a keyboard)
   const cancel = (S.buildMode || S.choosing) && !busy ? el('button', { class: 'want cancel', on: { click: () => cancelBuild() } }, iconEl('close', 22, ''), el('span', { class: 'wt' }, el('b', {}, '취소')), matchMedia('(pointer: fine)').matches ? el('kbd', {}, 'Esc') : null) : null;

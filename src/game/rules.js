@@ -58,8 +58,18 @@ export const supplyCost = (n) => Math.round(320 * 1.5 ** (n ?? 0));   // ×8 (20
 export const billOf = (use) => Math.round((use[0] + use[1]) * UTIL.rate);
 
 // ---------- boats ----------
-/** How often a boat comes to an island and how many it brings: more shops and fuller shops draw more. */
-export const boatPlanOf = (shops, fixtures) => ({ every: Math.round(Math.max(6, 18 - 3 * shops - Math.floor(fixtures / 2))), people: Math.min(14, 3 + shops + Math.floor(fixtures / 3)), shops, fx: fixtures });
+/** How often a boat comes to an island and how many it brings (2026-11-28): as many as the island's shops can take in,
+ *  a little more (SLACK), so a few are always turned away and a fuller shop draws more boats. Most of them (SHARE) want
+ *  what the island sells; the rest want any kind, which is what asks for new buildings. take: guests a second the
+ *  island's shops serve together (Σ 1 / interval). Before, boats grew with the number of shops alone and soon brought
+ *  several times what the shops could serve: the faces showed dozens waiting and the only answer was another building. */
+export const BOAT = { slack: .15, share: .75, maxPeople: 14, every: [5, 16] };
+export const boatPlanOf = (shops, fixtures, take = 0) => {
+  if (!shops || !(take > 0)) return { every: 16, people: 3, shops, fx: fixtures };
+  const rate = take * (1 + BOAT.slack) / BOAT.share, first = Math.max(8, 14 - 2 * shops);   // guests a second; a boat every `first` s to start from
+  const people = Math.max(2, Math.min(BOAT.maxPeople, Math.round(rate * first))), every = Math.round(Math.max(BOAT.every[0], Math.min(BOAT.every[1], people / rate)));
+  return { every, people, shops, fx: fixtures };
+};
 
 // ---------- the festival boat ----------
 export const FEST = {

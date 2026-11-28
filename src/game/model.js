@@ -58,7 +58,7 @@ export function tilesOf(slot) { const [cx, cz] = centerOf(slot), out = []; for (
 /** The open shops of an island that still have stock (and power and water: a shop cut off for an unpaid bill is closed). */
 export function islandShops(slot) { return allPlots().filter(p => p.slot === slot && p.b && servesOf(p) && !isOff(p) && (p.owner === me ? (S.myDoc.plots[p.key]?.stock ?? START_STOCK) : (p.stock ?? START_STOCK)) > 0); }
 /** How often a boat comes to an island and how many it brings. */
-export function boatPlan(slot) { const shops = islandShops(slot); return boatPlanOf(shops.length, shops.reduce((t, p) => t + ownedOf(p).size, 0)); }
+export function boatPlan(slot) { const shops = islandShops(slot); return boatPlanOf(shops.length, shops.reduce((t, p) => t + ownedOf(p).size, 0), shops.reduce((t, p) => t + 1 / ratesOf(p).interval, 0)); }   // take: what the shops serve a second
 
 // ---------- my wallet: guests served raise the island's level ----------
 /** My wallet (served counted from 0 on a new island). */
