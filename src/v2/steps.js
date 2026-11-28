@@ -46,7 +46,7 @@ export function applyStep(b, step) {
       return { view: 'int', key: 'floor:' + (i.floors.length - 1) };
     }
     case 'guests': {   // who loves this place and what they say about it (2026-11-28: the line I wrote comes back as my guests' words)
-      const t = (v, n) => (typeof v === 'string' ? v.replace(/\s+/g, ' ').trim().slice(0, n) : '');
+      const t = (v, n) => (typeof v === 'string' ? Array.from(v.replace(/\s+/g, ' ').trim()).slice(0, n).join('') : '');   // by characters, so an emoji is never cut in half
       const reviews = (Array.isArray(step.reviews) ? step.reviews : []).map(r => t(r, 32)).filter(Boolean).slice(0, 4);
       if (!reviews.length) return null;
       i.guests = { who: t(step.who, 16), reviews };

@@ -6,10 +6,17 @@ import { S } from './state.js';
 import { allPlots } from './model.js';
 import { toScreen } from './camera.js';
 import { el } from './ui.js';
+import { bad } from './rules.js';
 
 const SHOW_MS = 3400, GAP_MS = 6000, SHOP_GAP_MS = 15000, FIRST = 3;   // a shop's first few paying guests always speak (a new shop serves slowly: that is when its words matter)
 let busyUntil = 0; const lastOf = new Map(), nextOf = new Map(), paidOf = new Map();
-const wordsOf = (key) => allPlots().find(p => p.key === key)?.b?.input?.guests ?? null;
+/** A shop's words, checked: island docs are written by their owners' pages, so a broken or rude entry is dropped, never drawn. */
+function wordsOf(key) {
+  const g = allPlots().find(p => p.key === key)?.b?.input?.guests; if (!g || typeof g !== 'object') return null;
+  const ok = (v, n) => typeof v === 'string' && v.trim() && Array.from(v).length <= n && !bad(v);
+  const reviews = (Array.isArray(g.reviews) ? g.reviews : []).filter(r => ok(r, 40)).slice(0, 4);
+  return reviews.length ? { who: ok(g.who, 20) ? g.who : '', reviews } : null;
+}
 
 /** A guest of shop `key` paid: maybe say one of its reviews (not too often, one bubble at a time). */
 export function guestPaid(key) {

@@ -240,6 +240,7 @@ async function build() {
     await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
     const c = check(b.input, { broken, line });
     const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
+    if (problems.length && !seen.some(x => x.step === 'guests')) problems.push('The "guests" line is missing: {"step":"guests","who":"<who loves this place, max 14 chars>","reviews":["<3 short guest reviews, each under 26 characters, reacting to the specific things in the description, same language>"]}');   // asked only along with a fix that is going out anyway
     if (problems.length) { note('다듬기', '빠진 곳을 채우는 중'); let first = true; const rd2 = lineReader(s => { if (s.step === 'floor' && first) { s.replace = true; first = false; } apply(s); });
       // the fix is a bonus: if it fails (the line, a timeout), the building from the first answer still stands
       try { await sample(revisePrompt(line, raw, problems), { purpose: 'revise', modelTier: 'quick', cache: false, onText: ({ delta }) => rd2.push(delta) }); rd2.end(); } catch { note('다듬기', '이대로 지을게요'); }
@@ -247,6 +248,7 @@ async function build() {
     if (!b.input) throw { code: 'nothing' };
     fitToLot(b.input, n); const s = normalize(b.input);
     if (bad(s.name)) return done('그 이름으로는 세울 수 없어요.');
+    if (b.input.guests) { const g = b.input.guests; g.reviews = (g.reviews ?? []).filter(r => !bad(r)); if (bad(g.who)) g.who = ''; if (!g.reviews.length) delete b.input.guests; }   // the guests' words pass the same filter as names
     // the world may have moved on while Claude wrote: another tab took the island, the power or coins spent elsewhere, the island full, the spot taken
     if (!canWrite()) { S.building = null; stakeSite(null); logDrop(); return; }
     if (shortOf(UTIL.base[sz]) >= 0) return done('전기나 물이 모자라요. 접속점이나 정수장을 키워 주세요.');
