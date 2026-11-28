@@ -43,7 +43,7 @@ export async function openDiaShop(why = '') {
       el('h2', {}, why === 'limit' ? '오늘 무료 짓기를 다 썼어요' : '다이아'),
       el('div', { class: 'have' }, iconEl('dia', 22, ''), el('b', {}, Math.max(0, view.dia).toLocaleString('ko-KR')), iconEl('hammer', 20, ''), el('b', {}, `짓기권 ${view.builds}`), el('small', {}, `짓기 1번 = ${view.buildDia}다이아`)),
       el('div', { class: 'packs' }, ...packs.map(pack)),
-      el('p', { class: 'fine' }, '결제는 Polar에서 달러로 해요. 구매 후 3일 이내 환불을 받을 수 있어요.')));
+      el('p', { class: 'fine' }, '결제는 Polar에서 달러로 해요. 구매 후 3일 이내, 쓰지 않은 짓기권 · 다이아만 환불해 드려요.')));
   document.body.append(box);
   return true;
 }

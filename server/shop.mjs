@@ -33,7 +33,7 @@ export function createShop(store, config, { origin, log = () => {}, fetcher = fe
   sql.exec(`CREATE TABLE IF NOT EXISTS wallets (uid TEXT PRIMARY KEY, dia INTEGER NOT NULL DEFAULT 0, builds INTEGER NOT NULL DEFAULT 0, starter INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS orders (checkout TEXT PRIMARY KEY, uid TEXT NOT NULL, sku TEXT NOT NULL, product TEXT NOT NULL, cents INTEGER NOT NULL, state TEXT NOT NULL, order_id TEXT, at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL, dia INTEGER NOT NULL, builds INTEGER NOT NULL, why TEXT NOT NULL, ref TEXT, at INTEGER NOT NULL);`);
-  for (const c of ['granted_dia', 'granted_builds']) if (!sql.prepare(`SELECT 1 FROM pragma_table_info('orders') WHERE name = ?`).get(c)) sql.exec(`ALTER TABLE orders ADD COLUMN ${c} INTEGER`);   // what the payment gave: a refund takes exactly that back
+  for (const c of ['granted_dia', 'granted_builds', 'refunded_cents', 'taken_dia', 'taken_builds']) if (!sql.prepare(`SELECT 1 FROM pragma_table_info('orders') WHERE name = ?`).get(c)) sql.exec(`ALTER TABLE orders ADD COLUMN ${c} INTEGER`);   // what the payment gave: a refund takes exactly that back
   const enabled = () => !!(config.token && config.secret) ? Object.keys(config.products) : [];
   const walletOf = (uid) => sql.prepare(`SELECT dia, builds, starter FROM wallets WHERE uid = ?`).get(uid) ?? { dia: 0, builds: 0, starter: 0 };
   /** Add (or take, with negatives) diamonds and tickets, written down in the ledger. */
@@ -112,11 +112,27 @@ export function createShop(store, config, { origin, log = () => {}, fetcher = fe
         change(row.uid, give.dia, give.builds, 'buy:' + row.sku + (again ? ':again' : ''), o.id, item.once ? 1 : 0);
         sql.prepare(`UPDATE orders SET state = 'paid', order_id = ?, granted_dia = ?, granted_builds = ? WHERE checkout = ?`).run(o.id, give.dia, give.builds, row.checkout); return again ? 'paid_as_diamonds' : 'paid';
       }
-      if (o.status !== 'refunded') return 'not_refunded';
-      if (now !== 'paid') return now === 'refunded' ? 'replayed' : 'unpaid_refund';
-      const g = sql.prepare(`SELECT granted_dia AS dia, granted_builds AS builds FROM orders WHERE checkout = ?`).get(row.checkout);
-      change(row.uid, -(g.dia ?? item.dia), -(g.builds ?? item.builds), 'refund:' + row.sku, o.id);   // may go below zero when already spent: nothing more can be spent then
-      sql.prepare(`UPDATE orders SET state = 'refunded' WHERE checkout = ?`).run(row.checkout); return 'refunded';
+      // Refunds are for what was not used yet (2026-11-28), so most are partial: take back the refunded share of the pack, counted in
+      // builds (a ticket is one, 50 diamonds are one), tickets first. Whatever Polar's refunded_amount means (a running total or this
+      // refund), the order keeps what it has taken back so far, and the same total twice takes nothing more.
+      if (!['refunded', 'partially_refunded'].includes(o.status)) return 'not_refunded';
+      if (!['paid', 'partially_refunded'].includes(now)) return now === 'refunded' ? 'replayed' : 'unpaid_refund';
+      const r = sql.prepare(`SELECT granted_dia AS gd, granted_builds AS gb, refunded_cents AS rc, taken_dia AS td, taken_builds AS tb FROM orders WHERE checkout = ?`).get(row.checkout);
+      const gd = r.gd ?? item.dia, gb = r.gb ?? item.builds, td = r.td ?? 0, tb = r.tb ?? 0, before = r.rc ?? 0;
+      const total = o.status === 'refunded' ? row.cents : Math.min(row.cents, Number.isSafeInteger(o.refunded_amount) ? o.refunded_amount : 0);
+      if (total <= before) return 'replayed';
+      let dia = 0, builds = 0;
+      if (total >= row.cents) { dia = gd - td; builds = gb - tb; }   // all of it: whatever is left of the pack
+      else {   // a share: the same share of the pack's builds, tickets first, then 50 diamonds each
+        const units = Math.round((gb + gd / BUILD_DIA) * (total - before) / row.cents), hold = walletOf(row.uid);
+        builds = Math.min(units, gb - tb, Math.max(0, hold.builds));   // tickets the player still holds first,
+        dia = Math.min((units - builds) * BUILD_DIA, gd - td);          // then diamonds,
+        builds += Math.min(units - builds - dia / BUILD_DIA, gb - tb - builds);   // then, if the pack still owes, tickets below zero
+      }
+      change(row.uid, -dia, -builds, 'refund:' + row.sku, o.id);   // may go below zero when already spent: nothing more can be spent then
+      const full = total >= row.cents;
+      sql.prepare(`UPDATE orders SET state = ?, refunded_cents = ?, taken_dia = ?, taken_builds = ? WHERE checkout = ?`).run(full ? 'refunded' : 'partially_refunded', total, td + dia, tb + builds, row.checkout);
+      return full ? 'refunded' : 'partially_refunded';
     });
     return { status: 200, body: { ok: true, state } };
   }

@@ -33,9 +33,9 @@ function player() {
 }
 const sign = (raw, secret = SECRET) => { const id = 'msg_' + crypto.randomUUID(), ts = String(Math.floor(Date.now() / 1000)), key = Buffer.from(secret.slice(6), 'base64');
   return { 'webhook-id': id, 'webhook-timestamp': ts, 'webhook-signature': 'v1,' + crypto.createHmac('sha256', key).update(`${id}.${ts}.${raw}`).digest('base64'), 'content-type': 'application/json' }; };
-const hook = async (type, checkout, { status, signed = true, product, amount } = {}) => {
+const hook = async (type, checkout, { status, signed = true, product, amount, refunded } = {}) => {
   const s = sessions.get(checkout) ?? { product_id: P.d500, amount: 349 };
-  const raw = JSON.stringify({ type, data: { id: crypto.randomUUID(), checkout_id: checkout, product_id: product ?? s.product_id, currency: 'usd', subtotal_amount: amount ?? s.amount, paid: true, status: status ?? (type === 'order.refunded' ? 'refunded' : 'paid') } });
+  const raw = JSON.stringify({ type, data: { id: crypto.randomUUID(), checkout_id: checkout, product_id: product ?? s.product_id, currency: 'usd', subtotal_amount: amount ?? s.amount, paid: true, status: status ?? (type === 'order.refunded' ? 'refunded' : 'paid'), ...(refunded != null ? { refunded_amount: refunded } : {}) } });
   const r = await fetch(base + '/api/polar/webhook', { method: 'POST', body: raw, headers: signed ? sign(raw) : { 'content-type': 'application/json' } });
   return { status: r.status, v: await r.json() };
 };
@@ -85,4 +85,19 @@ const D = player(); const cd = await D.buy('d500'); await hook('order.paid', idO
 const E = player(); let busy = null; for (let i = 0; i < 5; i++) { const r = await E.build(); if (r.status !== 200) { busy = r; break; } }
 check('the free budget runs out', busy?.status === 503 && busy.v.error === 'busy', JSON.stringify(busy?.v));
 check('diamonds still build', (await D.build()).status === 200 && (await D.shop()).v.dia === 450);
+
+// only what was not used is refunded, so most refunds are partial: the refunded share of the pack comes back, counted in builds
+const G = player(); const cg = await G.buy('d1100'); await hook('order.paid', idOf(cg.v.url));
+const half = await hook('order.refunded', idOf(cg.v.url), { status: 'partially_refunded', refunded: 349 }); const wg = (await G.shop()).v;
+check('a partial refund takes back that share (11 of 22 builds)', half.v.state === 'partially_refunded' && wg.dia === 550, JSON.stringify([half.v, wg.dia]));
+check('the same partial refund again takes nothing more', (await hook('order.refunded', idOf(cg.v.url), { status: 'partially_refunded', refunded: 349 })).v.state === 'replayed' && (await G.shop()).v.dia === 550);
+const rest = await hook('order.refunded', idOf(cg.v.url), { status: 'refunded', refunded: 699 });
+check('then the full refund takes the rest', rest.v.state === 'refunded' && (await G.shop()).v.dia === 0, JSON.stringify(rest.v));
+// the refund calculator: A used one ticket of the starter (30 builds), holds 19 tickets + 500 diamonds → 29 unused → $3.37
+{ const { execFileSync } = await import('node:child_process');
+  const q = execFileSync(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, 'scripts/refund-quote.mjs'), ck], { env: { ...process.env, DATA_DIR: dir } }).toString();
+  check('the calculator quotes the unused share', /unused from this order 29 of 30 builds/.test(q) && /refund 3\.37 USD/.test(q), q.split('\n').slice(3, 5).join(' / ')); }
+// that refund made on Polar: 29 builds come back from what A holds (19 tickets, then 500 diamonds), nothing below zero
+const ra = await hook('order.refunded', ck, { status: 'partially_refunded', refunded: 337 }); const wa = (await A.shop()).v;
+check('the quoted refund takes the tickets held, then diamonds', ra.v.state === 'partially_refunded' && wa.builds === 0 && wa.dia === 0, JSON.stringify([ra.v, wa.builds, wa.dia]));
 process.exit();
