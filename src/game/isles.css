@@ -663,3 +663,7 @@ body.hide-level.buildmode #who { display:none; }
 .toypop.loud { font: 900 36px var(--f-disp, var(--f-ui)); color: #fff; background: none; text-shadow: 0 2px 0 #2b1e15, 2px 0 0 #2b1e15, -2px 0 0 #2b1e15, 0 -2px 0 #2b1e15; animation: toyloud 1.1s ease-out forwards; }
 @keyframes toyloud { from { opacity: 0; scale: .6; } 15% { opacity: 1; scale: 1.25; } 30% { scale: 1; } to { opacity: 0; margin-top: -28px; } }
 .toycourier .bike { transition: none; }
+/* the route forecast and the bike's "식기 전" bar (ledger toy, 2026-11-28) */
+.ledger .lfc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; } .ledger .lfc small { margin-left: auto; color: #7a6a58; } .ledger .lfc small.late { color: #c0392b; font-weight: 800; }
+.ledger .fc { padding: 0 6px; border-radius: 6px; font: 700 11px/18px var(--f-ui); } .ledger .fc.ok { background: #e3f4e1; color: #2f7a3a; } .ledger .fc.warn { background: #ffe9cf; color: #a35a0c; } .ledger .fc.bad { background: #dde9fb; color: #2b5797; }
+.toycourier .fresh { position: absolute; left: 40px; top: 40px; width: 60px; height: 8px; border-radius: 4px; background: #2b2117; padding: 2px; box-sizing: border-box; } .toycourier .fresh i { display: block; height: 100%; width: 100%; border-radius: 2px; background: #f2a12e; } .toycourier .fresh.late i { background: #e2685a; }
