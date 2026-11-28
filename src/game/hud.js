@@ -14,6 +14,7 @@ import { setBuildMode } from './build.js';
 import { closeInside } from './shop.js';
 import { applyReveal } from './reveal.js';
 import { drawMeter } from './utility.js';
+import { BRAND } from '../brand.js';
 
 /** The pixel icon for each kind of guest. */
 export const NEED_ICON = { food: 'food', cafe: 'cafe', shop: 'bag', fun: 'heart', rest: 'bed' };
@@ -93,9 +94,9 @@ export function hud() {
   if (mySlot && myDoc) { const w = G(), served = w.served ?? 0, lv = levelOf(served), next = LEVELS[lv + 1], lp = next ? (served - LEVELS[lv].at) / (next.at - LEVELS[lv].at) : 1;
     // the ring is the island's level; the line under the name says how many guests until the next level (it opens a bigger size)
     $('who').replaceChildren(el('span', { class: 'lvr', style: `--p:${Math.max(.04, Math.min(1, lp)).toFixed(3)}` }, el('b', {}, String(lv + 1))),
-      el('span', { class: 'nm' }, (S.boardName || '한 줄 군도'), el('small', {}, next ? `${next.name}까지 손님 ${Math.max(0, next.at - served)}명` : LEVELS[lv].name)));
+      el('span', { class: 'nm' }, (S.boardName || BRAND.name), el('small', {}, next ? `${next.name}까지 손님 ${Math.max(0, next.at - served)}명` : LEVELS[lv].name)));
     $('who').title = next ? `${next.name}까지 손님 ${next.at - served}명` : LEVELS[lv].name;
-  } else $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, S.boardName || '한 줄 군도', el('small', {}, '섬 고르기')));
+  } else $('who').replaceChildren(el('span', { class: 'lvr' }, el('b', {}, '?')), el('span', { class: 'nm' }, S.boardName || BRAND.name, el('small', {}, '섬 고르기')));
   drawMeter();   // power and water by the coins
   if (heldCeleb && !S.buildMode) { const [t, s] = heldCeleb; heldCeleb = null; celebrate(t, s); }
   dockState();

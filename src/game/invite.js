@@ -7,6 +7,7 @@ import { track } from './persist.js';
 import { toast } from './hud.js';
 import { supplyTalk } from './guide.js';
 import { hooks } from './model.js';
+import { BRAND } from '../brand.js';
 
 /** The link a friend opens: this board, and my island so they land next to it; on the hosted game also a token
  *  that lets them move in (boards are private: 14 days, 9 friends). */
@@ -35,7 +36,7 @@ export const emptyNeighbours = (slot = S.mySlot) => slot ? neighbours(slot).filt
 /** Share the link (the phone's share sheet) or copy it; when neither works, show it to copy by hand. */
 export async function shareInvite() {
   if (site) { try { token ??= await site.invite(BOARD); } catch { return toast('초대 링크를 만들지 못했어요', 1800); } sendThumb(); }
-  const url = inviteLink(token), title = `${S.boardName || '한 줄 군도'} · 빈 섬 ${SLOTS - S.owners.size}개`;
+  const url = inviteLink(token), title = `${S.boardName || BRAND.name} · 빈 섬 ${SLOTS - S.owners.size}개`;
   track('invite_copy', { slot: S.mySlot });
   hooks.happened('invite');
   if (navigator.share && matchMedia('(pointer: coarse)').matches) { try { await navigator.share({ title, url }); return; } catch (e) { if (e?.name === 'AbortError') return; } }

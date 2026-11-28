@@ -19,6 +19,7 @@ import { openShop } from './shop.js';
 import { startMove } from './move.js';
 import { riseLand, planks } from './mapview.js';
 import { inviteCard, newBoard } from './invite.js';
+import { BRAND } from '../brand.js';
 
 const panel = () => $('panel');
 /** Fill the panel: the first child, when it is an h2, is the title on the dark strip with the close button. */
@@ -75,7 +76,7 @@ export function showHome(msg) {
   }
   if (!mySlot) {
     const can = db && me; S.joinShown = true;
-    return show(el('h2', {}, S.boardName || '한 줄 군도'),
+    return show(el('h2', {}, S.boardName || BRAND.name),
       can ? el('h3', {}, '내 섬 고르기') : el('p', { class: 'note' }, '초대받으면 섬을 고를 수 있어요'),
       can ? el('div', { class: 'slots' }, Array.from({ length: SLOTS }, (_, i) => i + 1).map(s => { const b = el('button', { class: S.owners.has(s) ? 'ghost' : '', on: { click: () => join(s) } }, String(s)); b.disabled = S.owners.has(s); return b; })) : null,
       msg ? el('div', { class: 'err' }, msg) : null);

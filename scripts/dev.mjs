@@ -10,6 +10,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import os from 'node:os';
 import { fileURLToPath } from 'node:url';
+import { brandPage } from '../src/brand.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const port = +(process.argv[2] ?? 5300);
@@ -95,7 +96,7 @@ http.createServer(async (req, res) => {
     if (!fs.existsSync(file)) { res.statusCode = 404; return res.end('not found'); }
     const ext = path.extname(file);
     res.setHeader('content-type', TYPES[ext] ?? 'application/octet-stream'); res.setHeader('cache-control', 'no-store');
-    if (ext === '.html') { const h = fs.readFileSync(file, 'utf8'), at = h.indexOf('<meta charset="utf-8">'); return res.end(at >= 0 ? h.slice(0, at + 22) + SHIM + h.slice(at + 22) : SHIM + h); }
+    if (ext === '.html') { const h = brandPage(fs.readFileSync(file, 'utf8')), at = h.indexOf('<meta charset="utf-8">'); return res.end(at >= 0 ? h.slice(0, at + 22) + SHIM + h.slice(at + 22) : SHIM + h); }
     fs.createReadStream(file).pipe(res);
   } catch (e) { res.statusCode = 500; res.end(String(e)); }
 }).listen(port, '0.0.0.0', () => console.log(`promptshop dev server on http://0.0.0.0:${port}`));

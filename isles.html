@@ -2,14 +2,14 @@
 <html lang="ko">
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>한 줄 군도</title>
-<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'%3E%3Ctext y='.9em' font-size='90'%3E%F0%9F%8F%9D%EF%B8%8F%3C/text%3E%3C/svg%3E">
+<title>%brand.name% · %brand.nameEn%</title>
+<link rel="icon" type="image/webp" href="%brand.icon%"><link rel="apple-touch-icon" href="%brand.touchIcon%">
 <link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Jua&family=Noto+Sans+KR:wght@400;700;900&display=swap">
 <link rel="stylesheet" href="src/game/isles.css">
 <script type="importmap">{ "imports": { "three": "https://cdn.jsdelivr.net/npm/three@0.160.0/build/three.module.min.js" } }</script>
 <div class="mapbox" id="mapbox"><canvas id="map"></canvas></div>
-<div id="boot" style="position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#1f86c0;color:#fff;font:400 34px Jua,'Noto Sans KR',sans-serif;text-shadow:0 3px 0 #2e241a;transition:opacity .4s">한 줄 군도</div>
-<script>setTimeout(() => { const b = document.getElementById('boot'); if (b) b.innerHTML = '<div style="text-align:center">한 줄 군도<br><button onclick="location.reload()" style="margin-top:14px;font:inherit;font-size:20px;padding:6px 18px;border:0;border-radius:12px;background:#3f7a74;color:#fff">다시</button></div>'; }, 20000);</script>   <!-- the game did not start in 20 s (a module failed to load): a way out -->
+<div id="boot" style="position:fixed;inset:0;z-index:50;display:grid;place-items:center;background:#1f86c0;color:#fff;font:400 34px Jua,'Noto Sans KR',sans-serif;text-shadow:0 3px 0 #2e241a;transition:opacity .4s"><img src="%brand.logo%" alt="%brand.name%" style="width:min(80vw,520px);height:auto"></div>
+<script>setTimeout(() => { const b = document.getElementById('boot'); if (b) b.innerHTML = '<div style="text-align:center">%brand.name%<br><button onclick="location.reload()" style="margin-top:14px;font:inherit;font-size:20px;padding:6px 18px;border:0;border-radius:12px;background:#3f7a74;color:#fff">다시</button></div>'; }, 20000);</script>   <!-- the game did not start in 20 s (a module failed to load): a way out -->
 <div class="shophead" id="shophead" hidden><button class="sback" id="sback" aria-label="뒤로"></button><span class="sn"><b id="sname"></b><small id="ssub"></small></span></div>
 <div class="hud tl"><button class="isleb" id="who"></button><button class="autot" id="d-auto" title="가구 자동으로 들이기"><span class="ic" data-i="chair"></span><span id="d-auto-t">자동</span><i class="sw"></i></button></div>
 <button class="festp" id="festp" hidden></button>

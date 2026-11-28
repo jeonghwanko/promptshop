@@ -15,13 +15,14 @@ import { allowWrite, readable } from './rules.mjs';
 import { admit, left, stream } from './claude.mjs';
 import { guestOf } from './special.mjs';
 import { bad } from '../src/game/rules.js';
+import { BRAND, brandPage } from '../src/brand.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +(process.env.PORT ?? 5310), DATA = path.resolve(process.env.DATA_DIR ?? path.join(root, 'server-data'));
 const ORIGIN = process.env.SITE_ORIGIN ?? 'https://we.oddbout.com';
 fs.mkdirSync(path.join(DATA, 'og'), { recursive: true });
 // the picture for links without a board (or a board with no picture yet) ships with the release
-const OG_DEFAULT = path.join(root, 'docs/img/og.png');
+const OG_DEFAULT = path.join(root, BRAND.og);
 const store = openStore(path.join(DATA, 'isles.db'));
 const SECRET = process.env.SESSION_SECRET ?? (() => { const f = path.join(DATA, 'secret'); if (!fs.existsSync(f)) fs.writeFileSync(f, crypto.randomBytes(32).toString('hex'), { mode: 0o600 }); return fs.readFileSync(f, 'utf8').trim(); })();
 const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('base64url').slice(0, 32);
@@ -120,12 +121,12 @@ function startModules() {
 }
 let PRELOAD = null;
 function page(url) {
-  let h = fs.readFileSync(path.join(root, 'isles.html'), 'utf8');
+  let h = brandPage(fs.readFileSync(path.join(root, 'isles.html'), 'utf8'));
   const board = url.searchParams.get('board'), meta = board && /^[a-z0-9]{3,24}$/.test(board) ? store.get('boards', board) : null;
   const taken = meta ? store.count('i-' + board) : 0;
-  const title = meta ? `${meta.name} · 빈 섬 ${10 - taken}개` : '한 줄 군도';
+  const title = meta ? `${meta.name} · 빈 섬 ${10 - taken}개` : BRAND.name;
   const img = meta && fs.existsSync(path.join(DATA, 'og', board + '.png')) ? `${ORIGIN}/og/${board}.png` : `${ORIGIN}/og/default.png`;
-  const tags = `<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="한 줄을 쓰면 Claude가 가게를 지어요. 옆 섬에 살면서 다리를 놓아요."><meta property="og:image" content="${esc(img)}"><meta property="og:url" content="${esc(ORIGIN + url.pathname + url.search)}"><meta name="twitter:card" content="summary_large_image">`;
+  const tags = `<meta property="og:title" content="${esc(title)}"><meta property="og:description" content="${esc(BRAND.tagline)}"><meta property="og:image" content="${esc(img)}"><meta property="og:url" content="${esc(ORIGIN + url.pathname + url.search)}"><meta name="twitter:card" content="summary_large_image">`;
   if (BUNDLE) h = h.replace('src="src/game/main.js"', 'src="/dist/main.js"');
   PRELOAD ??= (BUNDLE ? ['/dist/main.js'] : startModules()).map(u => `<link rel="modulepreload" href="${u}">`).join('');
   h = h.replace('<script type="module"', PRELOAD + '<script type="module"');

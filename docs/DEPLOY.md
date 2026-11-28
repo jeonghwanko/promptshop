@@ -10,7 +10,8 @@ The hosted game runs one Node server (`server/main.mjs`) behind nginx on the Ora
 | Limits | nginx: 30 API requests a second per address (burst 60) and 30 open connections per address; `worker_connections 2048` on the VM. Server: a doc is at most 128 KB after an update is merged in, islands carry only their known fields, boards are checked field by field (the world map reads them), five boards a player. |
 | Invites | `POST /api/invite` gives a member a token: 14 days, 9 friends. The link is `?board=<id>&from=<island>&k=<token>`. |
 | Claude | `server/claude.mjs`, the Anthropic API with `claude-haiku-5-5` (or, until the API key arrives, the `claude` CLI with a subscription token: `SAMPLE=cli`, at most 2 at once). Each player has 5 builds or extensions a day; the one fix right after a build is free. Accounts are free, so one address also has at most 60 a day (`CLAUDE_PER_IP`). The whole server allows 300 calls a day; raise it to about 3000 (`CLAUDE_PER_DAY`) when the API key replaces the CLI. A call that fails before its first words is not counted and answers 503. |
-| Link previews | `isles.html` gets `og:` tags: "<board> · 빈 섬 N개" and the archipelago's picture, which a member's page uploads when they share the link. |
+| Link previews | `isles.html` gets `og:` tags: "<board> · 빈 섬 N개" and the archipelago's picture, which a member's page uploads when they share the link. Without a board, the title is the game's name and the picture is `src/brand/og.png`. |
+| Name and brand | `src/brand.js` owns the game's name (팝업섬 / POPISLE), tagline, icon, logo and default preview picture. `isles.html` takes them as `%brand.<key>%` tokens, filled by `server/main.mjs` and `scripts/dev.mjs`. |
 
 ## Run it locally
 
@@ -60,4 +61,3 @@ An update is a new release folder, a new `current` link and `systemctl restart w
 
 - Linking a Google account, to keep an island on another device.
 - Renaming a player. The server has `POST /api/name`; the game has no button for it yet.
-- A better default preview picture than the README's.
