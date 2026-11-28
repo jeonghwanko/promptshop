@@ -130,7 +130,9 @@ export function renderActs(w, p) {
       b.onclick = (e) => { e.stopPropagation(); why(b, { icon: 'coin', title: `동전 ${(a.cost - coins).toLocaleString('ko-KR')}개 더`, gauge: [coins, a.cost] }); };   // (it fills as coins come in; no other button here)
     } else { b.disabled = a.cost !== undefined && !a.ok; b.onclick = (e) => { e.stopPropagation(); a.run(); w.actKey = ''; }; }
     if (a.hi !== undefined) { b.onmouseenter = () => { w.view.sel = -1; w.view.flash = a.hi; }; b.onmouseleave = () => { w.view.flash = -1; }; }
-    return b; }));   // (closing is the back button at the top left, or Esc)
+    return b; }));   // (closing is also the back button at the top left, or Esc)
+  // the last button closes, where the hand already is after the list (2026-11-28: a close at the top left alone was too far)
+  box.append(el('button', { class: 'act shut', on: { click: (e) => { e.stopPropagation(); closeInside(); } } }, iconEl('close', 32), el('span', {}, '닫기')));
   placeActs();
 }
 /** Run the open shop for one frame: its guests, who pays, where it is slow, and the buttons beside it. */
