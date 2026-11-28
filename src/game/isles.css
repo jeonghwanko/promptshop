@@ -684,3 +684,5 @@ body.hide-level.buildmode #who { display:none; }
 .toypop.loud.hot { color: #ffd23a; font-size: 44px; }
 .toypop.loud.cold { color: #bfe1ff; }
 .toypop.gold { background: none; color: #ffd23a; font: 900 22px var(--f-disp, var(--f-ui)); text-shadow: 0 2px 0 #2b1e15, 2px 0 0 #2b1e15, -2px 0 0 #2b1e15, 0 -2px 0 #2b1e15; }
+/* the map's words at screen resolution (mapview labelLayer) */
+.maplabels { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; }

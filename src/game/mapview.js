@@ -207,7 +207,7 @@ function drawPlants(items) {
   }
 }
 /** A small red mark that bobs over the plant or tank of mine that has nothing left. */
-function warnMark(x, y) { const b = Math.round(Math.sin(performance.now() / 220) * 2); g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y + b, 8, 0, 7); g.fill(); g.strokeStyle = '#2e241a'; g.lineWidth = 2; g.stroke(); g.fillStyle = '#fff'; g.font = '900 11px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.fillText('!', x, y + b + 4); }
+function warnMark(x, y) { const b = Math.round(Math.sin(performance.now() / 220) * 2); u.fillStyle = '#c0392b'; u.beginPath(); u.arc(x, y + b, 8, 0, 7); u.fill(); u.strokeStyle = '#2e241a'; u.lineWidth = 2; u.stroke(); u.fillStyle = '#fff'; u.font = '900 11px "Noto Sans KR", sans-serif'; u.textAlign = 'center'; u.fillText('!', x, y + b + 4); }
 /** A point a fraction u along a polyline of tiles, at cable height (dy) or road level. */
 function along(tiles, u, dy, start) {
   const pts = tiles.map((t, i) => i === 0 && start ? start : (() => { const [x, y] = dy ? poleAt(t) : pr.P(t[0] + .5, t[1] + .5); return [x, y - dy]; })());
@@ -232,7 +232,7 @@ function drawConnect() {
 function drawBillFly(dt, tops) {
   const f = S.billFly; if (!f?.length || !S.mySlot) return; const [gx, gy] = plantTop(S.mySlot), ci = iconCanvas('coin');
   for (const c of f) { c.t += dt; if (c.t < 0) continue; const tp = tops[c.key]; if (!tp) { c.t = 9; continue; } const u = Math.min(1, c.t / .7), x = tp[0] + (gx - tp[0]) * u, y = tp[1] + (gy - tp[1]) * u - Math.sin(u * Math.PI) * 40;
-    g.globalAlpha = u < .9 ? 1 : (1 - u) * 10; g.drawImage(ci, Math.round(x - 6), Math.round(y - 6), 12, 12); g.globalAlpha = 1; }
+    lab.getContext('2d').globalAlpha = u < .9 ? 1 : (1 - u) * 10; lab.getContext('2d').drawImage(ci, Math.round(x - 6), Math.round(y - 6), 12, 12); lab.getContext('2d').globalAlpha = 1; }
   S.billFly = f.filter(c => c.t < .7);
 }
 /** The moment power reaches a building: a burst of light specks from its front, once. */
@@ -254,8 +254,18 @@ function drawChoice() {
     g.fillStyle = 'rgba(255,209,102,.18)'; g.strokeStyle = '#ffd166'; g.lineWidth = 2; g.beginPath(); pts.forEach(([x, y], i) => (i ? g.lineTo(x, y) : g.moveTo(x, y))); g.closePath(); g.fill(); g.stroke(); }
   g.restore();
 }
+// Words and marks over the map (names, stars, coin pops, bridge tags) on a layer at the screen's own resolution, in map
+// coordinates: the map canvas is pixel art scaled up with the zoom, and text drawn into it blurs and breaks when zoomed in.
+const lab = document.createElement('canvas'), u = lab.getContext('2d'); lab.className = 'maplabels'; map.after(lab);
+function labelLayer() {
+  const d = window.devicePixelRatio || 1, W = Math.round(innerWidth * d), H = Math.round(innerHeight * d);
+  if (lab.width !== W || lab.height !== H) { lab.width = W; lab.height = H; }
+  u.setTransform(1, 0, 0, 1, 0, 0); u.clearRect(0, 0, W, H);
+  const r = map.getBoundingClientRect(), k = r.width / map.width; u.setTransform(d * k, 0, 0, d * k, d * r.left, d * r.top); u.imageSmoothingEnabled = false;
+}
 /** Draw one frame of the map. */
 export function drawMap(dt) {
+  labelLayer();
   const { hover, moving, building, myDoc, mySlot } = S;
   for (const p of pops) p.t += dt; while (pops.length && pops[0].t > 1.4) pops.shift();
   g.clearRect(0, 0, map.width, map.height); if (S.landAnim) drawLandAnim(dt); else g.drawImage(S.ground, 0, 0);
@@ -305,11 +315,10 @@ export function drawMap(dt) {
   const fest = S.fest; if (fest) items.push({ d: fest.x + fest.z, draw: () => drawFestBoat(g, pr, fest) });
   { const sb = building ?? site.done ?? site.pending; if (sb) { const n = PLOT[sb.size]; site.step(dt);   // the site sorts with the buildings: its back half behind, its front half before
       items.push({ d: sb.x + sb.z - .01, draw: () => drawSite(g, pr, 'back', building) }, { d: sb.x + sb.z + n + .02, draw: () => drawSite(g, pr, 'front', building) }); } else site.parts.length = 0; }
-  S.mapItems?.(items, g, dt);   // a toy's things on the map (the ledger toy's bikes and cars), sorted in with the buildings
   items.sort((a, b) => a.d - b.d); for (const it of items) it.draw();
   // island labels under each island's front shore (never over a roof): owner names; empty islands invite a friend (mine known) or ask to be chosen (no island yet: the
   // ones next to the friend who sent the link glow, else every free one does, softly)
-  g.textAlign = 'center';
+  u.textAlign = 'center';
   const pulse = (Math.sin(performance.now() / 260) + 1) / 2, near = FROM && S.owners.has(FROM) ? neighbours(FROM) : null;
   const quietFree = !!mySlot && !myDoc?.wallet?.invGuide;   // empty islands say nothing until 끼룩이 first suggests calling a friend
   for (let s = 1; s <= SLOTS && !zoomShop; s++) {
@@ -317,12 +326,12 @@ export function drawMap(dt) {
     if (!uid && quietFree) continue;
     if (uid && uid === me) continue;   // the camera lives on my island: no tag over my own roofs
     const label = uid ? nameOf(uid) : `${s} · 빈 섬`, choose = !uid && !mySlot && S.scrolled && (!near || near.includes(s));
-    g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(label).width + 14;
-    g.fillStyle = uid ? 'rgba(46,36,26,.85)' : choose ? `rgba(255,${205 + 30 * pulse | 0},${110 + 60 * pulse | 0},${near ? .95 : .55 + .35 * pulse})` : 'rgba(255,255,255,.75)'; g.beginPath(); g.roundRect(lx - w / 2, ly - 30, w, 20, 8); g.fill();
-    g.fillStyle = uid ? '#fff7e6' : '#2e241a'; g.fillText(label, lx, ly - 15);
+    u.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = u.measureText(label).width + 14;
+    u.fillStyle = uid ? 'rgba(46,36,26,.85)' : choose ? `rgba(255,${205 + 30 * pulse | 0},${110 + 60 * pulse | 0},${near ? .95 : .55 + .35 * pulse})` : 'rgba(255,255,255,.75)'; u.beginPath(); u.roundRect(lx - w / 2, ly - 30, w, 20, 8); u.fill();
+    u.fillStyle = uid ? '#fff7e6' : '#2e241a'; u.fillText(label, lx, ly - 15);
     if (!uid && mySlot) {   // tap it: the invite card
-      const [mx, my] = pr.P(cx + .5, cz + .5); g.font = '400 13px "Jua", "Noto Sans KR", sans-serif'; const t = '+ 친구 초대', tw = g.measureText(t).width + 18;
-      g.fillStyle = 'rgba(46,36,26,.78)'; g.beginPath(); g.roundRect(mx - tw / 2, my - 15, tw, 22, 11); g.fill(); g.fillStyle = '#fff7e6'; g.fillText(t, mx, my + 1);
+      const [mx, my] = pr.P(cx + .5, cz + .5); u.font = '400 13px "Jua", "Noto Sans KR", sans-serif'; const t = '+ 친구 초대', tw = u.measureText(t).width + 18;
+      u.fillStyle = 'rgba(46,36,26,.78)'; u.beginPath(); u.roundRect(mx - tw / 2, my - 15, tw, 22, 11); u.fill(); u.fillStyle = '#fff7e6'; u.fillText(t, mx, my + 1);
     }
   }
   // my half missing toward a friend next door: a plank tag over the gap — its price — and a tap lays it (input.js)
@@ -330,36 +339,36 @@ export function drawMap(dt) {
   if (mySlot && myDoc && !zoomShop && !S.buildMode && (myDoc.wallet?.invGuide || myDoc.wallet?.freeHalf)) for (const n of neighbours(mySlot)) {   // a friend feature: once calling friends has come up
     if (!S.owners.has(n) || myDoc.half?.[n]) continue; const t = bridgeTiles(mySlot, n); if (!t.length) continue;
     const [mx, mz] = t[Math.floor((t.length - 1) / 2)], [x, y] = pr.P(mx + .5, mz + .5), free = myDoc.wallet?.freeHalf === n, bob = Math.sin(performance.now() / 300 + n) * 2;
-    const txt = free ? '다리 · 무료' : `다리 · ${BRIDGE}`; g.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = g.measureText(txt).width + (free ? 18 : 34), h = 24, X = Math.round(x - w / 2), Y = Math.round(y - 30 + bob);
-    g.fillStyle = '#2e241a'; g.beginPath(); g.roundRect(X - 2, Y - 2, w + 4, h + 6, 7); g.fill();
-    g.fillStyle = '#c98a4e'; g.beginPath(); g.roundRect(X, Y, w, h, 5); g.fill(); g.fillStyle = '#a8703e'; g.fillRect(X + 3, Y + h - 6, w - 6, 3);   // a plank: wood with a darker grain at its foot
-    if (!free) { g.imageSmoothingEnabled = false; const ic = iconCanvas('coin'); if (ic) g.drawImage(ic, X + w - 22, Y + 4, 16, 16); }
-    g.fillStyle = '#fff7e6'; g.textAlign = 'left'; g.fillText(txt, X + 8, Y + 17);
+    const txt = free ? '다리 · 무료' : `다리 · ${BRIDGE}`; u.font = '400 14px "Jua", "Noto Sans KR", sans-serif'; const w = u.measureText(txt).width + (free ? 18 : 34), h = 24, X = Math.round(x - w / 2), Y = Math.round(y - 30 + bob);
+    u.fillStyle = '#2e241a'; u.beginPath(); u.roundRect(X - 2, Y - 2, w + 4, h + 6, 7); u.fill();
+    u.fillStyle = '#c98a4e'; u.beginPath(); u.roundRect(X, Y, w, h, 5); u.fill(); u.fillStyle = '#a8703e'; u.fillRect(X + 3, Y + h - 6, w - 6, 3);   // a plank: wood with a darker grain at its foot
+    if (!free) { u.imageSmoothingEnabled = false; const ic = iconCanvas('coin'); if (ic) u.drawImage(ic, X + w - 22, Y + 4, 16, 16); }
+    u.fillStyle = '#fff7e6'; u.textAlign = 'left'; u.fillText(txt, X + 8, Y + 17);
     S.bridgeTags.push({ n, x: X - 2, y: Y - 2, w: w + 4, h: h + 6 });
   }
-  g.textAlign = 'center';
-  g.font = '900 12px "Noto Sans KR", sans-serif';
-  for (const p of pops) { const tp = tops[p.key]; if (!tp || zoomShop) continue; const y = tp[1] - p.t * 22; g.globalAlpha = Math.max(0, 1 - p.t / 1.4); g.lineWidth = 3; g.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;
-    if (em) { g.imageSmoothingEnabled = false; g.drawImage(iconCanvas(EMOJI[em]), Math.round(tp[0] - g.measureText(txt).width / 2 - w - 2), Math.round(y - 12), 14, 14); }
-    g.strokeText(txt, tp[0] + w / 2, y); g.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; g.fillText(txt, tp[0] + w / 2, y); g.globalAlpha = 1; }
+  u.textAlign = 'center';
+  u.font = '900 12px "Noto Sans KR", sans-serif';
+  for (const p of pops) { const tp = tops[p.key]; if (!tp || zoomShop) continue; const y = tp[1] - p.t * 22; u.globalAlpha = Math.max(0, 1 - p.t / 1.4); u.lineWidth = 3; u.strokeStyle = '#3a2a00'; const em = Object.keys(EMOJI).find(k => p.text.startsWith(k)), txt = em ? p.text.slice(em.length).trim() : p.text, w = em ? 14 : 0;
+    if (em) { u.imageSmoothingEnabled = false; u.drawImage(iconCanvas(EMOJI[em]), Math.round(tp[0] - u.measureText(txt).width / 2 - w - 2), Math.round(y - 12), 14, 14); }
+    u.strokeText(txt, tp[0] + w / 2, y); u.fillStyle = p.bad ? '#ff8a7a' : p.mine ? '#ffd166' : '#ffffff'; u.fillText(txt, tp[0] + w / 2, y); u.globalAlpha = 1; }
   // a new building's name plate: my line over its roof for 3 s, rising in and fading out
   { const L = S.landing, tp = L && tops[L.key], age = L ? (performance.now() - (L.nameAt ?? L.t0)) / 1000 : 9;   // it rises when the lights come on
     if (L && age > 3.4) S.landing = null;
     else if (tp && !zoomShop && age >= 0) { const a = Math.min(1, age * 4, (3.4 - age) * 2.5), y = tp[1] - 18 - Math.min(1, age * 3) * 10, t = `“${L.line}”`;
-      g.globalAlpha = a; g.font = '400 18px "Jua", "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.lineWidth = 5; g.strokeStyle = '#2e241a'; g.strokeText(t, tp[0], y); g.fillStyle = '#ffd166'; g.fillText(t, tp[0], y); g.globalAlpha = 1; } }
+      u.globalAlpha = a; u.font = '400 18px "Jua", "Noto Sans KR", sans-serif'; u.textAlign = 'center'; u.lineWidth = 5; u.strokeStyle = '#2e241a'; u.strokeText(t, tp[0], y); u.fillStyle = '#ffd166'; u.fillText(t, tp[0], y); u.globalAlpha = 1; } }
   // the stars of every shop, small and gold, over its roof
-  g.font = '900 11px "Noto Sans KR", sans-serif'; g.textAlign = 'center';
+  u.font = '900 11px "Noto Sans KR", sans-serif'; u.textAlign = 'center';
   { const si = iconCanvas('star');
     for (const p of all) { if (zoomShop || !p.b || !tops[p.key] || !servesOf(p) || isDark(p)) continue; const n = starsInfo(p).stars, [x, y] = tops[p.key];   // (they come with the light)
       if (!n) continue;   // one star and its count (a row of stars overlapped the next roof's): outlined, no plate over the picture
-      const X = Math.round(x - 8), Y = Math.round(y - 26); g.drawImage(si, X - 4, Y, 12, 12);
-      g.textAlign = 'left'; g.lineWidth = 3; g.strokeStyle = '#1f3a5c'; g.strokeText(String(n), X + 9, Y + 10); g.fillStyle = '#ffd166'; g.fillText(String(n), X + 9, Y + 10); g.textAlign = 'center'; } }
-  g.font = '900 12px "Noto Sans KR", sans-serif';
+      const X = Math.round(x - 8), Y = Math.round(y - 26); u.drawImage(si, X - 4, Y, 12, 12);
+      u.textAlign = 'left'; u.lineWidth = 3; u.strokeStyle = '#1f3a5c'; u.strokeText(String(n), X + 9, Y + 10); u.fillStyle = '#ffd166'; u.fillText(String(n), X + 9, Y + 10); u.textAlign = 'center'; } }
+  u.font = '900 12px "Noto Sans KR", sans-serif';
   // cut off for an unpaid bill: a coin with a red mark over the roof
-  { const ci = iconCanvas('coin'); for (const p of all) if (p.b && tops[p.key] && isOff(p) && !zoomShop) { const [x, y] = tops[p.key]; g.drawImage(ci, Math.round(x - 8), Math.round(y - 30), 16, 16); g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x + 9, y - 28, 5, 0, 7); g.fill(); g.fillStyle = '#fff'; g.font = '900 9px "Noto Sans KR", sans-serif'; g.textAlign = 'center'; g.fillText('!', x + 9, y - 25); } }
+  { const ci = iconCanvas('coin'); for (const p of all) if (p.b && tops[p.key] && isOff(p) && !zoomShop) { const [x, y] = tops[p.key]; u.drawImage(ci, Math.round(x - 8), Math.round(y - 30), 16, 16); u.fillStyle = '#c0392b'; u.beginPath(); u.arc(x + 9, y - 28, 5, 0, 7); u.fill(); u.fillStyle = '#fff'; u.font = '900 9px "Noto Sans KR", sans-serif'; u.textAlign = 'center'; u.fillText('!', x + 9, y - 25); } }
   drawBillFly(dt, tops);
   // my shops running low on stock show a red mark
-  for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && servesOf(p) && tops[p.key]) { const [x, y] = tops[p.key]; g.fillStyle = '#c0392b'; g.beginPath(); g.arc(x, y - 4, 7, 0, 7); g.fill(); g.fillStyle = '#fff'; g.fillText('!', x, y - 0); }
+  for (const p of all) if (p.owner === me && p.b && (myDoc.plots[p.key]?.stock ?? START_STOCK) === 0 && servesOf(p) && tops[p.key]) { const [x, y] = tops[p.key]; u.fillStyle = '#c0392b'; u.beginPath(); u.arc(x, y - 4, 7, 0, 7); u.fill(); u.fillStyle = '#fff'; u.textAlign = 'center'; u.font = '900 12px "Noto Sans KR", sans-serif'; u.fillText('!', x, y - 0); }
   // (what guests at my pier want is told by the face chips' counts alone: no thought bubbles over the pier)
   drawSplash(dt);
   S.drawn = items; S.lastTops = tops; placeJoin(); placeLog(); placeAsk();

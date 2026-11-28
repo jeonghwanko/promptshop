@@ -143,6 +143,7 @@ function camGrab() {
   Object.assign(cam, { on: true, back: false, x: cam.home.x, y: cam.home.y, z: S.zoom, punch: 0, shake: 0 });
 }
 const camRelease = () => { cam.on = false; cam.back = false; S.zoom = cam.z; applyZoom(); };
+const snapZ = (z) => { const d = window.devicePixelRatio || 1; return z * d >= 1 ? Math.max(1, Math.floor(z * d + 1e-6)) / d : z; };   // whole screen pixels per map pixel where it can
 const rideZoom = () => { const d = window.devicePixelRatio || 1; return Math.max(2, Math.round(Math.min(6, cam.home.z * 3) * d)) / d; };   // whole device pixels: crisp while riding
 function camStep(dt) {
   if (!cam.on) return; const sr = safeRect(); let tx = cam.home.x, ty = cam.home.y, tz = cam.home.z, kp = 6, kz = 3.5;
@@ -151,18 +152,18 @@ function camStep(dt) {
     const pts = choosing.routes.flatMap(r => r.path).map(([x, z]) => pr.P(x + .5, z + .5)), xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
     const w = Math.max(...xs) - Math.min(...xs) + 120, h = Math.max(...ys) - Math.min(...ys) + 140;
     tx = (Math.max(...xs) + Math.min(...xs)) / 2; ty = (Math.max(...ys) + Math.min(...ys)) / 2 - 10;
-    tz = Math.max(cam.home.z * .8, Math.min(cam.home.z * 2.2, (sr.r - sr.l) / w, (sr.b - sr.t) / h)); kp = 4; kz = 3;
+    tz = snapZ(Math.max(cam.home.z * .8, Math.min(cam.home.z * 2.2, (sr.r - sr.l) / w, (sr.b - sr.t) / h))); kp = 4; kz = 3;
   } else if (c) {
     const [bx, by] = pr.P(...tileAt(c.path, c.at)), lead = c.handoff != null ? 0 : .45;
-    tx = bx + (c.vx ?? 0) * lead; ty = by - 14 + (c.vy ?? 0) * lead; tz = rideZoom() * (c.handoff != null ? 1.15 : 1);
+    tx = bx + (c.vx ?? 0) * lead; ty = by - 14 + (c.vy ?? 0) * lead; tz = rideZoom() + (c.handoff != null ? 1 / (window.devicePixelRatio || 1) : 0);   // one whole step closer at the door
     if (c.handoff != null) kp = 3;
   } else if (cam.back) { kp = 3.5; kz = 3; if (Math.hypot(cam.x - tx, cam.y - ty) < 2 && Math.abs(cam.z - tz) < .01) { cam.z = tz; return camRelease(); } }
   else return camRelease();
   const ep = 1 - Math.exp(-kp * dt), ez = 1 - Math.exp(-kz * dt);
-  cam.x += (tx - cam.x) * ep; cam.y += (ty - cam.y) * ep; cam.z += (tz - cam.z) * ez;
+  cam.x += (tx - cam.x) * ep; cam.y += (ty - cam.y) * ep; cam.z += (tz - cam.z) * ez; if (Math.abs(cam.z - tz) < .004) cam.z = tz;   // settle exactly on the step
   cam.punch *= Math.exp(-5 * dt); cam.shake = Math.max(0, cam.shake - dt);
   const k = cam.shake * 22, sx = (Math.random() - .5) * k, sy = (Math.random() - .5) * k;
-  S.zoom = cam.z * (1 + cam.punch); applyZoom(); map.style.imageRendering = 'pixelated';
+  S.zoom = cam.punch > .002 ? cam.z * (1 + cam.punch) : cam.z; applyZoom();   // the game draws a whole step crisp and the zooms between smooth
   box().scrollTo({ left: map.offsetLeft + (cam.x + sx) * S.zoom - sr.cx, top: map.offsetTop + (cam.y + sy) * S.zoom - sr.cy, behavior: 'instant' });
 }
 
@@ -191,10 +192,12 @@ function refreshChoice(dt) {
 function unchoose() { choosing = null; tags.forEach(t => t.remove()); tags = []; }
 /** Each route's tag sits on a stretch only it takes (the middle of it), so the tags never stack. */
 function placeTags() {
-  if (!choosing) return;
+  if (!choosing) return; const placed = [];
   choosing.routes.forEach((r, i) => { const others = new Set(choosing.routes.filter((_, j) => j !== i).flatMap(q => q.path.map(t => key(...t))));
     const own = r.path.filter(t => !others.has(key(...t))), list = own.length ? own : r.path, [x, z] = list[Math.floor(list.length / 2)], [sx, sy] = screenAt(x + .5, z + .5);
-    const t = tags[i]; if (!t) return; t.style.transform = `translate(${Math.round(sx - t.offsetWidth / 2)}px, ${Math.round(sy - t.offsetHeight - 12)}px)`; t.classList.toggle('on', choosing.hover === i); });
+    const t = tags[i]; if (!t) return; let X = Math.round(sx - t.offsetWidth / 2), Y = Math.round(sy - t.offsetHeight - 12);
+    for (const q of placed) if (X < q.x + q.w && X + t.offsetWidth > q.x && Y < q.y + q.h && Y + t.offsetHeight > q.y) Y = q.y - t.offsetHeight - 6;   // two tags on top of each other: this one steps up
+    placed.push({ x: X, y: Y, w: t.offsetWidth, h: t.offsetHeight }); t.style.transform = `translate(${X}px, ${Y}px)`; t.classList.toggle('on', choosing.hover === i); });
 }
 
 // ---------- the ride ----------
@@ -381,7 +384,7 @@ function drawRoute(g, path, col, strong, from = 0) {
   const t = performance.now() / 1000, s = strong ? 6 : 4, gap = strong ? 10 : 9;
   let along = -((t * 36) % gap); g.globalAlpha = strong ? 1 : .6;
   for (let i = Math.max(0, Math.floor(from)); i < path.length - 1; i++) { const [ax, ay] = pr.P(path[i][0] + .5, path[i][1] + .5), [bx, by] = pr.P(path[i + 1][0] + .5, path[i + 1][1] + .5), L = Math.hypot(bx - ax, by - ay);
-    for (; along < L; along += gap) { if (along < 0) continue; const u = along / L, X = Math.round(ax + (bx - ax) * u - s / 2), Y = Math.round(ay + (by - ay) * u - s / 2); rect(g, X - 1, Y - 1, s + 2, s + 2, OUT); rect(g, X, Y, s, s, col); }
+    for (; along < L; along += gap) { if (along < 0) continue; const u = along / L, X = Math.round(ax + (bx - ax) * u - s / 2), Y = Math.round(ay + (by - ay) * u - s / 2); if (hidden(X + s / 2, Y + s / 2, path[i][0] + path[i][1] + 1.5)) continue; rect(g, X - 1, Y - 1, s + 2, s + 2, OUT); rect(g, X, Y, s, s, col); }
     along -= L; }
   g.globalAlpha = 1;
 }
@@ -391,16 +394,33 @@ function mapGround(g) {
     for (let z = Math.floor(cl.z - cl.r); z <= cl.z + cl.r; z++) for (let x = Math.floor(cl.x - cl.r); x <= cl.x + cl.r; x++) if (A.isRoad(x, z) && (x + .5 - cl.x) ** 2 + (z + .5 - cl.z) ** 2 <= cl.r ** 2) diamond(g, x, z); }   // the wet roads: what the forecast counts
   for (const j of jams) { const forming = j.start > 0, a = forming ? (.1 + .14 * (1 - j.start / j.start0)) * (.75 + .25 * Math.sin(performance.now() / 180)) : .38 * Math.min(1, j.ttl / 2);   // faint and pulsing while the cars gather, solid once jammed
     g.fillStyle = `rgba(226,60,40,${a})`; for (const [x, z] of j.list) diamond(g, x, z); }
-  if (choosing) { choosing.routes.forEach((r, i) => { if (i !== choosing.hover) drawRoute(g, r.path, ROUTE[i], false); }); drawRoute(g, choosing.routes[choosing.hover].path, ROUTE[choosing.hover], true); }
-  for (const c of couriers) if (!c.back && c.handoff == null && c.crashT <= 0) drawRoute(g, c.path, 'rgba(255,248,234,.9)', false, c.at + 1);   // the way ahead, faint
 }
-function mapItems(items, g) {
-  for (const j of jams) j.list.forEach(([x, z], i) => items.push({ d: x + z + 1.2, draw: () => drawCar(g, j, i) }));
-  const ghost = (f) => () => { GA = .45; g.globalAlpha = GA; f(); GA = 1; g.globalAlpha = 1; };   // drawn again faintly over everything: seen through a building in front
-  for (const c of couriers) { const [x, z] = tileAt(c.path, c.at), bike = () => drawBike(g, c); items.push({ d: x + z + .3, draw: bike }, { d: 1e8 - 1, draw: ghost(bike) });
-    if (c.handoff != null) { const [ex, ez] = c.path[c.path.length - 1], who = () => drawRegular(g, c); items.push({ d: ex + ez + 1.4, draw: who }, { d: 1e8 - 1, draw: ghost(who) }); }
-    if (!c.back && c.handoff == null) items.push({ d: 1e8, draw: () => drawPin(g, c.path, '#ffd23a') }); }
-  if (choosing) items.push({ d: 1e8, draw: () => drawPin(g, choosing.o.path, ROUTE[choosing.hover]) });
+// ---------- sharp at any zoom (2026-11-28 "확대되었을때 깨지지 않게"): the bike, the regular, the cars, pins and routes are drawn
+// on the screen's own canvas, each sprite at a whole number of screen pixels per art pixel; a building in front (read off its
+// sprite's own pixels) turns them see-through instead of hiding them ----------
+const alphaOf = new WeakMap();
+/** Is map point (mx, my) behind a building nearer than depth d? */
+function hidden(mx, my, d) {
+  for (const it of S.drawn ?? []) { if (!it.s?.canvas || it.d <= d) continue; const c = it.s.canvas, x = Math.round(mx - Math.round(it.px - it.s.anchor.x)), y = Math.round(my - Math.round(it.py - it.s.anchor.y));
+    if (x < 0 || y < 0 || x >= c.width || y >= c.height) continue;
+    let a = alphaOf.get(c); if (a === undefined) { try { a = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; } catch { a = null; } alphaOf.set(c, a); }
+    if (a && a[(y * c.width + x) * 4 + 3] > 40) return true; }
+  return false;
+}
+function drawSprites(g, d) {
+  const r = map.getBoundingClientRect(), k = r.width / map.width, n = Math.max(1, Math.round(k * d));
+  const at = (mx, my) => g.setTransform(n, 0, 0, n, Math.round((r.left + mx * k) * d - n * mx), Math.round((r.top + my * k) * d - n * my));   // whole screen pixels per art pixel, pinned at this point
+  const one = (mx, my, depth, draw) => { at(mx, my); GA = depth != null && hidden(mx, my, depth) ? .45 : 1; g.globalAlpha = GA; draw(); GA = 1; g.globalAlpha = 1; };
+  // routes along the ground: true scale, the dashes a building stands in front of are left out
+  g.setTransform(d * k, 0, 0, d * k, d * r.left, d * r.top);
+  if (choosing) { choosing.routes.forEach((q, i) => { if (i !== choosing.hover) drawRoute(g, q.path, ROUTE[i], false); }); drawRoute(g, choosing.routes[choosing.hover].path, ROUTE[choosing.hover], true); }
+  for (const c of couriers) if (!c.back && c.handoff == null && c.crashT <= 0) drawRoute(g, c.path, 'rgba(255,248,234,.9)', false, c.at + 1);   // the way ahead, faint
+  for (const j of jams) j.list.forEach(([x, z], i) => { const [px, py] = pr.P(x + .5, z + .5); one(px, py, x + z + 1, () => drawCar(g, j, i)); });
+  for (const c of couriers) { const [x, z] = tileAt(c.path, c.at), [px, py] = pr.P(x, z); one(px, py, x + z + .3, () => drawBike(g, c));
+    if (c.handoff != null) { const [ex, ez] = c.path[c.path.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, ex + ez + 1.4, () => drawRegular(g, c)); } }
+  for (const c of couriers) if (!c.back && c.handoff == null) { const [ex, ez] = c.path[c.path.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, c.path, '#ffd23a')); }
+  if (choosing) { const p = choosing.o.path, [ex, ez] = p[p.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, p, ROUTE[choosing.hover])); }
+  g.setTransform(d, 0, 0, d, 0, 0);
 }
 
 // ---------- the sky, smoke and the like, over everything (a screen canvas) ----------
@@ -409,6 +429,7 @@ function drawOver(dt) {
   const d = window.devicePixelRatio || 1; if (fxCanvas.width !== Math.round(innerWidth * d)) { fxCanvas.width = Math.round(innerWidth * d); fxCanvas.height = Math.round(innerHeight * d); }
   const g = fxCanvas.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight);
   const px = Math.max(2, Math.round(map.getBoundingClientRect().width / map.width));
+  drawSprites(g, d);
   drawSky(g, px);
   for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life += dt; if (p.life >= p.max) { parts.splice(i, 1); continue; }
     const t = p.life / p.max, [sx, sy] = screenAt(p.x, p.z);
@@ -495,7 +516,7 @@ export function startLedgerToy() {
   const wait = setInterval(() => {
     if (!S.myDoc || !S.mySlot || !sim.A || !myPlots().length) return; clearInterval(wait);
     panel = el('aside', { class: 'ledger', 'aria-label': '단골 장부' }); document.body.append(panel);
-    S.mapGround = mapGround; S.mapItems = mapItems;
+    S.mapGround = mapGround;
     window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, get jams() { return jams; }, screenAt, routesFor, route, forecast, newJam };   // for the recording checks
     box()?.addEventListener('pointerdown', () => { if (cam.on) { for (const c of couriers) c.follow = false; cam.back = false; camRelease(); } }, true);   // a drag on the map: the camera lets go
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && choosing) cancelChoose(); });
