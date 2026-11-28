@@ -706,3 +706,5 @@ body.hide-level.buildmode #who { display:none; }
 .ledger .ltrack b { position: absolute; top: -12px; left: calc((100% - 22px) * var(--u, 0)); width: 22px; height: 22px; display: grid; place-items: center; }
 .ledger .ltrack b img { image-rendering: pixelated; }
 @media (prefers-reduced-motion: reduce) { .ledger .lcard.enter, .ledger .lcard.swap, .ledger .lgo, .ledger .lroute.pick { animation: none !important; } }
+/* a route's seconds in the colour of what it would earn: hot green, on time orange, cold red */
+.ledger .sec.hot { color: #2f8a45; } .ledger .sec.ok { color: #d17a12; } .ledger .sec.late { color: var(--hot); }

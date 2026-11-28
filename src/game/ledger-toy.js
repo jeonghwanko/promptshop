@@ -99,7 +99,7 @@ const shopColor = (p) => ACCENTS[([...String(p.key)].reduce((h, ch) => (h * 31 +
 // the regular asks again). The forecasts read these same clouds and jams where they will be when the bike gets there.
 const CLOUD_PUFFS = [[-.62, .25, .3], [-.3, -.05, .38], [.08, -.3, .42], [.45, -.05, .36], [.72, .28, .26], [0, .3, .5]];   // the cloud's silhouette: puffs in -1..1
 const WX = { rain: { crash: .35, say: '비가 와요', ko: '비' }, snow: { crash: .55, say: '눈이 와요', ko: '눈' } }, JAMV = .25, CORNER = .3;
-const HOT = .15, JAM_EARLY = 1.2;   // a share of the "식기 전" time still left at the door that counts as hot: a grass detour round a jam gets there with .16-.39 left (measured 2026-11-28), so dodging pays
+const HOT = .15, JAM_EARLY = .3;   // a share of the "식기 전" time still left at the door that counts as hot: a grass detour round a jam gets there with .16-.39 left (measured 2026-11-28), so dodging pays
 let clouds = [], jams = [], home = null;   // clouds stay empty for now: weather is out until the core is fun (2026-11-28)
 const skyAt = (x, z, t = 0) => { for (const cl of clouds) { if (t > cl.life) continue; const cx = cl.x + cl.vx * t, cz = cl.z + cl.vz * t; if ((x - cx) ** 2 + (z - cz) ** 2 <= cl.r ** 2) return cl.kind; } return null; };
 const jamAt = (k, t = 0) => jams.some(j => j.ttl > t && t >= j.start && j.tiles.has(k));   // jammed at t seconds from now (a forming jam only once its cars are all in)
@@ -143,7 +143,6 @@ function forecast(path, clear = false) {
   for (let i = 1; i < path.length; i++) { const [x, z] = path[i], road = sim.A.isRoad(x, z), j = !clear && road && shut(key(x, z), t), s = clear ? null : skyAt(x + .5, z + .5, t);
     t += segLen(path, i - 1) / (VMAX * (j ? JAMV : road ? 1 : GRASS) * (s ? .85 : 1)); if (j) { jam++; if (!jamAt(key(x, z))) soon++; marks.set(i, 'jam'); } else if (s) marks.set(i, 'wet');
     if (turns.has(i)) { t += CORNER; if (s) { wet++; kind = kind === 'snow' ? kind : s; } } }
-  t += jam * .25;   // braking into and out of a jam (measured on rides, 2026-11-28)
   return { t, wet, jam, soon, kind, marks };
 }
 
@@ -193,7 +192,7 @@ function refreshOffer(dt) {
   const o = orders[0]; if (!o || (refreshIn -= dt) > 0) return; refreshIn = .5;
   for (const r of o.routes) r.f = forecast(r.path);
   if (risky(o) !== !!o.risky) { o.risky = risky(o); o.swapAt = performance.now(); if (o.risky) sound?.honk(); draw(); return; }
-  for (const b of panel?.querySelectorAll('.lroute') ?? []) { const r = o.routes[+b.dataset.i], sp = b.querySelector('.sec'); if (r && sp) { sp.textContent = `${Math.ceil(r.f.t)}초`; sp.classList.toggle('late', r.f.t > o.fresh); } }
+  for (const b of panel?.querySelectorAll('.lroute') ?? []) { const r = o.routes[+b.dataset.i], sp = b.querySelector('.sec'); if (r && sp) { sp.textContent = `${Math.ceil(r.f.t)}초`; const tier = tierOf(r.f, o.fresh); for (const k of TIERS) sp.classList.toggle(k, k === tier); } }
 }
 
 // ---------- the ride ----------
@@ -522,7 +521,10 @@ function placePops(dt) {
 
 // ---------- the ledger panel ----------
 /** A route's arrival in seconds, red when the food would be cold by then. */
-const secs = (f, fresh) => [el('span', { class: 'sec' + (f.t > fresh ? ' late' : '') }, `${Math.ceil(f.t)}초`)];
+/** What a route's arrival would earn, the same three outcomes the door gives: hot (green), on time (orange), cold (red). */
+const tierOf = (f, fresh) => f.t > fresh ? 'late' : f.t > fresh * (1 - HOT) ? 'ok' : 'hot';
+const TIERS = ['hot', 'ok', 'late'];
+const secs = (f, fresh) => [el('span', { class: 'sec ' + tierOf(f, fresh) }, `${Math.ceil(f.t)}초`)];
 /** Delivering, or choosing between two ways: the buildings fade to see-through (2026-11-28 "배달할때는 건물이 반 투명해지면서
  *  길과 장애물, 목표물이 잘 보여야 돼"), so the road, the cars in the way, the pin and the bike are all in sight. */
 const FADE = .3;
@@ -550,7 +552,7 @@ function draw() {
     const head = el('div', { class: 'lrow' }, el('span', { class: 'lface' + (left < .25 ? ' low' : ''), style: `--p:${left.toFixed(3)}`, title: o.shopName }, faceEl(o.need)),
       el('span', { class: 'lt' }, el('b', {}, o.menu), el('small', {}, `×${o.qty}`)), o.redo ? el('span', { class: 'lagain' }, '다시') : null,
       el('span', { class: 'lwarm', title: '식기 전' }, iconEl('clock', 16, ''), `${o.fresh}초`), el('span', { class: 'lpay' }, iconEl('coin', 16, ''), `+${o.reward}`));
-    const go = (path) => (e) => { sparkle(e.currentTarget); send(o, path); }, best = two && o.routes[0].f.t > o.fresh ? 1 : -1;   // the way that gets there warm glows
+    const go = (path) => (e) => { sparkle(e.currentTarget); send(o, path); }, rank = (r) => TIERS.indexOf(tierOf(r.f, o.fresh)), best = two && rank(o.routes[0]) !== rank(o.routes[1]) ? (rank(o.routes[0]) < rank(o.routes[1]) ? 0 : 1) : -1;   // the way that earns more glows
     const act = two
       ? el('div', { class: 'lroutes' }, ...o.routes.map((r, i) => el('button', { class: 'lroute' + (i === best ? ' pick' : ''), 'data-i': String(i), style: `--rc:${ROUTE[i]}`, on: { click: go(r.path) } }, el('i'), el('b', {}, i ? '잔디로' : '큰길'), ...secs(r.f, o.fresh))))
       : (() => { const b = el('button', { class: 'lgo', on: { click: go(o.path) } }, iconEl('scooter', 24, ''), '배달'); b.disabled = !!couriers.length; return b; })();
