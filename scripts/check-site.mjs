@@ -33,7 +33,7 @@ check('no repo files outside the game', (await A.go('/server/main.mjs')).status 
 check('showcase: nobody moves in', (await A.put('i/' + meA.uid, island(3))).status === 403);
 // A makes an archipelago and moves in
 const board = 'b' + Date.now().toString(36);
-check('make a board', (await A.put('boards/' + board, { name: 'A의 군도', lat: 37, lng: 127, owner: meA.uid, at: Date.now(), n: 0, bld: 0, users: [] })).status === 200);
+check('make a board', (await A.put('boards/' + board, { name: 'A의 섬마을', lat: 37, lng: 127, owner: meA.uid, at: Date.now(), n: 0, bld: 0, users: [] })).status === 200);
 check('cannot make a board for someone else', (await B.put('boards/x' + board, { name: 'x', lat: 0, lng: 0, owner: meA.uid, at: 1 })).status === 403);
 check('owner moves in', (await A.put(`i-${board}/${meA.uid}`, island(3))).status === 200);
 // B has no invite: cannot move in; with A's token: can, next door, and only into a free island
@@ -73,7 +73,7 @@ check('board: a new board carries its summary', (await A.put('boards/ns' + board
   await Q.put('boards/' + qb, { name: 'Q', lat: 1, lng: 1, owner: q, at: 1, n: 0, bld: 0, users: [] });
   check('island number must be whole', (await Q.put(`i-${qb}/${q}`, { ...island(3), slot: 1.5 })).status === 403 && (await Q.put(`i-${qb}/${q}`, island(3))).status === 200); }
 // boards nobody lives in do not count against their maker, but one address makes at most 10 a day (2 counted above: A's board and Q's; a refused one does not count)
-{ const P = player(), u = (await P.go('/api/me')).v.uid; let made = 0; for (let i = 0; i < 9; i++) if ((await P.put(`boards/m${i}${board}`, { name: '군도', lat: 1, lng: 1, owner: u, at: 1, n: 0, bld: 0, users: [] })).status === 200) made++;
+{ const P = player(), u = (await P.go('/api/me')).v.uid; let made = 0; for (let i = 0; i < 9; i++) if ((await P.put(`boards/m${i}${board}`, { name: '섬마을', lat: 1, lng: 1, owner: u, at: 1, n: 0, bld: 0, users: [] })).status === 200) made++;
   check('boards a day per address', made === 8, `${made} made`); }
 // the funnel log: exactly <board>~<me>, for a board that exists
 { const L = player(); let n = 0; for (let i = 0; i < 45; i++) { const P = player(), u = (await P.go('/api/me')).v.uid; if ((await P.patch(`log/${board}~${u}`, { a: 1 })).status === 200) n++; }
@@ -111,7 +111,7 @@ check('calls left', (await D.go('/api/me')).v.left === 0);
 // accounts are free, so a day's calls are counted by address too (8 here; D used 5 of them)
 { const E = player(); let n = 0; for (let i = 0; i < 5; i++) if ((await ask(E, 'build')).status === 200) n++; check('calls per address', n === 3, `${n} more from the same address`); }
 // link previews: the board's name and free islands
-const pv = await C.go(`/?board=${board}`); check('link preview names the board', pv.text.includes('A의 군도 · 빈 섬'), (pv.text.match(/og:title" content="([^"]+)/) ?? [])[1]);
+const pv = await C.go(`/?board=${board}`); check('link preview names the board', pv.text.includes('A의 섬마을 · 빈 섬'), (pv.text.match(/og:title" content="([^"]+)/) ?? [])[1]);
 const png = Buffer.from('89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c4890000000a49444154789c63000100000500010d0a2db40000000049454e44ae426082', 'hex');
 check('thumb: members only', (await C.go('/api/thumb/' + board, { method: 'POST', body: png, headers: { 'content-type': 'image/png' } })).status === 403);
 check('thumb: a member sends it', (await B.go('/api/thumb/' + board, { method: 'POST', body: png, headers: { 'content-type': 'image/png' } })).status === 200);
