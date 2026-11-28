@@ -91,6 +91,7 @@ const shopColor = (p) => ACCENTS[([...String(p.key)].reduce((h, ch) => (h * 31 +
 // the regular asks again). The forecasts read these same clouds and jams where they will be when the bike gets there.
 const CLOUD_PUFFS = [[-.62, .25, .3], [-.3, -.05, .38], [.08, -.3, .42], [.45, -.05, .36], [.72, .28, .26], [0, .3, .5]];   // the cloud's silhouette: puffs in -1..1
 const WX = { rain: { crash: .35, say: '비가 와요', ko: '비' }, snow: { crash: .55, say: '눈이 와요', ko: '눈' } }, JAMV = .25, CORNER = .3;
+const HOT = .15;   // a share of the "식기 전" time still left at the door that counts as hot: a grass detour round a jam gets there with .16-.39 left (measured 2026-11-28), so dodging pays
 let clouds = [], jams = [], cloudIn = rnd(3, 6), jamIn = rnd(2, 5), home = null;
 const skyAt = (x, z, t = 0) => { for (const cl of clouds) { if (t > cl.life) continue; const cx = cl.x + cl.vx * t, cz = cl.z + cl.vz * t; if ((x - cx) ** 2 + (z - cz) ** 2 <= cl.r ** 2) return cl.kind; } return null; };
 const jamAt = (k, t = 0) => jams.some(j => j.ttl > t && t >= j.start && j.tiles.has(k));   // jammed at t seconds from now (a forming jam only once its cars are all in)
@@ -240,7 +241,7 @@ function send(o, path) {
 /** Paid at the door: the reward, and a tip for food that is still hot; the regular says a line of the shop's own reviews. */
 function handoff(c) {
   const f = 1 - c.took / c.o.fresh, [x, z] = tileAt(c.path, c.at);
-  c.tier = f < 0 ? 'cold' : f >= .35 ? 'hot' : 'ok'; c.handoff = 0;
+  c.tier = f < 0 ? 'cold' : f >= HOT ? 'hot' : 'ok'; c.handoff = 0;
   if (c.tier === 'cold') { c.soggy = true; redone++; orders.push({ ...c.o, id: Math.random(), ttl: 70, redo: true });
     setTimeout(() => popAt(x, z, '식었어요…', 'loud cold'), 350); setTimeout(() => bubble(c, '★★', '다시 보내 주세요'), 1000); }
   else { const tip = Math.ceil(c.o.reward * (c.tier === 'hot' ? .6 : .15)); coins += c.o.reward + tip; tips += tip; if (c.tier === 'hot') hot++;
@@ -347,7 +348,7 @@ function drawBike(g, c) {
   if (!c.back && c.handoff == null && !crash) {
     const f = Math.max(0, 1 - c.took / c.o.fresh), t = performance.now() / 1000, bx = Math.round(px - 10 * c.flip), by = Math.round(py - 26);
     for (let i = 0; i < 3; i++) { const u = (t * .9 + i / 3) % 1; g.globalAlpha = GA * (1 - u) * Math.min(1, f * 1.6); rect(g, Math.round(bx + Math.sin(t * 3 + i * 2) * 2 + (i - 1) * 3), Math.round(by - u * 12), 2, 2, '#ffffff'); }
-    g.globalAlpha = GA; const W = 18, X = Math.round(px - W / 2), Y = Math.round(py - 38); rect(g, X - 1, Y - 1, W + 2, 4, OUT); rect(g, X, Y, Math.round(W * f), 2, f > .35 ? '#f2a12e' : '#e2685a');
+    g.globalAlpha = GA; const W = 18, X = Math.round(px - W / 2), Y = Math.round(py - 38); rect(g, X - 1, Y - 1, W + 2, 4, OUT); rect(g, X, Y, Math.round(W * f), 2, f > HOT ? '#f2a12e' : '#e2685a');
   }
 }
 /** The regular at the door, stepping out to take the box (arms up when it lands, a hop and hearts for a hot one). */
