@@ -123,6 +123,7 @@ const INK = '#1f1a1c', GLINT = '#ffffff', CHEEK = '#ffa8a0';
 export function animalModel(key, { apron = null, statue = null } = {}) {
   const a = animalOf(key) ?? animalOf('cat'), id = a.id, v = grid(), ex = new Set(a.extra), EYE = a.eye ?? INK;
   const body = a.body, belly = a.belly, limb = a.points ?? (ex.has('darklegs') || a.arms === 'dark' ? (id === 'panda' ? '#2a2a30' : dark(body, .45)) : dark(body, .85));
+  if (id === 'cat') return catModel(a, { apron, statue });   // the cat has its own round shape (2026-11-29: C 찹쌀떡 + F 목걸이)
   // ---- feet / legs ----
   if (ex.has('tentacles')) {   // six curling tentacles in a ring
     for (let k = 0; k < 6; k++) { const ang = k / 6 * Math.PI * 2 + .3, cx = 10 + Math.cos(ang) * 4.6, cz = 9 + Math.sin(ang) * 3.6, ox = Math.cos(ang), oz = Math.sin(ang);
@@ -208,6 +209,48 @@ export function animalModel(key, { apron = null, statue = null } = {}) {
     out = out.map(([x, y, z, c]) => [x, y, z, c === body && z < 8 && y > 4 && y < 14 ? '#5a3a24' : c]); }
   if (a.pattern === 'points') { // siamese: the ears, the tail and the face's middle go dark
     const hy0 = 19; out = out.map(([x, y, z, c]) => [x, y, z, c === body && (y > hy0 + 4 || z <= 3 || (y < hy0 + 1 && y > hy0 - 5 && z > 13 && Math.abs(x + .5 - 10) < 4)) ? a.points : c]); }
+  if (statue) out = out.map(([x, y, z, c]) => [x, y, z, c === INK || c === GLINT ? c : tone(statue, c)]);
+  return out;
+}
+/**
+ * The cat: a round rice-cake (찹쌀떡) of a cat — head and body one bean, the face low on the front, tiny front paws,
+ * soft pointed ears with pink insides, tall glossy eyes, pink cheeks, a ω mouth — wearing a red collar with a gold bell.
+ * Chosen from six tries (out/animal/catlab.js) on 2026-11-29.
+ */
+function catModel(a, { apron = null, statue = null } = {}) {
+  const m = new Map(), body = a.body, belly = a.belly, EYE = a.eye ?? INK, PINK = '#ff9fb2', NOSE = '#ff7f98';
+  const put = (x, y, z, c) => { x = Math.round(x); y = Math.round(y); z = Math.round(z); if (c) m.set(`${x},${y},${z}`, [x, y, z, c]); else m.delete(`${x},${y},${z}`); };
+  const has = (x, y, z) => m.has(`${x},${y},${z}`);
+  const ball = (cx, cy, cz, rx, ry, rz, c) => { for (let x = Math.floor(cx - rx); x <= cx + rx; x++) for (let y = Math.floor(cy - ry); y <= cy + ry; y++) for (let z = Math.floor(cz - rz); z <= cz + rz; z++)
+    if (((x + .5 - cx) / rx) ** 2 + ((y + .5 - cy) / ry) ** 2 + ((z + .5 - cz) / rz) ** 2 <= 1) put(x, y, z, typeof c === 'function' ? c(x, y, z) : c); };
+  const front = (x, y) => { for (let z = 30; z > -10; z--) if (has(x, y, z)) return z; return null; };
+  const face = (x, y, c, out = 0) => { const z = front(x, y); if (z !== null) put(x, y, z + out, c); };
+  const stripes = (a.extra ?? []).includes('stripes'), hy = 9, hz = 10;
+  // the bean: one round body, a paler chest low on the front, stripes over the top for a tabby
+  ball(10, 8.5, 10, 9.4, 8.4, 7.6, (x, y, z) => stripes && z < hz + 1 && y > 12 && x % 3 === 0 ? dark(body, .78) : z > hz + 4 && y < 7 && Math.abs(x + .5 - 10) < 5 ? belly : body);
+  for (const x of [7, 13]) ball(x, 1.4, 16, 1.6, 1.3, 1.4, belly);   // tiny front paws
+  ball(19, 4, 6, 1.5, 1.5, 2.5, body); ball(20, 6.5, 4, 1.3, 1.6, 1.3, dark(body, .85));   // a tail curling up at the side
+  // ears: wide soft triangles rooted in the top of the bean, pink inside
+  for (const s of [-1, 1]) for (let k = 0; k <= 4; k++) {
+    const half = Math.round((4 - k) * .6), cx = Math.round(10 + s * (5 + k * .25)) - (s > 0 ? 1 : 0);
+    for (let i = -half; i <= half; i++) for (const dz of [0, 1]) put(cx + i, 15 + k, hz - 1 + dz, dz === 1 && Math.abs(i) < half && k < 3 ? a.inner : k === 4 ? dark(body, .92) : body);
+  }
+  // the collar: a red band round the bean under the face, a gold bell at the front
+  for (let t = 0; t < 48; t++) { const ang = t / 48 * Math.PI * 2; put(10 + Math.cos(ang) * 8.6, 4, 10 + Math.sin(ang) * 7.1, '#e2433a'); }
+  ball(10, 3, 17.6, 1.2, 1.2, 1, '#ffcf3f'); put(10, 2, 18, '#b8862a'); put(9, 3, 18, '#fff3b0');
+  // a shop apron (staff inside) under the collar
+  if (apron) for (let x = 6; x <= 14; x++) for (let y = 1; y <= 3; y++) { const z = front(x, y); if (z !== null && z > 12) put(x, y, z + 1, x === 6 || x === 14 ? dark(apron, .8) : apron); }
+  // the face: tall glossy eyes with sparkles, pink cheeks, a pink nose and a ω mouth
+  for (const s of [-1, 1]) { const ex = s < 0 ? 6 : 13;
+    for (let i = 0; i < 2; i++) for (let j = 0; j < 3; j++) face(ex + i, hy + j, EYE);
+    face(ex, hy + 2, GLINT, 1); face(ex + 1, hy, GLINT, 1);
+    face(10 + s * 6, hy - 2, PINK); face(10 + s * 5, hy - 2, PINK); }
+  face(10, hy - 1, NOSE, 1);
+  for (const [x, dy] of [[8, -2], [9, -3], [10, -2], [11, -3], [12, -2]]) face(x, hy + dy, isDark('cat:' + (a.coat ?? '')) ? '#e8d8d0' : INK);
+  let out = [...m.values()];
+  if (a.pattern === 'calico') { const h = (x, y, z) => { let q = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791); q = Math.imul(q ^ (q >>> 13), 1274126177); return (q >>> 0) % 7; };
+    out = out.map(([x, y, z, c]) => { if (c !== body) return [x, y, z, c]; const n = h(Math.floor(x / 5), Math.floor(y / 5), Math.floor(z / 5)); return [x, y, z, n < 2 ? '#f0a050' : n === 2 ? '#3a3238' : c]; }); }
+  if (a.pattern === 'points') out = out.map(([x, y, z, c]) => [x, y, z, (c === body && (y > 14 || x > 17)) || ((c === body || c === belly) && Math.abs(x + .5 - 10) < 2.6 && y >= hy - 3 && y <= hy && z > 14) ? a.points : c]);
   if (statue) out = out.map(([x, y, z, c]) => [x, y, z, c === INK || c === GLINT ? c : tone(statue, c)]);
   return out;
 }

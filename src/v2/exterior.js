@@ -300,7 +300,8 @@ export function buildExterior(spec, section) {
     const earY = roofY + (top - roofY) * .55, sideX = fx + mw / 2;
     const look = spec.look === 'peek' && isDark(spec.owner) ? 'ears' : spec.look ?? 'face';   // a dark animal behind a roof is a black blob
     if (look === 'peek') { // a giant owner standing behind the shop: its head and paws rise over the roof
-      const h = Math.min(6, Math.max(2.6, mw * 2.2)); figure(animalModel(spec.owner), h, fx, Math.max(0, top - h * .6 + .15), main.z - md / 2 - .2); return; }
+      const h = Math.min(6, Math.max(2.6, mw * 2.2)); const faceAt = String(spec.owner).startsWith('cat') ? .22 : .6;   // the round cat's face is low on its body: lift it until the face clears the roof
+      figure(animalModel(spec.owner), String(spec.owner).startsWith('cat') ? h * .8 : h, fx, Math.max(0, top - h * faceAt + .15), main.z - md / 2 - .2); return; }
     if (look === 'cling') { // the owner clinging to a back wall, north-west (left) or north-east (right), as big as the building: it leans out past the corner
       let hs = 0; for (const ch of String(spec.name || spec.type)) hs = (hs * 31 + ch.codePointAt(0)) >>> 0;
       const h = Math.min(4.2, Math.max(1.6, roofY * .95)), slide = ((hs >> 3) % 100) / 100;   // where along the wall
