@@ -33,6 +33,7 @@ export function createShop(store, config, { origin, log = () => {}, fetcher = fe
   sql.exec(`CREATE TABLE IF NOT EXISTS wallets (uid TEXT PRIMARY KEY, dia INTEGER NOT NULL DEFAULT 0, builds INTEGER NOT NULL DEFAULT 0, starter INTEGER NOT NULL DEFAULT 0);
     CREATE TABLE IF NOT EXISTS orders (checkout TEXT PRIMARY KEY, uid TEXT NOT NULL, sku TEXT NOT NULL, product TEXT NOT NULL, cents INTEGER NOT NULL, state TEXT NOT NULL, order_id TEXT, at INTEGER NOT NULL);
     CREATE TABLE IF NOT EXISTS ledger (id INTEGER PRIMARY KEY AUTOINCREMENT, uid TEXT NOT NULL, dia INTEGER NOT NULL, builds INTEGER NOT NULL, why TEXT NOT NULL, ref TEXT, at INTEGER NOT NULL);`);
+  for (const c of ['granted_dia', 'granted_builds']) if (!sql.prepare(`SELECT 1 FROM pragma_table_info('orders') WHERE name = ?`).get(c)) sql.exec(`ALTER TABLE orders ADD COLUMN ${c} INTEGER`);   // what the payment gave: a refund takes exactly that back
   const enabled = () => !!(config.token && config.secret) ? Object.keys(config.products) : [];
   const walletOf = (uid) => sql.prepare(`SELECT dia, builds, starter FROM wallets WHERE uid = ?`).get(uid) ?? { dia: 0, builds: 0, starter: 0 };
   /** Add (or take, with negatives) diamonds and tickets, written down in the ledger. */
@@ -106,12 +107,15 @@ export function createShop(store, config, { origin, log = () => {}, fetcher = fe
       if (!refunded) {
         if (o.paid !== true || o.status !== 'paid') return 'not_paid';
         if (now !== 'open') return 'replayed';
-        change(row.uid, item.dia, item.builds, 'buy:' + row.sku, o.id, item.once ? 1 : 0);
-        sql.prepare(`UPDATE orders SET state = 'paid', order_id = ? WHERE checkout = ?`).run(o.id, row.checkout); return 'paid';
+        // a second starter (several checkouts opened before the first was paid): its price buys what 500 diamonds cost, not the first-purchase deal
+        const again = item.once && walletOf(row.uid).starter, give = again ? CATALOG.d500 : item;
+        change(row.uid, give.dia, give.builds, 'buy:' + row.sku + (again ? ':again' : ''), o.id, item.once ? 1 : 0);
+        sql.prepare(`UPDATE orders SET state = 'paid', order_id = ?, granted_dia = ?, granted_builds = ? WHERE checkout = ?`).run(o.id, give.dia, give.builds, row.checkout); return again ? 'paid_as_diamonds' : 'paid';
       }
       if (o.status !== 'refunded') return 'not_refunded';
       if (now !== 'paid') return now === 'refunded' ? 'replayed' : 'unpaid_refund';
-      change(row.uid, -item.dia, -item.builds, 'refund:' + row.sku, o.id);   // may go below zero when already spent: nothing more can be spent then
+      const g = sql.prepare(`SELECT granted_dia AS dia, granted_builds AS builds FROM orders WHERE checkout = ?`).get(row.checkout);
+      change(row.uid, -(g.dia ?? item.dia), -(g.builds ?? item.builds), 'refund:' + row.sku, o.id);   // may go below zero when already spent: nothing more can be spent then
       sql.prepare(`UPDATE orders SET state = 'refunded' WHERE checkout = ?`).run(row.checkout); return 'refunded';
     });
     return { status: 200, body: { ok: true, state } };

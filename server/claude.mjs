@@ -22,13 +22,13 @@ export function admit(store, uid, kind, ip = '', pay = null) {   // pay(ref): a 
     const last = sql.prepare(`SELECT at, kind FROM calls WHERE uid = ? ORDER BY at DESC LIMIT 1`).get(uid);
     if (!last || last.kind !== 'build' || Date.now() - last.at > 5 * 60e3) return no(429, 'daily_limit');
   } else {
-    const all = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE day = ?`).get(day).n;
-    if (all >= PER_DAY) return no(503, 'busy');
+    // the free day: mine, my address's, and everyone's (PER_DAY is what the free calls may cost; a paid build pays for itself)
+    const allFree = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE day = ? AND paid IS NULL`).get(day).n;
     const mine = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise' AND paid IS NULL`).get(uid, day).n;
     const freeIp = !ip || sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE ip = ? AND day = ? AND kind != 'revise' AND paid IS NULL`).get(ip, day).n < PER_IP;
-    if (mine >= PER_USER || !freeIp) {   // the free ones are used up: a ticket or diamonds, if I have them (2026-11-28)
+    if (mine >= PER_USER || !freeIp || allFree >= PER_DAY) {   // no free build: a ticket or diamonds, if I have them (2026-11-28)
       if (ip && sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE ip = ? AND at > ?`).get(ip, Date.now() - 3600e3).n >= PER_IP_HOUR) return no(429, 'rate_limited');
-      const ref = `call:${uid}:${Date.now()}`, bought = pay?.(ref); if (!bought) return no(429, 'daily_limit');
+      const ref = `call:${uid}:${Date.now()}`, bought = pay?.(ref); if (!bought) return mine < PER_USER && freeIp ? no(503, 'busy') : no(429, 'daily_limit');
       const row = sql.prepare(`INSERT INTO calls (uid, day, kind, at, ip, paid) VALUES (?, ?, ?, ?, ?, ?)`).run(uid, day, kind, Date.now(), ip, bought.paid).lastInsertRowid;
       return { paid: bought.paid, refund: () => { sql.prepare(`DELETE FROM calls WHERE rowid = ?`).run(row); bought.refund(); } };
     }

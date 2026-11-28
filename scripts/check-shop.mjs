@@ -14,7 +14,7 @@ const polar = http.createServer((req, res) => { let b = ''; req.on('data', c => 
   const q = JSON.parse(b || '{}'), product = q.products?.[0], id = crypto.randomUUID();
   const s = { id, product_id: product, external_customer_id: q.external_customer_id, currency: 'usd', amount: CENTS[product], is_payment_required: true, product: { is_recurring: false }, url: `http://127.0.0.1:${POLAR}/checkout/${id}` };
   sessions.set(id, s); res.writeHead(201, { 'content-type': 'application/json' }); res.end(JSON.stringify(s)); }); }).listen(POLAR, '127.0.0.1');
-const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, SAMPLE: 'echo', CLAUDE_PER_USER: '5', CLAUDE_PER_IP: '60', CLAUDE_PER_IP_HOUR: '100',
+const env = { ...process.env, PORT: String(PORT), DATA_DIR: dir, SAMPLE: 'echo', CLAUDE_PER_USER: '5', CLAUDE_PER_IP: '60', CLAUDE_PER_IP_HOUR: '100', CLAUDE_PER_DAY: '18',
   POLAR_ACCESS_TOKEN: 'test', POLAR_WEBHOOK_SECRET: SECRET, POLAR_API: `http://127.0.0.1:${POLAR}`,
   POLAR_PRODUCT_STARTER: P.starter, POLAR_PRODUCT_D500: P.d500, POLAR_PRODUCT_D1100: P.d1100, POLAR_PRODUCT_D3500: P.d3500 };
 const srv = spawn(process.execPath, ['--disable-warning=ExperimentalWarning', path.join(root, 'server/main.mjs')], { env, stdio: ['ignore', 'pipe', 'inherit'] });
@@ -72,4 +72,17 @@ const rf = await hook('order.refunded', idOf(cb.v.url)); const wb = (await B.sho
 check('refunded: the diamonds go back', rf.v.state === 'refunded' && wb.dia === -50, JSON.stringify([rf.v, wb.dia]));
 check('a refund again takes nothing more', (await hook('order.refunded', idOf(cb.v.url))).v.state === 'replayed' && (await B.shop()).v.dia === -50);
 check('below zero: no paid build', (await B.build()).v.error === 'daily_limit');
+
+// two first-purchase checkouts opened before either was paid: the second pays out as 500 diamonds, and its refund takes back just that
+const F = player(); const f1 = await F.buy('starter'), f2 = await F.buy('starter');
+await hook('order.paid', idOf(f1.v.url)); const second = await hook('order.paid', idOf(f2.v.url)); const wf = (await F.shop()).v;
+check('a second starter pays as 500 diamonds', second.v.state === 'paid_as_diamonds' && wf.builds === 20 && wf.dia === 1000, JSON.stringify([second.v, wf.dia, wf.builds]));
+await hook('order.refunded', idOf(f2.v.url)); const wf2 = (await F.shop()).v;
+check('its refund takes back what it gave', wf2.builds === 20 && wf2.dia === 500, JSON.stringify([wf2.dia, wf2.builds]));
+
+// the server's free budget for the day is spent (18 here): a player with diamonds still builds, one without waits
+const D = player(); const cd = await D.buy('d500'); await hook('order.paid', idOf(cd.v.url));
+const E = player(); let busy = null; for (let i = 0; i < 5; i++) { const r = await E.build(); if (r.status !== 200) { busy = r; break; } }
+check('the free budget runs out', busy?.status === 503 && busy.v.error === 'busy', JSON.stringify(busy?.v));
+check('diamonds still build', (await D.build()).status === 200 && (await D.shop()).v.dia === 450);
 process.exit();
