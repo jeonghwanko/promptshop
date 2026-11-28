@@ -102,11 +102,11 @@ function newCloud(kind, over = false) {
 }
 const CARS = ['#e2685a', '#5fb6e0', '#f2c12e', '#7bc47f', '#f4f0e6', '#a07ad0'];
 /** A jam: three to five road tiles in a row, on my island (or in the middle of the given path). */
-function newJam(path) {
+function newJam(path, start = 0) {
   const A = sim.A, roads = path ? path.slice(2, -2) : tilesOf(S.mySlot).filter(([x, z]) => A.isRoad(x, z)); if (!roads.length) return null;
   const make = (seg, ttl, start = rnd(8, 12)) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl: ttl + start, start, start0: start, age: 0,   // start: seconds of cars gathering before the road jams (it can be seen coming)
     cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
-  if (path) { const i = Math.floor(roads.length / 2); return make(roads.slice(Math.max(0, i - 2), i + 2), rnd(30, 45), 0); }
+  if (path) { const i = Math.floor(roads.length / 2); return make(roads.slice(Math.max(0, i - 2), i + 2), rnd(30, 45), start); }
   for (let tries = 0; tries < 20; tries++) { const [x, z] = pick(roads), [dx, dz] = pick(DIRS), seg = [];
     for (let i = 0; i < 5 && A.isRoad(x + dx * i, z + dz * i); i++) seg.push([x + dx * i, z + dz * i]);
     if (seg.length >= 3) return make(seg, rnd(25, 50)); }
@@ -169,11 +169,22 @@ const ROUTE = ['#ffd23a', '#4ee0c1', '#ff8fa3'];
 let tags = [];
 function choose(o) {
   if (couriers.length >= ncour) return;
-  if (Q.has('jam') && !jams.some(j => o.path.some(t => j.tiles.has(key(...t))))) { const j = newJam(o.path); if (j) jams.push(j); }   // &jam=1: a jam on the short way, to look at it
+  if (Q.get('jam') === '1' && !jams.some(j => o.path.some(t => j.tiles.has(key(...t))))) { const j = newJam(o.path, Q.get('jam') === 'soon' ? 7 : 0); if (j) jams.push(j); }   // &jam=1: a jam on the short way, to look at it; &jam=soon: one starting to gather there
   const routes = routesFor(o); if (routes.length === 1) return send(o, routes[0].path);
+  if (Q.get('jam') === 'soon') {   // &jam=soon: cars start gathering on the stretch only the big road takes (so the shortcut can dodge them)
+    const others = new Set(routes.slice(1).flatMap(r => r.path.map(t => key(...t)))), own = routes[0].path.filter(t => !others.has(key(...t)) && sim.A.isRoad(...t));
+    if (own.length >= 3) { const i = Math.floor(own.length / 2), seg = own.slice(Math.max(0, i - 2), i + 2); jams = jams.filter(j => !seg.some(t => j.tiles.has(key(...t)))); jams.push({ ...newJam(o.path, 6), tiles: new Set(seg.map(t => key(...t))), list: seg, cars: seg.map((t, k) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + k) % CARS.length], ph: Math.random() * 6 })) }); }
+  }
   choosing = { o, routes, hover: 0 }; camGrab(); cam.back = false;
   tags = routes.map((r, i) => { const t = el('button', { class: 'routetag', style: `--rc:${ROUTE[i]}`, on: { click: () => send(o, r.path), pointerenter: () => { choosing.hover = i; } } }, el('b', {}, r.name), fcChips(r.f, o.fresh)); document.body.append(t); return t; });
   draw();
+}
+/** While I choose, the clouds move and the cars gather: each route's forecast is read again, on its tag and in the ledger. */
+let refreshIn = 0;
+function refreshChoice(dt) {
+  if (!choosing || (refreshIn -= dt) > 0) return; refreshIn = .5;
+  choosing.routes.forEach((r, i) => { r.f = forecast(r.path); tags[i]?.replaceChildren(el('b', {}, r.name), fcChips(r.f, choosing.o.fresh)); });
+  for (const b of panel?.querySelectorAll('.lroute') ?? []) { const i = [...b.parentNode.children].indexOf(b), r = choosing.routes[i]; if (r) b.replaceChildren(el('b', {}, r.name), fcChips(r.f, choosing.o.fresh)); }
 }
 function unchoose() { choosing = null; tags.forEach(t => t.remove()); tags = []; }
 /** Each route's tag sits on a stretch only it takes (the middle of it), so the tags never stack. */
@@ -488,7 +499,7 @@ export function startLedgerToy() {
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && choosing) cancelChoose(); });
     let t0 = performance.now(), acc = 0;
     const frame = (t) => { const dt = Math.min(.25, (t - t0) / 1000); t0 = t;
-      if (!document.hidden) { weatherTick(dt); moveCouriers(dt); camStep(dt); drawOver(dt); placePops(dt); placeTags(); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } }
+      if (!document.hidden) { weatherTick(dt); moveCouriers(dt); camStep(dt); drawOver(dt); placePops(dt); refreshChoice(dt); placeTags(); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } }
       requestAnimationFrame(frame); };
     const wq = Q.get('wx'); if (WX[wq]) clouds.push(newCloud(wq, true));   // &wx=rain|snow: a slow cloud over my island now, to look at it
     requestAnimationFrame(frame); draw();
