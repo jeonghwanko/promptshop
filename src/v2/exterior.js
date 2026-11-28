@@ -439,7 +439,7 @@ export function buildExterior(spec, section) {
   }
 
   // ---------- shop-front look, bought tier by tier (1 flower bed · 2 awning and bench · 3 bulbs round the sign · 4 a terrace) ----------
-  { const T = spec.look ?? 0; enter('look');
+  { const T = spec.frontTier ?? 0; enter('look');
     if (T >= 1) { box(mw * .86, .2, .22, mat('#8a5a3c'), fx, 0, fz + .2); box(mw * .84, .06, .2, mat('#4fa04a'), fx, .2, fz + .2);
       for (let k = 0; k < Math.round(mw * 6); k++) ball(.1, glow(['#ff7aa8', '#ffc94a', '#fff8ea'][k % 3]), fx - mw * .4 + k * (mw * .8) / Math.max(1, Math.round(mw * 6) - 1), .34, fz + .2 + (k % 2 ? .05 : -.05)); }
     if (T >= 2) { const aw = new THREE.Mesh(new THREE.PlaneGeometry(mw + .2, .75), mat(0xffffff, { map: stripes(accent, '#fff8ea'), alphaTest: .5, side: THREE.DoubleSide })); aw.rotation.x = -1.0; const g = new THREE.Group(); g.add(aw); g.position.set(fx, plinthH + GH + .32, fz + .36); add(g);
