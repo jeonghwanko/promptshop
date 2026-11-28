@@ -299,6 +299,7 @@ export function buildExterior(spec, section) {
     const bodyM = mat(a.body), inner = mat(a.inner ?? shade(a.body, .8)), earM0 = ex.has('darkears') ? mat('#2a2a30') : bodyM, ink = mat('#1f1a1c'), eh = Math.min(1.25, Math.max(.75, mw * .42));
     const earY = roofY + (top - roofY) * .55, sideX = fx + mw / 2;
     const look = spec.look === 'peek' && isDark(spec.owner) ? 'ears' : spec.look ?? 'face';   // a dark animal behind a roof is a black blob
+    if (look === 'plain') return;   // an ordinary building: the owner only greets at the door (drawn with the props)
     if (look === 'peek') { // a giant owner standing behind the shop: its head and paws rise over the roof
       const h = Math.min(6, Math.max(2.6, mw * 2.2)); const faceAt = String(spec.owner).startsWith('cat') ? .22 : .6;   // the round cat's face is low on its body: lift it until the face clears the roof
       figure(animalModel(spec.owner), String(spec.owner).startsWith('cat') ? h * .8 : h, fx, Math.max(0, top - h * faceAt + .15), main.z - md / 2 - .2); return; }
