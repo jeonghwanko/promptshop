@@ -654,3 +654,7 @@ body.hide-level.buildmode #who { display:none; }
 .ledger .lx, .ledger .lplus { color: #2b2117; box-shadow: none; padding: 3px 9px; font: 700 12px var(--f-ui); background: #efe2c8; }
 .ledger .ld { color: #a8937a; background: none; box-shadow: none; padding: 2px 4px; font: 400 12px var(--f-ui); }
 .ledger .lgo { padding: 4px 10px; }
+
+.toycourier { width: 140px; height: 140px; } .toycourier .toywx { position: absolute; left: 0; top: 0; image-rendering: pixelated; }
+.toycourier .bike { position: absolute; left: 48px; top: 70px; display: block; transform-origin: 50% 80%; filter: drop-shadow(0 0 1px #fff) drop-shadow(0 0 1px #fff) drop-shadow(0 2px 0 rgba(0,0,0,.35)); }
+.ledger .lr.going.bad { background: #ffe9e4; border-color: #e8a090; }
