@@ -7,7 +7,7 @@ import { S, pr, map } from './state.js';
 // Windows at 125%); below it, halves and three quarters, drawn smooth instead (see applyZoom).
 const dpr = () => window.devicePixelRatio || 1;
 // A phone gets quarter steps in between too: with whole steps only, my island jumps from too small to too big there.
-const zoomSteps = () => { const d = dpr(), lo = Math.min(1 / d, Math.max(innerWidth / pr.width, innerHeight / pr.height) * .9);
+export const zoomSteps = () => { const d = dpr(), lo = Math.min(1 / d, Math.max(innerWidth / pr.width, innerHeight / pr.height) * .9);
   const fine = innerWidth <= 760 ? [1.25, 1.5, 1.75, 2.5].map(k => k / d) : [];
   return [...new Set([lo, .5 / d, .75 / d, 1 / d, 2 / d, 3 / d, 4 / d, ...fine].map(z => +z.toFixed(4)).filter(z => z >= lo - 1e-6 && z <= 3.01))].sort((a, b) => a - b); };
 /** The biggest step at which a w×h box (map pixels at zoom 1) takes at most fx of the screen's width and fy of its free height. */

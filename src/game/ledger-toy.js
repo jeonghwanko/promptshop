@@ -10,10 +10,11 @@ import { normalize } from '../v2/spec.js';
 import { slotAt } from '../v2/isles.js';
 import { TYPE_KO } from '../v2/catalog.js';
 import { liveRate } from './vault.js';
-import { toScreen, applyZoom, safeRect } from './camera.js';
+import { toScreen, applyZoom, safeRect, zoomSteps } from './camera.js';
 import { reviewLine } from './reviews.js';
 import { el } from './ui.js';
 import { iconEl } from '../ui/icons.js';
+import { faceEl } from '../ui/faces.js';
 
 const CAP = 5, ORDER = [15, 25], TTL = [90, 180], K = { near: .045, far: .075, neighbor: .12 }, VMAX = 3.6, STAY = 2.4;   // top speed in tiles a second; seconds at the door (the handoff)
 const MENU = { food: ['국밥', '백반', '떡볶이', '김밥'], cafe: ['라떼', '쿠키', '케이크', '스무디'], shop: ['생필품', '꽃다발', '새 옷', '간식'], fun: ['간식 세트', '팝콘', '음료'], rest: ['수건 세트', '조식', '베개'] };
@@ -39,11 +40,12 @@ function walk(from) {
 /** The cheapest way in riding time (road steps cost their length, grass steps their length ÷ GRASS, a road corner a little more,
  *  plus extra(x, z, cost so far, isRoad)). grass: open land between the lots is allowed too, diagonals included. */
 function route(from, to, extra, grass = false) {
-  const A = sim.A, taken = grass ? takenSet() : null, s0 = key(...from), goal = key(...to), dist = new Map([[s0, 0]]), prev = new Map(), done = new Set(), open = [[0, from]];
-  const ok = (x, z) => x >= 0 && z >= 0 && x < A.w && z < A.d && (A.isRoad(x, z) || (grass && slotAt(x, z) > 0 && !taken.has(x + ',' + z)));
-  while (open.length) {
-    let bi = 0; for (let i = 1; i < open.length; i++) if (open[i][0] < open[bi][0]) bi = i;
-    const [d, [x, z]] = open.splice(bi, 1)[0], k = key(x, z); if (done.has(k)) continue; done.add(k); if (k === goal) break;
+  const A = sim.A, taken = grass ? takenSet() : null, lands = grass ? new Set([S.mySlot, slotAt(...to)]) : null, s0 = key(...from), goal = key(...to), dist = new Map([[s0, 0]]), prev = new Map(), done = new Set();
+  const ok = (x, z) => x >= 0 && z >= 0 && x < A.w && z < A.d && (A.isRoad(x, z) || (grass && lands.has(slotAt(x, z)) && !taken.has(x + ',' + z)));
+  const heap = [[0, from]], push = (it) => { heap.push(it); let i = heap.length - 1; while (i) { const p = (i - 1) >> 1; if (heap[p][0] <= heap[i][0]) break; [heap[p], heap[i]] = [heap[i], heap[p]]; i = p; } };
+  const popMin = () => { const top = heap[0], last = heap.pop(); if (heap.length) { heap[0] = last; let i = 0; for (;;) { const l = i * 2 + 1, r = l + 1; let m = i; if (l < heap.length && heap[l][0] < heap[m][0]) m = l; if (r < heap.length && heap[r][0] < heap[m][0]) m = r; if (m === i) break; [heap[m], heap[i]] = [heap[i], heap[m]]; i = m; } } return top; };
+  while (heap.length) {
+    const [d, [x, z]] = popMin(), k = key(x, z); if (done.has(k)) continue; done.add(k); if (k === goal) break;
     const p = prev.get(k);
     for (const [dx, dz] of grass ? [...DIRS, ...DIAG] : DIRS) { const nx = x + dx, nz = z + dz, nk = key(nx, nz);
       if (!ok(nx, nz) || done.has(nk)) continue;
@@ -51,7 +53,7 @@ function route(from, to, extra, grass = false) {
       if (dx && dz && (road || !ok(x + dx, z) || !ok(x, z + dz))) continue;   // diagonals only off the road, never cutting a lot's corner
       const turn = road && p && (dx !== x - p[0] || dz !== z - p[1]) ? CORNER * VMAX : 0, len = dx && dz ? Math.SQRT2 : 1;
       const nd = d + len / (road ? 1 : GRASS) + turn + extra(nx, nz, d, road);
-      if (nd < (dist.get(nk) ?? Infinity)) { dist.set(nk, nd); prev.set(nk, [x, z]); open.push([nd, [nx, nz]]); } } }
+      if (nd < (dist.get(nk) ?? Infinity)) { dist.set(nk, nd); prev.set(nk, [x, z]); push([nd, [nx, nz]]); } } }
   if (!done.has(goal)) return null;
   const out = [to]; let k = goal; while (prev.has(k)) { const p = prev.get(k); out.unshift(p); k = key(...p); } return out;
 }
@@ -80,7 +82,7 @@ function newOrder() {
   const g = p.b.input.guests, who = (typeof g?.who === 'string' && g.who) || WHO[need] || '단골 손님';
   const reward = Math.max(5, Math.round(liveRate().coins * K[kind] * qty / 2));
   const path = w.path(to), fresh = Math.ceil(forecast(path, true).t * 1.6 + 1);   // a clear road gets it there hot, the grass on time, a jammed road late
-  return { id: Math.random(), shop: p.key, shopName: n.name || TYPE_KO[n.type] || '가게', color: shopColor(p), who, menu: pick(MENU[need] ?? MENU.food), qty, kind, path, fresh, reward, ttl: Math.round(rnd(...TTL)) };
+  return { id: Math.random(), need, shop: p.key, shopName: n.name || TYPE_KO[n.type] || '가게', color: shopColor(p), who, menu: pick(MENU[need] ?? MENU.food), qty, kind, path, fresh, reward, ...(() => { const t = Math.round(rnd(...TTL)); return { ttl: t, ttl0: t }; })() };
 }
 const ACCENTS = ['#e2432f', '#3d9ee0', '#2fa86a', '#a07ad0', '#ff6fa3', '#4ec3d8'];   // never the courier's orange jacket or yellow helmet
 const shopColor = (p) => ACCENTS[([...String(p.key)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0) % ACCENTS.length];   // the delivery box wears its shop's colour
@@ -128,12 +130,12 @@ const turnsOf = (path) => { const t = [], R = (q) => sim.A.isRoad(q[0], q[1]); f
 const segLen = (path, i) => { const a = path[Math.max(0, Math.min(path.length - 2, i))], b = path[Math.max(1, Math.min(path.length - 1, i + 1))]; return Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; };
 /** The route's forecast: when the bike would reach each tile, is it wet there, is the road jammed. clear: no sky, no jams. */
 function forecast(path, clear = false) {
-  let t = 0, wet = 0, jam = 0, soon = 0, kind = null; const turns = new Set(turnsOf(path));
+  let t = 0, wet = 0, jam = 0, soon = 0, kind = null; const turns = new Set(turnsOf(path)), marks = new Map();
   for (let i = 1; i < path.length; i++) { const [x, z] = path[i], road = sim.A.isRoad(x, z), j = !clear && road && jamAt(key(x, z), t), s = clear ? null : skyAt(x + .5, z + .5, t);
-    t += segLen(path, i - 1) / (VMAX * (j ? JAMV : road ? 1 : GRASS) * (s ? .85 : 1)); if (j) { jam++; if (!jamAt(key(x, z))) soon++; }
+    t += segLen(path, i - 1) / (VMAX * (j ? JAMV : road ? 1 : GRASS) * (s ? .85 : 1)); if (j) { jam++; if (!jamAt(key(x, z))) soon++; marks.set(i, 'jam'); } else if (s) marks.set(i, 'wet');
     if (turns.has(i)) { t += CORNER; if (s) { wet++; kind = kind === 'snow' ? kind : s; } } }
   t += .6 + jam * .25;   // pulling away from the shop and braking into and out of a jam (measured on rides, 2026-11-28)
-  return { t, wet, jam, soon, kind };
+  return { t, wet, jam, soon, kind, marks };
 }
 
 // ---------- the camera (2026-11-28 "카메라 워킹"): it springs after a target instead of snapping to it ----------
@@ -146,11 +148,17 @@ function camGrab() {
   cam.home = { z: S.zoom, x: (b.scrollLeft + sr.cx - map.offsetLeft) / S.zoom, y: (b.scrollTop + sr.cy - map.offsetTop) / S.zoom };
   Object.assign(cam, { on: true, back: false, x: cam.home.x, y: cam.home.y, z: S.zoom, punch: 0, shake: 0 });
 }
-const camRelease = () => { cam.on = false; cam.back = false; S.zoom = cam.z; applyZoom(); };
+const nearestStep = (z) => zoomSteps().reduce((a, b) => Math.abs(b - z) < Math.abs(a - z) ? b : a);
+const camRelease = () => { cam.on = false; cam.back = false; S.zoom = nearestStep(cam.z); applyZoom(); };   // a real step: the zoom buttons find it, the map is crisp
+/** Something else moves the view (a drag, the wheel, the zoom buttons): the toy's camera lets go at once. */
+function camLetGo() { if (!cam.on) return; for (const c of couriers) c.follow = false; camRelease(); }
+const maxZ = () => { const st = zoomSteps(); return st[st.length - 1]; };
 const snapZ = (z) => { const d = window.devicePixelRatio || 1; return z * d >= 1 ? Math.max(1, Math.floor(z * d + 1e-6)) / d : z; };   // whole screen pixels per map pixel where it can
 const rideZoom = () => { const d = window.devicePixelRatio || 1; return Math.max(2, Math.round(Math.min(6, cam.home.z * 3) * d)) / d; };   // whole device pixels: crisp while riding
 function camStep(dt) {
-  if (!cam.on) return; const sr = safeRect(); let tx = cam.home.x, ty = cam.home.y, tz = cam.home.z, kp = 6, kz = 3.5;
+  if (!cam.on) return;
+  if (S.watching || S.zoomShop) { cam.on = false; cam.back = false; for (const c of couriers) c.follow = false; return; }   // a shop opened: its own camera takes over
+  const sr = safeRect(); let tx = cam.home.x, ty = cam.home.y, tz = cam.home.z, kp = 6, kz = 3.5;
   const c = couriers.find(q => q.follow);
   if (choosing) {
     const pts = choosing.routes.flatMap(r => r.path).map(([x, z]) => pr.P(x + .5, z + .5)), xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
@@ -159,7 +167,7 @@ function camStep(dt) {
     tz = snapZ(Math.max(cam.home.z * .8, Math.min(cam.home.z * 2.2, (sr.r - sr.l) / w, (sr.b - sr.t) / h))); kp = 4; kz = 3;
   } else if (c) {
     const [bx, by] = pr.P(...tileAt(c.path, c.at)), lead = c.handoff != null ? 0 : .45;
-    tx = bx + (c.vx ?? 0) * lead; ty = by - 14 + (c.vy ?? 0) * lead; tz = rideZoom() + (c.handoff != null ? 1 / (window.devicePixelRatio || 1) : 0);   // one whole step closer at the door
+    tx = bx + (c.vx ?? 0) * lead; ty = by - 14 + (c.vy ?? 0) * lead; tz = Math.min(maxZ(), rideZoom() + (c.handoff != null ? 1 / (window.devicePixelRatio || 1) : 0));   // one whole step closer at the door, never past the game's closest
     if (c.handoff != null) kp = 3;
   } else if (cam.back) { kp = 3.5; kz = 3; if (Math.hypot(cam.x - tx, cam.y - ty) < 2 && Math.abs(cam.z - tz) < .01) { cam.z = tz; return camRelease(); } }
   else return camRelease();
@@ -183,15 +191,16 @@ function choose(o) {
     if (own.length >= 3) { const i = Math.floor(own.length / 2), seg = own.slice(Math.max(0, i - 2), i + 2); jams = jams.filter(j => !seg.some(t => j.tiles.has(key(...t)))); jams.push({ ...newJam(o.path, 6), tiles: new Set(seg.map(t => key(...t))), list: seg, cars: seg.map((t, k) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + k) % CARS.length], ph: Math.random() * 6 })) }); }
   }
   choosing = { o, routes, hover: 0 }; camGrab(); cam.back = false;
-  tags = routes.map((r, i) => { const t = el('button', { class: 'routetag', style: `--rc:${ROUTE[i]}`, on: { click: () => send(o, r.path), pointerenter: () => { choosing.hover = i; } } }, el('b', {}, r.name), fcChips(r.f, o.fresh)); document.body.append(t); return t; });
+  tags = routes.map((r, i) => { const t = el('button', { class: 'routetag', style: `--rc:${ROUTE[i]}`, 'aria-label': r.name, on: { click: () => send(o, r.path), pointerenter: () => { choosing.hover = i; } } }, ...secs(r.f, o.fresh)); document.body.append(t); return t; });
   draw();
 }
 /** While I choose, the clouds move and the cars gather: each route's forecast is read again, on its tag and in the ledger. */
 let refreshIn = 0;
 function refreshChoice(dt) {
   if (!choosing || (refreshIn -= dt) > 0) return; refreshIn = .5;
-  choosing.routes.forEach((r, i) => { r.f = forecast(r.path); tags[i]?.replaceChildren(el('b', {}, r.name), fcChips(r.f, choosing.o.fresh)); });
-  for (const b of panel?.querySelectorAll('.lroute') ?? []) { const i = [...b.parentNode.children].indexOf(b), r = choosing.routes[i]; if (r) b.replaceChildren(el('b', {}, r.name), fcChips(r.f, choosing.o.fresh)); }
+  const setSec = (b, f) => { const sp = b?.querySelector('.sec'); if (sp) { sp.textContent = `${Math.ceil(f.t)}초`; sp.classList.toggle('late', f.t > choosing.o.fresh); } };
+  choosing.routes.forEach((r, i) => { r.f = forecast(r.path); setSec(tags[i], r.f); });
+  for (const b of panel?.querySelectorAll('.lroute') ?? []) { const i = [...b.parentNode.children].indexOf(b), r = choosing.routes[i]; if (r) setSec(b, r.f); }
 }
 function unchoose() { choosing = null; tags.forEach(t => t.remove()); tags = []; }
 /** Each route's tag sits on a stretch only it takes (the middle of it), so the tags never stack. */
@@ -242,17 +251,17 @@ function send(o, path) {
 function handoff(c) {
   const f = 1 - c.took / c.o.fresh, [x, z] = tileAt(c.path, c.at);
   c.tier = f < 0 ? 'cold' : f >= HOT ? 'hot' : 'ok'; c.handoff = 0;
-  if (c.tier === 'cold') { c.soggy = true; redone++; orders.push({ ...c.o, id: Math.random(), ttl: 70, redo: true });
-    setTimeout(() => popAt(x, z, '식었어요…', 'loud cold'), 350); setTimeout(() => bubble(c, '★★', '다시 보내 주세요'), 1000); }
+  if (c.tier === 'cold') { c.soggy = true; redone++; if (orders.length < CAP) orders.push({ ...c.o, id: Math.random(), ttl: 70, ttl0: 70, redo: true }); else missed++;
+    setTimeout(() => popAt(x, z, '식었어요…', 'loud cold'), 350); }
   else { const tip = Math.ceil(c.o.reward * (c.tier === 'hot' ? .6 : .15)); coins += c.o.reward + tip; tips += tip; if (c.tier === 'hot') hot++;
-    setTimeout(() => popAt(x, z, c.tier === 'hot' ? '따끈 도착!' : `${c.o.menu} 도착!`, c.tier === 'hot' ? 'loud hot' : 'loud'), 350);
-    setTimeout(() => { emit(x, z, 'coin', c.tier === 'hot' ? 14 : 6, 1.2); popAt(x, z, `+${c.o.reward}  팁 +${tip}`, 'gold'); sound?.coins(c.tier === 'hot' ? 4 : 2); }, 900);
-    setTimeout(() => bubble(c, c.tier === 'hot' ? '★★★★★' : '★★★★', reviewLine(c.o.shop) ?? (c.tier === 'hot' ? '아직 뜨거워요!' : '잘 받았어요')), 1200); }
+    if (c.tier === 'hot') setTimeout(() => popAt(x, z, '따끈!', 'loud hot'), 350);
+    setTimeout(() => { emit(x, z, 'coin', c.tier === 'hot' ? 14 : 6, 1.2); popAt(x, z, `+${c.o.reward + tip}`, 'gold'); sound?.coins(c.tier === 'hot' ? 4 : 2); }, 900);
+    const line = c.tier === 'hot' ? reviewLine(c.o.shop) : null; if (line) setTimeout(() => bubble(c, line), 1200); }   // a hot one: the regular says a line of the shop's own reviews
   draw();
 }
-function bubble(c, stars, text) {
-  const [x, z] = c.path[c.path.length - 1], b = el('div', { class: 'toysay' }, el('span', { class: 'rs' }, stars), el('span', { class: 'rt' }, text)); document.body.append(b);
-  pops.push({ el: b, x: x + .5, z: z + .5, t: 0, max: 3, rise: 0, dy: -110 });
+function bubble(c, text) {
+  const [x, z] = c.path[c.path.length - 1], b = el('div', { class: 'toysay' }, text); document.body.append(b);
+  pops.push({ el: b, x: x + .5, z: z + .5, t: 0, max: 2.6, rise: 10, dy: -96 });
 }
 
 function tick(dt) {
@@ -269,9 +278,9 @@ function moveCouriers(dt) {
     const path = c.path, last = path.length - 1;
     // under a cloud, in a jam: where the bike is now, on the same clouds and jams the map shows
     const [hx, hz] = tileAt(path, c.at), here = path[Math.max(0, Math.min(last, Math.round(c.at)))];
-    c.wx = skyAt(hx, hz); if (c.wx && !c.wxSaid && !c.back) { c.wxSaid = true; pop(c, WX[c.wx].say); draw(); }
+    c.wx = skyAt(hx, hz); if (c.wx && !c.wxSaid && !c.back) { c.wxSaid = true; draw(); }
     const inJam = jamAt(key(...here)), grass = !sim.A.isRoad(...here); c.grass = grass;
-    if (inJam && !c.jamSaid && !c.back) { c.jamSaid = true; pop(c, '길이 막혀요'); draw(); }
+    if (inJam && !c.jamSaid && !c.back) { c.jamSaid = true; draw(); }
     if (!c.back && !c.failed && c.handoff == null && c.crashT <= 0) c.took += dt;
     if (c.crashT > 0) { c.crashT -= dt; c.v = 0; if (c.crashT <= 0) { c.back = true; c.failed = true; if (c.follow) { c.follow = false; cam.back = true; } draw(); } }
     else if (c.handoff != null) { c.handoff += dt; c.v = 0; if (c.handoff >= STAY) { c.handoff = null; c.back = true; c.at = last; c.drifted.clear(); c.start = .6; if (c.follow) { c.follow = false; cam.back = true; } sound?.vroom(); draw(); } }
@@ -292,7 +301,7 @@ function moveCouriers(dt) {
         if (fwd && c.wx && (Q.has('crash') || Math.random() < WX[c.wx].crash)) c.slip = true;
       }
       if (c.slip) { c.slip = false; c.crashT = 1.6; crashed++; hitstop = .14; sound?.crash(); if (c.follow) { cam.shake = .5; cam.punch = .16; }
-        const [x, z] = tileAt(path, c.at); emit(x, z, 'smoke', 14, 1.6); emit(x, z, 'spark', 10, 1.2); pop(c, '꽈당!', 'loud'); setTimeout(() => pop(c, '배달 실패'), 500); draw(); }
+        const [x, z] = tileAt(path, c.at); emit(x, z, 'smoke', 14, 1.6); emit(x, z, 'spark', 10, 1.2); pop(c, '꽈당!', 'loud'); draw(); }
       else if (fwd && c.at >= last) { c.v = 0; handoff(c); }
       else if (!fwd && c.at <= 0) { couriers = couriers.filter(x => x !== c); draw(); continue; }
       moving = true; vmaxNow = Math.max(vmaxNow, c.v);
@@ -384,11 +393,11 @@ function drawPin(g, path, col) {
 }
 const diamond = (g, x, z) => { const a = pr.P(x, z), b = pr.P(x + 1, z), c2 = pr.P(x + 1, z + 1), d2 = pr.P(x, z + 1); g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.lineTo(...c2); g.lineTo(...d2); g.closePath(); g.fill(); };
 /** A route as marching pixel dashes along the road (the picked one bright and thick). */
-function drawRoute(g, path, col, strong, from = 0) {
+function drawRoute(g, path, col, strong, from = 0, marks = null) {
   const t = performance.now() / 1000, s = strong ? 6 : 4, gap = strong ? 10 : 9;
   let along = -((t * 36) % gap); g.globalAlpha = strong ? 1 : .6;
   for (let i = Math.max(0, Math.floor(from)); i < path.length - 1; i++) { const [ax, ay] = pr.P(path[i][0] + .5, path[i][1] + .5), [bx, by] = pr.P(path[i + 1][0] + .5, path[i + 1][1] + .5), L = Math.hypot(bx - ax, by - ay);
-    for (; along < L; along += gap) { if (along < 0) continue; const u = along / L, X = Math.round(ax + (bx - ax) * u - s / 2), Y = Math.round(ay + (by - ay) * u - s / 2); if (hidden(X + s / 2, Y + s / 2, path[i][0] + path[i][1] + 1.5)) continue; rect(g, X - 1, Y - 1, s + 2, s + 2, OUT); rect(g, X, Y, s, s, col); }
+    for (; along < L; along += gap) { if (along < 0) continue; const u = along / L, X = Math.round(ax + (bx - ax) * u - s / 2), Y = Math.round(ay + (by - ay) * u - s / 2); if (hidden(X + s / 2, Y + s / 2, path[i][0] + path[i][1] + 1.5)) continue; const m = marks?.get(i + 1); rect(g, X - 1, Y - 1, s + 2, s + 2, OUT); rect(g, X, Y, s, s, m === 'jam' ? '#e2432f' : m === 'wet' ? '#9fd8ff' : col); }
     along -= L; }
   g.globalAlpha = 1;
 }
@@ -405,9 +414,9 @@ function mapGround(g) {
 const alphaOf = new WeakMap();
 /** Is map point (mx, my) behind a building nearer than depth d? */
 function hidden(mx, my, d) {
-  for (const it of S.drawn ?? []) { if (!it.s?.canvas || it.d <= d) continue; const c = it.s.canvas, x = Math.round(mx - Math.round(it.px - it.s.anchor.x)), y = Math.round(my - Math.round(it.py - it.s.anchor.y));
+  for (const it of S.drawn ?? []) { if (!it.s?.canvas || it.d <= d) continue; const c = it.gh?.solid ?? it.s.canvas, x = Math.round(mx - Math.round(it.px - it.s.anchor.x)), y = Math.round(my - Math.round(it.py - it.s.anchor.y));
     if (x < 0 || y < 0 || x >= c.width || y >= c.height) continue;
-    let a = alphaOf.get(c); if (a === undefined) { try { a = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; } catch { a = null; } alphaOf.set(c, a); }
+    let a = (it.gh ? null : it.s.alpha) ?? alphaOf.get(c); if (a === undefined) { try { a = c.getContext('2d').getImageData(0, 0, c.width, c.height).data; } catch { a = null; } alphaOf.set(c, a); }   // a building's sprite keeps its own alpha (mapview sprite())
     if (a && a[(y * c.width + x) * 4 + 3] > 40) return true; }
   return false;
 }
@@ -417,7 +426,7 @@ function drawSprites(g, d) {
   const one = (mx, my, depth, draw) => { at(mx, my); GA = depth != null && hidden(mx, my, depth) ? .45 : 1; g.globalAlpha = GA; draw(); GA = 1; g.globalAlpha = 1; };
   // routes along the ground: true scale, the dashes a building stands in front of are left out
   g.setTransform(d * k, 0, 0, d * k, d * r.left, d * r.top);
-  if (choosing) { choosing.routes.forEach((q, i) => { if (i !== choosing.hover) drawRoute(g, q.path, ROUTE[i], false); }); drawRoute(g, choosing.routes[choosing.hover].path, ROUTE[choosing.hover], true); }
+  if (choosing) { choosing.routes.forEach((q, i) => { if (i !== choosing.hover) drawRoute(g, q.path, ROUTE[i], false, 0, q.f.marks); }); const h = choosing.routes[choosing.hover]; drawRoute(g, h.path, ROUTE[choosing.hover], true, 0, h.f.marks); }
   for (const c of couriers) if (!c.back && c.handoff == null && c.crashT <= 0) drawRoute(g, c.path, 'rgba(255,248,234,.9)', false, c.at + 1);   // the way ahead, faint
   for (const j of jams) j.list.forEach(([x, z], i) => { const [px, py] = pr.P(x + .5, z + .5); one(px, py, x + z + 1, () => drawCar(g, j, i)); });
   for (const c of couriers) { const [x, z] = tileAt(c.path, c.at), [px, py] = pr.P(x, z); one(px, py, x + z + .3, () => drawBike(g, c));
@@ -430,7 +439,7 @@ function drawSprites(g, d) {
 // ---------- the sky, smoke and the like, over everything (a screen canvas) ----------
 function drawOver(dt) {
   if (!fxCanvas) { fxCanvas = document.createElement('canvas'); fxCanvas.className = 'toyfx'; document.body.append(fxCanvas); }
-  const d = window.devicePixelRatio || 1; if (fxCanvas.width !== Math.round(innerWidth * d)) { fxCanvas.width = Math.round(innerWidth * d); fxCanvas.height = Math.round(innerHeight * d); }
+  const d = window.devicePixelRatio || 1; if (fxCanvas.width !== Math.round(innerWidth * d) || fxCanvas.height !== Math.round(innerHeight * d)) { fxCanvas.width = Math.round(innerWidth * d); fxCanvas.height = Math.round(innerHeight * d); fxCanvas.style.width = innerWidth + 'px'; fxCanvas.style.height = innerHeight + 'px'; }
   const g = fxCanvas.getContext('2d'); g.setTransform(d, 0, 0, d, 0, 0); g.clearRect(0, 0, innerWidth, innerHeight);
   const px = Math.max(2, Math.round(map.getBoundingClientRect().width / map.width));
   drawSprites(g, d);
@@ -479,40 +488,40 @@ function placePops(dt) {
 }
 
 // ---------- the ledger panel ----------
-const mmss = (s) => `${Math.floor(s / 60)}:${String(Math.max(0, Math.floor(s % 60))).padStart(2, '0')}`;
-const WHERE = { near: '가까움', far: '섬 끝', neighbor: '이웃 섬' };
-function fcChips(f, fresh) {
-  const chips = [];
-  if (f.wet) chips.push(el('span', { class: 'fc bad' }, `${WX[f.kind].ko} 모퉁이 ${f.wet}`));
-  if (f.jam) chips.push(el('span', { class: 'fc warn' }, `${f.soon * 2 >= f.jam ? '곧 막힘' : '막힘'} ${f.jam}칸`));   // most of it not jammed yet, but will be when the bike gets there
-  if (!chips.length) chips.push(el('span', { class: 'fc ok' }, '맑은 길'));
-  return el('span', { class: 'fcs' }, ...chips, el('small', { class: f.t > fresh ? 'late' : '' }, `${Math.ceil(f.t)}초 / 식기 전 ${fresh}초`));
-}
+/** A route's arrival in seconds, red when the food would be cold by then. */
+const secs = (f, fresh) => [el('span', { class: 'sec' + (f.t > fresh ? ' late' : '') }, `${Math.ceil(f.t)}초`)];
 const cancelChoose = () => { unchoose(); cam.back = true; draw(); };
+// The ledger (2026-11-28 "텍스트가 많아서 읽히지가 않고"): what and from where, how long it waits (a thin bar), the button. Why a
+// route is risky shows on the map (cars gathering, wet roads, the dashes going red or blue), not in words here.
+let held = false, dirty = false;
+// Game UI, not a web form (2026-11-28 "UI가 웹페이지 느낌이 나"): the game's own cream cards with a dark rim and a chunky
+// shadow, Jua lettering, the regular's face with a ring for the time left, a yellow coin button; the ledger itself opens
+// from a round button with a red count badge, like the dock's.
 function draw() {
-  if (!panel) return;
+  if (!panel) return; if (held) { dirty = true; return; } dirty = false;
   const free = ncour - couriers.length;
   panel.classList.toggle('min', collapsed);
-  const head = el('div', { class: 'lh' }, el('b', {}, '단골 장부'), el('small', {}, `배달원 ${couriers.length}/${ncour}`),
-    el('button', { class: 'lx', title: collapsed ? '펼치기' : '접기', 'aria-label': collapsed ? '펼치기' : '접기', on: { click: () => { collapsed = !collapsed; draw(); } } }, collapsed ? `주문 ${orders.length}` : '–'));
-  if (collapsed) { panel.replaceChildren(head); return; }
-  const rows = orders.slice().sort((a, b) => a.ttl - b.ttl).map(o => {
-    const picking = choosing?.o === o;
-    return el('div', { class: 'lr' + (picking ? ' picking' : '') },
-      el('div', { class: 'lw' }, el('b', {}, o.redo ? `재배달 · ${o.who}` : o.who), el('button', { class: 'ld', title: '버리기', 'aria-label': '버리기', on: { click: () => { if (picking) cancelChoose(); orders = orders.filter(x => x !== o); draw(); } } }, '✕')),
-      el('div', {}, `${o.shopName} · ${o.menu} ${o.qty}개`),
-      picking
-        ? el('div', { class: 'lroutes' }, ...choosing.routes.map((r, i) => el('button', { class: 'lroute' + (choosing.hover === i ? ' on' : ''), style: `--rc:${ROUTE[i]}`, on: { click: () => send(o, r.path), pointerenter: () => { choosing.hover = i; } } }, el('b', {}, r.name), fcChips(r.f, o.fresh))),
-            el('button', { class: 'lplus', on: { click: cancelChoose } }, '취소'))
-        : el('div', { class: 'lfc' }, fcChips(forecast(o.path), o.fresh)),
-      picking ? '' : el('div', { class: 'lm' }, el('small', {}, `${WHERE[o.kind]} · ${mmss(o.ttl)} 남음`),
-        (() => { const b = el('button', { class: 'lgo', on: { click: () => choose(o) } }, '배달 ', iconEl('coin', 14, ''), `+${o.reward}`); b.disabled = free <= 0 || !!choosing; return b; })()));
-  });
-  const going = couriers.map(c => el('div', { class: 'lr going' + (c.failed || c.soggy ? ' bad' : '') }, el('b', {}, c.failed ? '사고 · 돌아오는 중' : c.handoff != null ? (c.tier === 'hot' ? '따끈 도착!' : c.tier === 'cold' ? '식어서 재배달 요청' : '도착') : c.back ? '돌아오는 중' : '배달 중'), el('div', {}, `${c.o.shopName} · ${c.o.menu} → ${WHERE[c.o.kind]}${c.wx ? ` · ${WX[c.wx].ko}` : ''}${c.jamSaid ? ' · 막힘' : ''}`)));
-  panel.replaceChildren(head, ...going, ...rows, ...(orders.length ? [] : [el('div', { class: 'lempty' }, '주문을 기다리는 중')]),
-    el('div', { class: 'lf' }, el('span', {}, '번 돈 ', iconEl('coin', 14, ''), coins.toLocaleString('ko-KR')), el('small', {}, `팁 ${tips.toLocaleString('ko-KR')} · 따끈 ${hot} · 보냄 ${sent} · 사고 ${crashed} · 식음 ${redone} · 놓침 ${missed}`),
-      el('button', { class: 'lplus', on: { click: () => { soundOn = !soundOn; draw(); } } }, soundOn ? '소리 켬' : '소리 끔'),
-      el('button', { class: 'lplus', on: { click: () => { ncour = Math.min(4, ncour + 1); draw(); } } }, '배달원 +1')));
+  const tog = el('button', { class: 'rb sm ltog' + (collapsed ? '' : ' on'), title: '단골 장부', 'aria-label': '단골 장부', 'aria-expanded': String(!collapsed), on: { click: () => { collapsed = !collapsed; draw(); } } },
+    el('span', { class: 'ic' }, iconEl('receipt', 24, '')), orders.length ? el('span', { class: 'badge' }, String(orders.length)) : null, el('span', { class: 'lb' }, '장부'));
+  if (collapsed) { panel.replaceChildren(tog); return; }
+  const card = (o) => {
+    const picking = choosing?.o === o, left = Math.max(0, Math.min(1, o.ttl / (o.ttl0 || o.ttl)));
+    const face = el('span', { class: 'lface' + (left < .25 ? ' low' : ''), style: `--p:${left.toFixed(3)}`, title: o.shopName }, faceEl(o.need));
+    const head = el('div', { class: 'lrow' }, face, el('span', { class: 'lt' }, el('b', {}, o.menu), el('small', {}, `×${o.qty}`)), o.redo ? el('span', { class: 'lagain' }, '다시') : null,
+      picking ? el('button', { class: 'lx', title: '취소', 'aria-label': '취소', on: { click: cancelChoose } }, iconEl('close', 16, ''))
+        : (() => { const b = el('button', { class: 'lgo', 'aria-label': `배달 +${o.reward}`, on: { click: () => choose(o) } }, iconEl('coin', 18, ''), `+${o.reward}`); b.disabled = free <= 0 || !!choosing; return b; })());
+    return el('div', { class: 'lcard' + (picking ? ' on' : ''), style: `--sc:${o.color}` }, head,
+      picking ? el('div', { class: 'lroutes' }, ...choosing.routes.map((r, i) => el('button', { class: 'lroute' + (choosing.hover === i ? ' on' : ''), style: `--rc:${ROUTE[i]}`, on: { click: () => send(o, r.path), pointerenter: () => { choosing.hover = i; } } }, el('i'), el('b', {}, r.name), ...secs(r.f, o.fresh)))) : null);
+  };
+  const going = couriers.map(c => el('div', { class: 'lcard going' + (c.failed || c.soggy ? ' bad' : c.tier === 'hot' && c.handoff != null ? ' hot' : '') },
+    el('div', { class: 'lrow' }, el('span', { class: 'lface bike' }, iconEl('scooter', 26, '')), el('span', { class: 'lt' }, el('b', {}, c.o.menu), el('small', {}, `×${c.o.qty}`)),
+      el('span', { class: 'lstate' }, c.failed ? '꽈당' : c.handoff != null ? (c.tier === 'hot' ? '따끈!' : c.tier === 'cold' ? '식음' : '도착') : c.back ? '복귀' : '배달 중'))));
+  const foot = el('div', { class: 'lfoot' },
+    el('span', { class: 'lcoins', title: `팁 ${tips} · 따끈 ${hot} · 보냄 ${sent} · 사고 ${crashed} · 식음 ${redone} · 놓침 ${missed}` }, iconEl('coin', 20, ''), coins.toLocaleString('ko-KR')),
+    el('button', { class: 'rb sm' + (soundOn ? ' on' : ''), title: '소리', 'aria-label': '소리', 'aria-pressed': String(soundOn), on: { click: () => { soundOn = !soundOn; draw(); } } }, el('span', { class: 'ic' }, iconEl('horn', 24, '')), el('span', { class: 'lb' }, '소리')),
+    el('button', { class: 'rb sm', title: '배달원 +1', 'aria-label': '배달원 +1', on: { click: () => { ncour = Math.min(4, ncour + 1); draw(); } } }, el('span', { class: 'ic' }, iconEl('scooter', 24, '')), el('span', { class: 'badge' }, `${ncour}`), el('span', { class: 'lb' }, '배달원')));
+  if (ncour >= 4) foot.lastChild.disabled = true;
+  panel.replaceChildren(tog, el('div', { class: 'lcards' }, ...going, ...orders.slice().sort((a, b) => a.ttl - b.ttl).map(card)), foot);
 }
 
 /** Start the toy once my island is there. */
@@ -522,13 +531,14 @@ export function startLedgerToy() {
     panel = el('aside', { class: 'ledger', 'aria-label': '단골 장부' }); document.body.append(panel);
     S.mapGround = mapGround;
     window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, get jams() { return jams; }, screenAt, routesFor, route, forecast, newJam, newOrder };   // for the recording checks
-    box()?.addEventListener('pointerdown', () => { if (cam.on) { for (const c of couriers) c.follow = false; cam.back = false; camRelease(); } }, true);   // a drag on the map: the camera lets go
+    box()?.addEventListener('pointerdown', camLetGo, true); box()?.addEventListener('wheel', camLetGo, { capture: true, passive: true });   // a drag or the wheel on the map: the camera lets go
+    for (const id of ['zin', 'zout']) document.getElementById(id)?.addEventListener('pointerdown', camLetGo, true);
+    panel.addEventListener('pointerdown', () => { held = true; }); addEventListener('pointerup', () => { held = false; if (dirty) draw(); }, true); addEventListener('pointercancel', () => { held = false; if (dirty) draw(); }, true);
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && choosing) cancelChoose(); });
-    let t0 = performance.now(), acc = 0;
-    const frame = (t) => { const dt = Math.min(.25, (t - t0) / 1000); t0 = t;
-      if (!document.hidden) { weatherTick(dt); moveCouriers(dt); camStep(dt); drawOver(dt); placePops(dt); refreshChoice(dt); placeTags(); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } }
-      requestAnimationFrame(frame); };
+    let acc = 0;   // on the game's own frame (main.js), so the camera, the map, its labels and these sprites never drift a frame apart
+    S.preDraw = (dt) => { weatherTick(dt); moveCouriers(dt); camStep(dt); refreshChoice(dt); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } };
+    S.postDraw = (dt) => { drawOver(dt); placePops(dt); placeTags(); };
     const wq = Q.get('wx'); if (WX[wq]) clouds.push(newCloud(wq, true));   // &wx=rain|snow: a slow cloud over my island now, to look at it
-    requestAnimationFrame(frame); draw();
+    draw();
   }, 500);
 }

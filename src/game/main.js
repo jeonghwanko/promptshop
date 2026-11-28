@@ -119,7 +119,9 @@ let last = performance.now();
 function frame(t) {
   const dt = Math.min(.05, (t - last) / 1000); last = t;
   sim.step(dt); stepBoats(dt); stepInside(dt); stepFest(dt); takeEvents();
+  S.preDraw?.(dt);   // a toy (ledger-toy.js) moves its things and the camera first, so the map and its labels draw where the camera now is
   drawMap(dt);
+  S.postDraw?.(dt);   // and paints its own layer after, on the same frame
   requestAnimationFrame(frame);
 }
 requestAnimationFrame(frame);

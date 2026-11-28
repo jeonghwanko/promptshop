@@ -259,7 +259,7 @@ function drawChoice() {
 const lab = document.createElement('canvas'), u = lab.getContext('2d'); lab.className = 'maplabels'; map.after(lab);
 function labelLayer() {
   const d = window.devicePixelRatio || 1, W = Math.round(innerWidth * d), H = Math.round(innerHeight * d);
-  if (lab.width !== W || lab.height !== H) { lab.width = W; lab.height = H; }
+  if (lab.width !== W || lab.height !== H) { lab.width = W; lab.height = H; lab.style.width = innerWidth + 'px'; lab.style.height = innerHeight + 'px'; }   // px, not 100vh: on a phone 100vh is taller than the screen
   u.setTransform(1, 0, 0, 1, 0, 0); u.clearRect(0, 0, W, H);
   const r = map.getBoundingClientRect(), k = r.width / map.width; u.setTransform(d * k, 0, 0, d * k, d * r.left, d * r.top); u.imageSmoothingEnabled = false;
 }

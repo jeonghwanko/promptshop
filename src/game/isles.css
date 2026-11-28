@@ -631,58 +631,56 @@ body.hide-level.buildmode #who { display:none; }
 .reviews .rv .rs { display: block; font-size: 10px; letter-spacing: 1px; color: #e0a020; }
 @media (prefers-reduced-motion: reduce) { .review { animation: none; } }
 
-/* the regulars' ledger toy (ledger-toy.js, ?ledger) */
-.ledger { position: fixed; left: 12px; top: 150px; z-index: 15; width: 280px; max-height: calc(100vh - 300px); overflow: auto; padding: 10px; border-radius: 14px; background: #fff8ea; color: #2b2117; box-shadow: 0 4px 0 rgba(0,0,0,.25); font: 13px var(--f-ui); }
-.ledger.min { width: auto; }
-.ledger .lh { display: flex; align-items: center; gap: 8px; margin-bottom: 6px; } .ledger .lh b { font-size: 15px; } .ledger .lh small { color: #7a6a58; margin-left: auto; }
-.ledger .lx { border: 0; border-radius: 8px; background: #efe2c8; padding: 3px 8px; font: inherit; font-weight: 700; cursor: pointer; }
-.ledger .lr { display: grid; gap: 2px; margin-top: 6px; padding: 8px 10px; border-radius: 10px; background: #fff; border: 1px solid #ead9b6; }
-.ledger .lr.going { background: #e6f2ff; border-color: #8fbbe8; }
-.ledger .lw { display: flex; align-items: center; justify-content: space-between; }
-.ledger .ld { border: 0; background: none; color: #a8937a; cursor: pointer; font-size: 12px; }
-.ledger .lm { display: flex; align-items: center; justify-content: space-between; gap: 6px; } .ledger .lm small { color: #7a6a58; }
-.ledger .lgo { display: inline-flex; align-items: center; gap: 3px; border: 0; border-radius: 8px; padding: 4px 10px; background: #f2c12e; color: #2b2117; font: inherit; font-weight: 800; cursor: pointer; box-shadow: 0 2px 0 #9a6f14; }
-.ledger .lgo:disabled { background: #e8dcc4; box-shadow: none; color: #9a8a76; cursor: default; }
-.ledger .lempty { margin-top: 8px; color: #9a8a76; text-align: center; }
-.ledger .lf { display: flex; flex-wrap: wrap; align-items: center; gap: 6px 10px; margin-top: 10px; padding-top: 8px; border-top: 1px dashed #e0cfaa; }
-.ledger .lf span { display: inline-flex; align-items: center; gap: 3px; font-weight: 800; } .ledger .lf small { color: #7a6a58; }
-.ledger .lplus { margin-left: auto; border: 0; border-radius: 8px; padding: 3px 8px; background: #efe2c8; font: inherit; cursor: pointer; }
+/* the regulars' ledger toy (ledger-toy.js, ?ledger) — game UI: the dock's round buttons, the wants' cream cards, faces, Jua */
+.ledger { position: fixed; left: 12px; top: 150px; z-index: 15; width: 252px; display: grid; gap: 8px; justify-items: start; font: 400 15px var(--f-disp); color: var(--ink); pointer-events: none; }
+.ledger > * { pointer-events: auto; }
+.ledger .ltog { margin-bottom: 16px; }
+.ledger .lcards { display: grid; gap: 8px; width: 100%; max-height: calc(100vh - 360px); overflow: auto; padding: 4px 4px 6px 2px; scrollbar-width: none; }
+.ledger .lcard { display: grid; gap: 6px; padding: 6px 8px 6px 6px; border-radius: 16px; background: #fbf1dc; box-shadow: inset 0 0 0 3px #2e241a, inset 0 -5px 0 #d9c49a, 0 4px 0 rgba(20,30,40,.4); }
+.ledger .lcard.on { background: #ffe08a; box-shadow: inset 0 0 0 3px #2e241a, inset 0 -5px 0 #d9a52a, 0 4px 0 rgba(20,30,40,.4); }
+.ledger .lcard.going { background: #d9eefa; box-shadow: inset 0 0 0 3px #2e241a, inset 0 -5px 0 #a9cde4, 0 4px 0 rgba(20,30,40,.4); }
+.ledger .lcard.going.hot { background: #ffd166; } .ledger .lcard.going.bad { background: #f6c3b8; }
+.ledger .lrow { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.ledger .lface { position: relative; flex: none; display: grid; place-items: center; width: 44px; height: 44px; border-radius: 14px; background: conic-gradient(#4fbf6b calc(var(--p, 1) * 1turn), rgba(46,36,26,.18) 0); }
+.ledger .lface.low { background: conic-gradient(#e2432f calc(var(--p, 1) * 1turn), rgba(46,36,26,.18) 0); }
+.ledger .lface .face { width: 36px; height: 36px; }
+.ledger .lface.bike { background: #fbf1dc; box-shadow: inset 0 0 0 2.5px #2e241a; } .ledger .lface.bike img { image-rendering: pixelated; }
+.ledger .lt { display: flex; align-items: baseline; gap: 4px; min-width: 0; margin-right: auto; } .ledger .lt b { font-weight: 400; font-size: 17px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; } .ledger .lt small { font-size: 14px; color: var(--dim); }
+.ledger .lagain { padding: 0 7px; border-radius: 10px; background: var(--hot); color: #fff; font-size: 13px; box-shadow: 0 0 0 2px #2e241a; }
+.ledger .lstate { font-size: 14px; color: #2b5797; } .ledger .lcard.hot .lstate { color: #8a4b00; } .ledger .lcard.bad .lstate { color: #8a1f12; }
+.ledger .lgo { flex: none; display: inline-flex; align-items: center; gap: 3px; padding: 5px 10px 7px; border: 0; border-radius: 12px; background: var(--gold); color: #2e241a; font: 400 17px var(--f-disp); cursor: pointer; box-shadow: inset 0 0 0 2.5px #2e241a, inset 0 -4px 0 #b47d14, 0 3px 0 rgba(20,30,40,.4); }
+.ledger .lgo img { image-rendering: pixelated; }
+.ledger .lgo:hover:not(:disabled) { background: #ffd166; } .ledger .lgo:active:not(:disabled) { transform: translateY(2px); box-shadow: inset 0 0 0 2.5px #2e241a, inset 0 -2px 0 #b47d14, 0 1px 0 rgba(20,30,40,.4); }
+.ledger .lgo:disabled { filter: grayscale(.8); opacity: .6; cursor: default; }
+.ledger .lx { flex: none; display: grid; place-items: center; width: 34px; height: 34px; padding: 0; border: 0; border-radius: 11px; background: #fbf1dc; cursor: pointer; box-shadow: inset 0 0 0 2.5px #2e241a, inset 0 -3px 0 #d9c49a; }
+.ledger .lroutes { display: grid; gap: 6px; }
+.ledger .lroute { display: flex; align-items: center; gap: 8px; padding: 6px 10px 8px; border: 0; border-radius: 12px; background: #fbf1dc; color: #2e241a; font: 400 16px var(--f-disp); cursor: pointer; box-shadow: inset 0 0 0 2.5px #2e241a, inset 0 -4px 0 #d9c49a, 0 3px 0 rgba(20,30,40,.35); }
+.ledger .lroute i { width: 14px; height: 14px; border-radius: 4px; background: var(--rc); box-shadow: 0 0 0 2px #2e241a; }
+.ledger .lroute.on, .ledger .lroute:hover { background: #fff8e6; transform: translateY(-1px); }
+.ledger .lroute:active { transform: translateY(2px); }
+.ledger .sec { margin-left: auto; font-size: 18px; color: #2f8a45; font-variant-numeric: tabular-nums; } .ledger .sec.late { color: var(--hot); }
+.ledger .lfoot { display: flex; align-items: flex-start; gap: 10px; }
+.ledger .lfoot .rb { margin-bottom: 18px; }
+.ledger .lcoins { display: flex; align-items: center; gap: 6px; height: 40px; padding: 0 14px 0 8px; border-radius: 22px; background: rgba(46,36,26,.82); color: #ffd166; font-size: 20px; box-shadow: 0 4px 0 rgba(20,30,40,.35); font-variant-numeric: tabular-nums; } .ledger .lcoins img { image-rendering: pixelated; }
+.ledger .rb .badge { font-size: 13px; min-width: 22px; height: 22px; }
+.ledger .rb:disabled { opacity: .55; }
+@media (max-width: 760px) { .ledger { top: auto; bottom: 120px; left: 8px; width: min(252px, calc(100vw - 16px)); } .ledger .lcards { max-height: 34vh; } }
+@media (prefers-reduced-motion: reduce) { .ledger .lroute, .ledger .lgo { transition: none; transform: none !important; } }
 .toypop { position: fixed; left: 0; top: 0; z-index: 16; pointer-events: none; padding: 2px 8px; border-radius: 8px; background: #fffdf6; color: #2b2117; font: 800 13px var(--f-ui); white-space: nowrap; animation: toypop 1.4s ease-out forwards; }
 @keyframes toypop { from { opacity: 0; margin-top: 0; } 15% { opacity: 1; } to { opacity: 0; margin-top: -36px; } }
-@media (max-width: 760px) { .ledger { top: auto; bottom: 110px; left: 8px; right: 8px; width: auto; max-height: 40vh; } }
-.ledger .lx, .ledger .lplus { color: #2b2117; box-shadow: none; padding: 3px 9px; font: 700 12px var(--f-ui); background: #efe2c8; }
-.ledger .ld { color: #a8937a; background: none; box-shadow: none; padding: 2px 4px; font: 400 12px var(--f-ui); }
-.ledger .lgo { padding: 4px 10px; }
-
-.ledger .lr.going.bad { background: #ffe9e4; border-color: #e8a090; }
-
-.toyfx { position: fixed; inset: 0; width: 100vw; height: 100vh; z-index: 13; pointer-events: none; image-rendering: pixelated; }
+.toyfx { position: fixed; left: 0; top: 0; z-index: 13; pointer-events: none; }   /* sized in px by the toy */
 .toypop.loud { font: 900 36px var(--f-disp, var(--f-ui)); color: #fff; background: none; text-shadow: 0 2px 0 #2b1e15, 2px 0 0 #2b1e15, -2px 0 0 #2b1e15, 0 -2px 0 #2b1e15; animation: toyloud 1.1s ease-out forwards; }
 @keyframes toyloud { from { opacity: 0; scale: .6; } 15% { opacity: 1; scale: 1.25; } 30% { scale: 1; } to { opacity: 0; margin-top: -28px; } }
-/* the route forecast and the bike's "식기 전" bar (ledger toy, 2026-11-28) */
-.ledger .lfc { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; } .ledger .lfc small { margin-left: auto; color: #7a6a58; } .ledger .lfc small.late { color: #c0392b; font-weight: 800; }
-.ledger .fc { padding: 0 6px; border-radius: 6px; font: 700 11px/18px var(--f-ui); } .ledger .fc.ok { background: #e3f4e1; color: #2f7a3a; } .ledger .fc.warn { background: #ffe9cf; color: #a35a0c; } .ledger .fc.bad { background: #dde9fb; color: #2b5797; }
-/* route choice, doorstep words, coloured shouts (ledger toy, 2026-11-28) */
-.ledger .fcs { display: contents; }
-.ledger .lr.picking { border-color: #2b2117; box-shadow: 0 2px 0 #2b2117; }
-.ledger .lroutes { display: grid; gap: 5px; margin-top: 4px; }
-.ledger .lroute { display: flex; flex-wrap: wrap; align-items: center; gap: 4px; padding: 6px 8px; border: 2px solid #2b2117; border-left: 8px solid var(--rc); border-radius: 9px; background: #fff; color: #2b2117; font: 12px var(--f-ui); text-align: left; cursor: pointer; }
-.ledger .lroute b { font-size: 13px; margin-right: 2px; } .ledger .lroute small { margin-left: auto; color: #7a6a58; } .ledger .lroute small.late { color: #c0392b; font-weight: 800; }
-.ledger .lroute.on, .ledger .lroute:hover { background: #fff3cf; }
-.ledger .lroutes .lplus { margin-left: 0; justify-self: start; }
-.routetag { position: fixed; left: 0; top: 0; z-index: 16; display: flex; align-items: center; gap: 4px; padding: 4px 9px 5px; border: 2px solid #2b2117; border-radius: 10px; background: #fffdf6; color: #2b2117; font: 12px var(--f-ui); white-space: nowrap; cursor: pointer; box-shadow: 0 3px 0 #2b2117; }
+.routetag { position: fixed; left: 0; top: 0; z-index: 16; display: flex; align-items: center; gap: 4px; padding: 2px 4px; border: 0; background: none; cursor: pointer; font: 400 20px var(--f-disp, var(--f-ui)); color: #fff; -webkit-text-stroke: 4px #2b2117; paint-order: stroke fill; }
 .routetag::before { content: ""; width: 10px; height: 10px; border: 2px solid #2b2117; border-radius: 3px; background: var(--rc); }
-.routetag b { font: 400 14px var(--f-disp, var(--f-ui)); }
-.routetag .fc { padding: 0 5px; border-radius: 5px; font: 700 11px/17px var(--f-ui); } .routetag .fc.ok { background: #e3f4e1; color: #2f7a3a; } .routetag .fc.warn { background: #ffe9cf; color: #a35a0c; } .routetag .fc.bad { background: #dde9fb; color: #2b5797; }
-.routetag small { color: #7a6a58; } .routetag small.late { color: #c0392b; font-weight: 800; }
-.routetag.on { background: #fff3cf; z-index: 17; scale: 1.08; }
-.routetag:not(.on) { opacity: .88; }
-.toysay { position: fixed; left: 0; top: 0; z-index: 16; max-width: 220px; padding: 7px 12px 8px; border: 2px solid #2b2117; border-radius: 12px; background: #fffdf6; color: #2b2117; box-shadow: 0 3px 0 #2b2117; pointer-events: none; font: 700 14px var(--f-ui); line-height: 1.35; animation: toysay 3s ease-out forwards; }
-.toysay::after { content: ""; position: absolute; left: 50%; bottom: -8px; margin-left: -7px; border: 7px solid transparent; border-bottom: 0; border-top-color: #2b2117; }
-.toysay .rs { display: block; font-size: 11px; letter-spacing: 1px; color: #e0a020; }
-@keyframes toysay { from { opacity: 0; scale: .6; } 8% { opacity: 1; scale: 1.08; } 14% { scale: 1; } 88% { opacity: 1; } to { opacity: 0; } }
+.routetag .sec.late { color: #ff8a7a; }
+.routetag.on { font-size: 24px; z-index: 17; } .routetag:not(.on) { opacity: .8; }
+.routetag:focus-visible { outline: 2px dashed #fff; outline-offset: 2px; }
+.toysay { position: fixed; left: 0; top: 0; z-index: 16; max-width: 220px; pointer-events: none; text-align: center; font: 400 16px/1.3 var(--f-disp, var(--f-ui)); color: #fff; -webkit-text-stroke: 4px #2b2117; paint-order: stroke fill; animation: toysay 2.6s ease-out forwards; }
+@keyframes toysay { from { opacity: 0; scale: .7; } 10% { opacity: 1; scale: 1.06; } 16% { scale: 1; } 85% { opacity: 1; } to { opacity: 0; } }
 .toypop.loud.hot { color: #ffd23a; font-size: 44px; }
 .toypop.loud.cold { color: #bfe1ff; }
 .toypop.gold { background: none; color: #ffd23a; font: 900 22px var(--f-disp, var(--f-ui)); text-shadow: 0 2px 0 #2b1e15, 2px 0 0 #2b1e15, -2px 0 0 #2b1e15, 0 -2px 0 #2b1e15; }
 /* the map's words at screen resolution (mapview labelLayer) */
-.maplabels { position: fixed; left: 0; top: 0; width: 100vw; height: 100vh; pointer-events: none; }
+.maplabels { position: fixed; left: 0; top: 0; pointer-events: none; }   /* sized in px by labelLayer() */
+.ledger .ltog::after, .ledger .lfoot .rb:not([aria-pressed])::after { display: none; }   /* the small round button's on/off dot means something only on the sound toggle */
