@@ -1,10 +1,10 @@
 #!/usr/bin/env node
-// The hosted game (we.oddbout.com): serves isles.html and its modules, and gives the page what claude.ai's artifact
+// The hosted game (popisle.oddbout.com): serves isles.html and its modules, and gives the page what claude.ai's artifact
 // runtime gave it before — storage, who is playing, and Claude — through src/site/runtime.js.
 //   Players start anonymous: the first visit makes an account and a cookie. Docs live in SQLite (store.mjs), every
 //   write is checked (rules.mjs), Claude calls are limited per player and per day (claude.mjs).
 // Usage: node server/main.mjs   env: PORT (5310), HOST (127.0.0.1; 0.0.0.0 to reach a local test from another machine), DATA_DIR (server-data), SAMPLE (api|cli|echo), ANTHROPIC_API_KEY,
-//        SITE_ORIGIN (https://we.oddbout.com, for link previews), SESSION_SECRET (else made once in DATA_DIR)
+//        SITE_ORIGIN (https://popisle.oddbout.com, for link previews), SESSION_SECRET (else made once in DATA_DIR)
 import http from 'node:http';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -19,7 +19,7 @@ import { BRAND, brandPage } from '../src/brand.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +(process.env.PORT ?? 5310), DATA = path.resolve(process.env.DATA_DIR ?? path.join(root, 'server-data'));
-const ORIGIN = process.env.SITE_ORIGIN ?? 'https://we.oddbout.com';
+const ORIGIN = process.env.SITE_ORIGIN ?? 'https://popisle.oddbout.com';
 fs.mkdirSync(path.join(DATA, 'og'), { recursive: true });
 // the picture for links without a board (or a board with no picture yet) ships with the release
 const OG_DEFAULT = path.join(root, BRAND.og);
@@ -226,4 +226,4 @@ http.createServer(async (req, res) => {
     }
     return json(res, { error: 'not found' }, 404);
   } catch (e) { console.error(e); if (!res.headersSent) json(res, { error: 'server' }, 500); else res.end(); }
-}).listen(PORT, process.env.HOST ?? '127.0.0.1', () => console.log(`we.oddbout.com server on http://${process.env.HOST ?? '127.0.0.1'}:${PORT} (data ${DATA}, Claude ${process.env.SAMPLE ?? 'api'})`));
+}).listen(PORT, process.env.HOST ?? '127.0.0.1', () => console.log(`popisle.oddbout.com server on http://${process.env.HOST ?? '127.0.0.1'}:${PORT} (data ${DATA}, Claude ${process.env.SAMPLE ?? 'api'})`));

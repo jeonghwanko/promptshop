@@ -1,5 +1,5 @@
 [Unit]
-Description=we.oddbout.com data backup, daily at 04:30 KST
+Description=popisle.oddbout.com data backup, daily at 04:30 KST
 
 [Timer]
 OnCalendar=*-*-* 19:30:00 UTC

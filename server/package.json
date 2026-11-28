@@ -2,7 +2,7 @@
   "name": "we-oddbout-server",
   "private": true,
   "type": "module",
-  "description": "The hosted archipelago game (we.oddbout.com): storage, anonymous players, invites, Claude within limits.",
+  "description": "The hosted archipelago game (popisle.oddbout.com): storage, anonymous players, invites, Claude within limits.",
   "engines": { "node": ">=22.13" },
   "scripts": { "start": "node --disable-warning=ExperimentalWarning main.mjs" },
   "dependencies": { "@anthropic-ai/sdk": "1.14.0" }

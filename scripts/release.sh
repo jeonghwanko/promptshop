@@ -14,5 +14,5 @@ tar -czf "$WORK/r.tgz" -C "$WORK/r" .
 scp -q "$WORK/r.tgz" "$HOST:/tmp/we-$SHA.tgz"
 ssh -o BatchMode=yes "$HOST" "set -e; R=/opt/we-oddbout/releases/$SHA; mkdir -p \$R && tar -xzf /tmp/we-$SHA.tgz -C \$R && rm /tmp/we-$SHA.tgz
   ln -sfn \$R /opt/we-oddbout/current && sudo systemctl restart we-oddbout && sleep 2 && systemctl is-active we-oddbout"
-curl -s -o /dev/null -w "https://we.oddbout.com/ %{http_code}\n" https://we.oddbout.com/
+curl -s -o /dev/null -w "https://popisle.oddbout.com/ %{http_code}\n" https://popisle.oddbout.com/
 echo "released $SHA. Back: ssh $HOST 'ln -sfn /opt/we-oddbout/releases/<old sha> /opt/we-oddbout/current && sudo systemctl restart we-oddbout'"

@@ -1,4 +1,4 @@
-# Hosting (we.oddbout.com)
+# Hosting (popisle.oddbout.com)
 
 The hosted game runs one Node server (`server/main.mjs`) behind nginx on the Oracle VM. The server serves `isles.html` and its modules and gives the page what claude.ai's artifact runtime gave it before, through `src/site/runtime.js`:
 
@@ -32,15 +32,15 @@ The dev server (`scripts/dev.mjs`, `?me=` picks the player) stays for working on
 
 Do this only when the owner asks for it.
 
-1. **DNS.** Point `we.oddbout.com` at the VM.
+1. **DNS.** Point `popisle.oddbout.com` at the VM.
 2. **Files.** On the VM:
    1. Put a clean checkout at `/opt/we-oddbout/releases/<sha>`.
    2. Run `npm ci` in `server/`. The VM has no system node or npm: build the release here (`git archive` + `npm ci --omit=dev` in `server/`), copy the tarball, and put a Node 22.13+ binary at `/opt/we-oddbout/bin/node` (the unit runs that one).
    3. Link `/opt/we-oddbout/current` to that release.
 3. **Secrets.** Create `/opt/we-oddbout/env` with `ANTHROPIC_API_KEY=...` and `chmod 600`. `SESSION_SECRET` is optional: the server makes one in `DATA_DIR` the first time.
 4. **Service.** Copy `deploy/we-oddbout.service` to `/etc/systemd/system/`, then run `systemctl enable --now we-oddbout`.
-5. **nginx.** The VM's certbot has no nginx plugin, so issue the certificate by webroot first: serve only the port-80 block with the `acme-challenge` location, run `certbot certonly --webroot -w /var/www/letsencrypt -d we.oddbout.com`, then copy the full `deploy/we.oddbout.com.nginx` to `/etc/nginx/sites-available/`, link it, and run `nginx -t && nginx -s reload`.
-6. **Check.** Run `node scripts/check-site-play.mjs https://we.oddbout.com`. It uses real Claude calls: two players, one build.
+5. **nginx.** The VM's certbot has no nginx plugin, so issue the certificate by webroot first: serve only the port-80 block with the `acme-challenge` location, run `certbot certonly --webroot -w /var/www/letsencrypt -d popisle.oddbout.com`, then copy the full `deploy/popisle.oddbout.com.nginx` to `/etc/nginx/sites-available/`, link it, and run `nginx -t && nginx -s reload`.
+6. **Check.** Run `node scripts/check-site-play.mjs https://popisle.oddbout.com`. It uses real Claude calls: two players, one build.
 
 An update is a new release folder, a new `current` link and `systemctl restart we-oddbout`. `DATA_DIR` stays where it is. `scripts/release.sh` does all of it for the committed HEAD and prints the way back.
 
@@ -56,7 +56,7 @@ Board names are data, so a code change does not rename boards already made. `scr
 
 ## Speed
 
-- **Compression.** nginx gzips JS, CSS and JSON for this site (`deploy/we.oddbout.com.nginx`).
+- **Compression.** nginx gzips JS, CSS and JSON for this site (`deploy/popisle.oddbout.com.nginx`).
 - **Revisits.** The server sends an ETag with every file, so a returning browser gets 304s instead of the files again.
 - **The world map.** The coastlines (`src/v2/world-data.js`, about 1 MB) load the first time the world opens, not with the game.
 - **Bundle (optional).** When `dist/main.js` exists, the page loads it instead of the separate modules. `scripts/release.sh` ships `dist/` when it is there. There is no build script yet: making one needs esbuild, which this machine's permissions have not allowed.

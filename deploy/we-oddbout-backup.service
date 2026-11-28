@@ -1,7 +1,7 @@
 # Daily snapshot of the game's data (server/backup.mjs). Copy with the .timer to /etc/systemd/system/, then:
 # systemctl daemon-reload && systemctl enable --now we-oddbout-backup.timer
 [Unit]
-Description=we.oddbout.com data backup
+Description=popisle.oddbout.com data backup
 
 [Service]
 Type=oneshot

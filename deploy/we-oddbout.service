@@ -1,6 +1,6 @@
 # systemd unit for the hosted game. Copy to /etc/systemd/system/, then: systemctl daemon-reload && systemctl enable --now we-oddbout
 [Unit]
-Description=we.oddbout.com (archipelago game)
+Description=popisle.oddbout.com (archipelago game)
 After=network.target
 
 [Service]
@@ -9,7 +9,7 @@ User=ubuntu
 WorkingDirectory=/opt/we-oddbout/current
 # Node 22.13+ lives at /opt/we-oddbout/bin/node (the VM has no system node). ANTHROPIC_API_KEY lives here (chmod 600), never in the repo
 EnvironmentFile=/opt/we-oddbout/env
-Environment=PORT=5310 DATA_DIR=/opt/we-oddbout/data SAMPLE=api SITE_ORIGIN=https://we.oddbout.com CLAUDE_PER_USER=5 CLAUDE_PER_DAY=300
+Environment=PORT=5310 DATA_DIR=/opt/we-oddbout/data SAMPLE=api SITE_ORIGIN=https://popisle.oddbout.com CLAUDE_PER_USER=5 CLAUDE_PER_DAY=300
 ExecStart=/opt/we-oddbout/bin/node --disable-warning=ExperimentalWarning server/main.mjs
 # the server and its claude CLIs together: whatever happens here, the other sites on this VM keep their memory
 MemoryMax=700M
