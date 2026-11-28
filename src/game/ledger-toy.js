@@ -103,12 +103,14 @@ function newCloud(kind, over = false) {
 const CARS = ['#e2685a', '#5fb6e0', '#f2c12e', '#7bc47f', '#f4f0e6', '#a07ad0'];
 /** A jam: three to five road tiles in a row, on my island (or in the middle of the given path). */
 function newJam(path, start = 0) {
-  const A = sim.A, roads = path ? path.slice(2, -2) : tilesOf(S.mySlot).filter(([x, z]) => A.isRoad(x, z)); if (!roads.length) return null;
+  // never at a shop's door: every route leaves through it, so a jam there would leave no way round (2026-11-28)
+  const door = new Set(myPlots().filter(p => p.door).flatMap(({ door: [x, z] }) => [[0, 0], ...DIRS].map(([dx, dz]) => key(x + dx, z + dz))));
+  const A = sim.A, roads = path ? path.slice(2, -2) : tilesOf(S.mySlot).filter(([x, z]) => A.isRoad(x, z) && !door.has(key(x, z))); if (!roads.length) return null;
   const make = (seg, ttl, start = rnd(8, 12)) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl: ttl + start, start, start0: start, age: 0,   // start: seconds of cars gathering before the road jams (it can be seen coming)
     cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
   if (path) { const i = Math.floor(roads.length / 2); return make(roads.slice(Math.max(0, i - 2), i + 2), rnd(30, 45), start); }
   for (let tries = 0; tries < 20; tries++) { const [x, z] = pick(roads), [dx, dz] = pick(DIRS), seg = [];
-    for (let i = 0; i < 5 && A.isRoad(x + dx * i, z + dz * i); i++) seg.push([x + dx * i, z + dz * i]);
+    for (let i = 0; i < 5 && A.isRoad(x + dx * i, z + dz * i) && !door.has(key(x + dx * i, z + dz * i)); i++) seg.push([x + dx * i, z + dz * i]);
     if (seg.length >= 3) return make(seg, rnd(25, 50)); }
   return null;
 }
@@ -494,7 +496,7 @@ export function startLedgerToy() {
     if (!S.myDoc || !S.mySlot || !sim.A || !myPlots().length) return; clearInterval(wait);
     panel = el('aside', { class: 'ledger', 'aria-label': '단골 장부' }); document.body.append(panel);
     S.mapGround = mapGround; S.mapItems = mapItems;
-    window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, get jams() { return jams; }, screenAt, routesFor, route, forecast };   // for the recording checks
+    window.__ledger = { cam, get couriers() { return couriers; }, get orders() { return orders; }, get jams() { return jams; }, screenAt, routesFor, route, forecast, newJam };   // for the recording checks
     box()?.addEventListener('pointerdown', () => { if (cam.on) { for (const c of couriers) c.follow = false; cam.back = false; camRelease(); } }, true);   // a drag on the map: the camera lets go
     addEventListener('keydown', (e) => { if (e.key === 'Escape' && choosing) cancelChoose(); });
     let t0 = performance.now(), acc = 0;
