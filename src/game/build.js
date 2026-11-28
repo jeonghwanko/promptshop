@@ -29,6 +29,7 @@ import { celebrate, why } from './hud.js';
 import { tutEvent, tutOn } from './guide.js';
 import { show, showHome, closePanel, showBuilding } from './panel.js';
 import { openShop, closeInside, renderActs, placeActs } from './shop.js';
+import { loadDia, openDiaShop } from './dia.js';
 
 // what the island asks for, by kind of guest
 const REQ = {
@@ -270,11 +271,11 @@ async function build() {
     const role = roleOf(s.type, s.levels), answered = need && role.serves === need;
     if (answered) { S.myDoc.wallet.coins += REQ_BONUS; const d = dockOf(S.mySlot); for (let k = 0; k < 6; k++) sim.spawn(d.road, 1 + k * .45, need, d.road); setTimeout(() => celebrate('요청 해결!'), lit + 3400); }
     else setTimeout(() => celebrate('완공!', s.name || TYPE_KO[s.type] || '새 건물'), lit + 3400);
-    logDone(seen, s, tutOn());
+    logDone(seen, s, tutOn()); loadDia();   // a paid build took a ticket or diamonds
     track('build', { type: s.type, size: S.myDoc.plots[key]?.size, n: Object.values(S.myDoc.plots).filter(q => q.b).length, answered: !!answered });
     done(); setTimeout(() => tutEvent('built'), lit + 600);
     rebuild(); await save(true);
-  } catch (e) { logFail(failText(e, '짓지 못했어요')); S.building = null; stakeSite(null); S.current?.kind === 'build' && (S.current = null); input.value = line; setBuildMode(true); say(failText(e, '짓지 못했어요. 다시 눌러 주세요.')); }
+  } catch (e) { logFail(failText(e, '짓지 못했어요')); S.building = null; stakeSite(null); S.current?.kind === 'build' && (S.current = null); input.value = line; setBuildMode(true); if (e?.code === 'daily_limit') openDiaShop('limit').then(open => { if (!open) say(failText(e)); }); else say(failText(e, '짓지 못했어요. 다시 눌러 주세요.')); }
 }
 
 export function initAsk() {
@@ -326,7 +327,7 @@ export function startExtend(key, { inShop = false } = {}) {
       note('완공', `${nn.levels}층 · 새 가구 ${newFx.length - own.size}개`);
       celebrate('🏗️ 증축 완공!', `${nn.name || TYPE_KO[nn.type]} ${nn.levels}층 · 새 자리를 채워 보세요`);
       setTimeout(() => { closePanel(); if (S.watching) closeInside(); openShop(key); setTimeout(() => S.watching?.view?.setFloor(nn.levels - 1), 400); }, 900);   // back in the shop, on the new floor
-    } catch (e) { wv?.construct(null); err.textContent = e?.code === 'gone' ? '건물이 옮겨졌어요. 가게를 다시 열어 주세요.' : e?.code === 'no_supply' ? '전기나 물이 모자라요.' : failText(e, '증축하지 못했어요. 다시 눌러 주세요.'); go.disabled = false; }
+    } catch (e) { wv?.construct(null); if (e?.code === 'daily_limit') openDiaShop('limit'); err.textContent = e?.code === 'gone' ? '건물이 옮겨졌어요. 가게를 다시 열어 주세요.' : e?.code === 'no_supply' ? '전기나 물이 모자라요.' : failText(e, '증축하지 못했어요. 다시 눌러 주세요.'); go.disabled = false; }
   }
   go.onclick = run; input.addEventListener('keydown', (e) => { if (e.key === 'Enter') run(); });
 }

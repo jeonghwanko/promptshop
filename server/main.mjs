@@ -14,6 +14,7 @@ import { openStore } from './store.mjs';
 import { allowWrite, readable } from './rules.mjs';
 import { admit, left, stream } from './claude.mjs';
 import { guestOf } from './special.mjs';
+import { createShop, shopConfig } from './shop.mjs';
 import { bad } from '../src/game/rules.js';
 import { BRAND, brandPage } from '../src/brand.js';
 
@@ -24,6 +25,7 @@ fs.mkdirSync(path.join(DATA, 'og'), { recursive: true });
 // the picture for links without a board (or a board with no picture yet) ships with the release
 const OG_DEFAULT = path.join(root, BRAND.og);
 const store = openStore(path.join(DATA, 'isles.db'));
+const shop = createShop(store, shopConfig(), { origin: ORIGIN, log: (x) => console.log(JSON.stringify(x)) });   // diamonds and build tickets (shop.mjs)
 const SECRET = process.env.SESSION_SECRET ?? (() => { const f = path.join(DATA, 'secret'); if (!fs.existsSync(f)) fs.writeFileSync(f, crypto.randomBytes(32).toString('hex'), { mode: 0o600 }); return fs.readFileSync(f, 'utf8').trim(); })();
 const sign = (s) => crypto.createHmac('sha256', SECRET).update(s).digest('base64url').slice(0, 32);
 
@@ -169,9 +171,18 @@ http.createServer(async (req, res) => {
     }
     if (!p.startsWith('/api/')) { res.writeHead(404); return res.end('not found'); }
 
+    // Polar's order events: signed, no cookie, no page header (before both)
+    if (p === '/api/polar/webhook' && req.method === 'POST') { const r = shop.webhook(req.headers, await body(req, 256 * 1024)); return json(res, r.body, r.status); }
     const uid = session(req, res);
     if (req.method !== 'GET' && req.headers['x-isles'] !== '1') return json(res, { error: 'bad request' }, 400);   // only the page's own calls (a header a form cannot send)
     if (p === '/api/me') { const board = url.searchParams.get('board') ?? 'main'; return json(res, { uid, name: nameOf(uid), left: left(store, uid), owner: store.get('boards', board)?.owner === uid }); }
+    if (p === '/api/shop' && req.method === 'GET') return json(res, shop.view(uid, url.searchParams.get('checkout')));   // ?checkout=: that order's state, back from Polar
+    if (p === '/api/shop/checkout' && req.method === 'POST') {   // a Polar checkout for one pack; back to the board the player came from
+      if (tooFast(uid)) return json(res, { error: 'too many writes' }, 429);
+      let sku = '', board = 'main'; try { ({ sku = '', board = 'main' } = JSON.parse(String(await body(req, 500)))); } catch {}
+      const back = `${ORIGIN}/` + (/^[a-z0-9]{3,24}$/.test(board) && board !== 'main' ? `?board=${board}` : '');
+      const r = await shop.checkout(uid, String(sku), back); return json(res, r.url ? { url: r.url } : { error: r.error }, r.status);
+    }
     if (p === '/api/profiles') { const ids = (url.searchParams.get('ids') ?? '').split(',').filter(Boolean).slice(0, 50); return json(res, Object.fromEntries(ids.map(i => [i, { name: nameOf(i) ?? '친구' }]))); }
     if (p === '/api/key' && req.method === 'POST') { if (tooFast(uid)) return json(res, { error: 'too many writes' }, 429); let fresh = false; try { fresh = !!JSON.parse(String(await body(req, 200)) || '{}').fresh; } catch {} return json(res, { key: keyOf(uid, fresh) }); }
     if (p === '/api/name' && req.method === 'POST') {
@@ -220,7 +231,7 @@ http.createServer(async (req, res) => {
     if (p === '/api/sample' && req.method === 'POST') {
       const { prompt, kind } = JSON.parse((await body(req, 200 * 1024)).toString());
       const ip = ipOf(req); if (calling.get(ip)) return json(res, { error: 'rate_limited' }, 429);
-      const call = admit(store, uid, kind, ip); if (call.no) return json(res, { error: call.no.code }, call.no.status);
+      const call = admit(store, uid, kind, ip, (ref) => shop.spendBuild(uid, ref)); if (call.no) return json(res, { error: call.no.code }, call.no.status);
       calling.set(ip, 1); res.on('close', () => calling.delete(ip));
       return await stream(prompt, res, req, call.refund);
     }

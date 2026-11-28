@@ -2,6 +2,7 @@
 // This file only puts the pieces together: the state lives in state.js, each screen in its own module (docs/ARCHITECTURE.md).
 import { fillVault } from './vault.js';
 import { sessionStart } from './persist.js';
+import { loadDia, openDiaShop, paidReturn } from './dia.js';
 import { loadGuest } from './special.js';
 import { applyTheme } from '../ui/theme.js';
 import { pixelIcons } from '../ui/icons.js';
@@ -42,7 +43,7 @@ hooks.yielded = () => {   // another tab plays this island now: this one stops a
   document.body.append(el('div', { class: 'handoff' }, el('div', {}, el('b', {}, '다른 창에서 플레이 중'), el('button', { class: 'gold', on: { click: () => location.reload() } }, '여기서 하기'))));
 };
 hooks.tracked = track;   // model.js cannot import persist.js (persist imports model): level-ups are logged through here
-hooks.live = () => { const seen = S.myDoc?.wallet?.seenAt; sessionStart(seen ? (Date.now() - seen) / 60000 : null); keyHint(seen); fillVault(); loadGuest(); const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // back at my island: what it made while I was away waits at the pier   // a shop of mine opened while waiting: open it again as mine
+hooks.live = () => { const seen = S.myDoc?.wallet?.seenAt; sessionStart(seen ? (Date.now() - seen) / 60000 : null); keyHint(seen); loadDia(); fillVault(); loadGuest(); const w = S.watching; if (w && !w.mine && S.myDoc?.plots[w.key]) openShop(w.key); };   // back at my island: what it made while I was away waits at the pier   // a shop of mine opened while waiting: open it again as mine
 // The island key (panel.js keyCard): said once, on the first visit back after an hour away, when keeping the island matters
 function keyHint(seen) {
   const w = S.myDoc?.wallet; if (!site?.key || !w || w.keyHint || !seen || Date.now() - seen < 3600e3) return;
@@ -51,6 +52,9 @@ function keyHint(seen) {
 // back from an island key's link (server /k/<key>): say which way it went, then take it off the address
 { const q = new URLSearchParams(location.search), b = q.get('back');
   if (b !== null) { q.delete('back'); history.replaceState(null, '', location.pathname + (q.size ? '?' + q : '') + location.hash); setTimeout(() => toast(b === '1' ? '열쇠로 내 섬을 찾았어요' : '열쇠가 맞지 않아요 · 새로 만든 열쇠인지 확인해 주세요', 3200), 1200); } }
+// diamonds: the top bar's count opens the shop; back from a payment, wait for it (dia.js)
+document.getElementById('diab')?.addEventListener('click', () => openDiaShop());
+loadDia().then(() => paidReturn());
 hooks.lost = () => showHome('그 섬은 다른 친구가 먼저 들어갔어요. 다른 섬을 골라 주세요.');   // my first save never landed, and the island was taken
 hooks.namesChanged = () => { const c = S.current; if (c?.kind === 'island' && panelOpen()) showIsland(c.slot); };   // the name arrived after the panel was drawn
 hooks.plotChanged = (key) => { if (S.current?.key === key && !S.watching) showBuilding(key); };

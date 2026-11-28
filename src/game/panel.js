@@ -15,6 +15,7 @@ import { save, createMine, removeOthers, track } from './persist.js';
 import { scrollToSlot, startZoom, applyZoom, scrollToPoint, inSafe } from './camera.js';
 import { toast, celebrate, why } from './hud.js';
 import { guide } from './guide.js';
+import { loadDia } from './dia.js';
 import { openShop } from './shop.js';
 import { startMove } from './move.js';
 import { riseLand, planks } from './mapview.js';
@@ -133,7 +134,7 @@ export async function join(s) {
   // invited next to a friend: my half of the bridge to them is free, so we are joined in the first session
   const ok = await createMine({ slot: s, at: now(), gap: GAP, plots: {}, half: {}, wallet: { coins: START_COINS, ups: [0, 0], tut: 0, tutV: 3, ...(byInviter ? { freeHalf: FROM } : {}) } });
   if (!ok) { closePanel(); return toast('초대 링크를 받은 친구만 이 팝업섬에 살 수 있어요', 2600); }
-  closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide();
+  closePanel(); S.zoom = startZoom(s); applyZoom(); scrollToSlot(s); guide(); loadDia();   // a new island: the top bar's diamonds (hooks.live does not run for it)
 }
 /** What my half of the bridge to island n costs: free to the friend who invited me, once. */
 export const halfCost = (n) => S.myDoc?.wallet?.freeHalf === n ? 0 : BRIDGE;

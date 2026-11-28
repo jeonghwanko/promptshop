@@ -14,19 +14,24 @@ export const today = () => new Date(Date.now() + 9 * 3600e3).toISOString().slice
 
 let ipColumn = false;
 /** { no: { status, code } } when the call may not go ahead; else it is recorded and { refund() } takes it back (a call that brought nothing). */
-export function admit(store, uid, kind, ip = '') {
+export function admit(store, uid, kind, ip = '', pay = null) {   // pay(ref): a paid build when the free ones are used up (shop.mjs spendBuild), or null
   const day = today(), sql = store.sql, no = (status, code) => ({ no: { status, code } });
-  if (!ipColumn) { if (!sql.prepare(`SELECT 1 FROM pragma_table_info('calls') WHERE name = 'ip'`).get()) sql.exec(`ALTER TABLE calls ADD COLUMN ip TEXT`); ipColumn = true; }
+  if (!ipColumn) { for (const c of ['ip', 'paid']) if (!sql.prepare(`SELECT 1 FROM pragma_table_info('calls') WHERE name = ?`).get(c)) sql.exec(`ALTER TABLE calls ADD COLUMN ${c} TEXT`); ipColumn = true; }   // paid: 'ticket' | 'dia' for a bought build
   if (!['build', 'extend', 'revise'].includes(kind)) return no(400, 'bad_kind');
   if (kind === 'revise') {   // free once, right after a build of mine
     const last = sql.prepare(`SELECT at, kind FROM calls WHERE uid = ? ORDER BY at DESC LIMIT 1`).get(uid);
     if (!last || last.kind !== 'build' || Date.now() - last.at > 5 * 60e3) return no(429, 'daily_limit');
   } else {
-    const mine = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise'`).get(uid, day).n;
-    if (mine >= PER_USER) return no(429, 'daily_limit');
-    if (ip && sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE ip = ? AND day = ? AND kind != 'revise'`).get(ip, day).n >= PER_IP) return no(429, 'daily_limit');
     const all = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE day = ?`).get(day).n;
     if (all >= PER_DAY) return no(503, 'busy');
+    const mine = sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise' AND paid IS NULL`).get(uid, day).n;
+    const freeIp = !ip || sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE ip = ? AND day = ? AND kind != 'revise' AND paid IS NULL`).get(ip, day).n < PER_IP;
+    if (mine >= PER_USER || !freeIp) {   // the free ones are used up: a ticket or diamonds, if I have them (2026-11-28)
+      if (ip && sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE ip = ? AND at > ?`).get(ip, Date.now() - 3600e3).n >= PER_IP_HOUR) return no(429, 'rate_limited');
+      const ref = `call:${uid}:${Date.now()}`, bought = pay?.(ref); if (!bought) return no(429, 'daily_limit');
+      const row = sql.prepare(`INSERT INTO calls (uid, day, kind, at, ip, paid) VALUES (?, ?, ?, ?, ?, ?)`).run(uid, day, kind, Date.now(), ip, bought.paid).lastInsertRowid;
+      return { paid: bought.paid, refund: () => { sql.prepare(`DELETE FROM calls WHERE rowid = ?`).run(row); bought.refund(); } };
+    }
   }
   // at most PER_IP_HOUR calls an hour from one address, fixes too (each holds a place in the CLI's line as long as a build),
   // so a few addresses cannot spend the whole day's budget before the day has started
@@ -34,7 +39,7 @@ export function admit(store, uid, kind, ip = '') {
   const row = sql.prepare(`INSERT INTO calls (uid, day, kind, at, ip) VALUES (?, ?, ?, ?, ?)`).run(uid, day, kind, Date.now(), ip).lastInsertRowid;
   return { refund: () => sql.prepare(`DELETE FROM calls WHERE rowid = ?`).run(row) };
 }
-export const left = (store, uid) => Math.max(0, PER_USER - store.sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise'`).get(uid, today()).n);
+export const left = (store, uid) => { try { return Math.max(0, PER_USER - store.sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise' AND paid IS NULL`).get(uid, today()).n); } catch { return Math.max(0, PER_USER - store.sql.prepare(`SELECT COUNT(*) AS n FROM calls WHERE uid = ? AND day = ? AND kind != 'revise'`).get(uid, today()).n); } };   // free builds left today (before the paid column exists, every call was free)
 
 let client = null;
 // SAMPLE=cli on a small VM: at most CLAUDE_CLI_MAX `claude` processes at once (each takes a few hundred MB); the rest wait in line.

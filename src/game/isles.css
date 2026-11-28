@@ -587,3 +587,31 @@ body.hide-level.buildmode #who { display:none; }
 /* the island key card (panel.js keyCard): a new key is a quiet line under the name, not a second button */
 .keynew { all: unset; cursor: pointer; font-size: 12px; color: var(--ink2, #6b5a48); text-decoration: underline; margin-top: 2px; }
 .keynew:disabled { opacity: .5; cursor: default; }
+
+/* diamonds (dia.js): the top bar's count, and the shop */
+.diab { display: inline-flex; align-items: center; gap: 4px; margin-right: 8px; padding: 4px 12px 4px 8px; border: 0; border-radius: 999px; background: rgba(23, 40, 60, .82); color: #fff; font: inherit; font-weight: 800; cursor: pointer; }
+.diab[hidden] { display: none; }
+.diab b { font-size: 18px; font-variant-numeric: tabular-nums; }
+.diab .tk { display: inline-flex; align-items: center; gap: 2px; margin-left: 6px; font-size: 14px; opacity: .9; }
+.diab:focus-visible { outline: 3px solid #f2c12e; outline-offset: 2px; }
+.diashop { position: fixed; inset: 0; z-index: 60; display: grid; place-items: center; padding: 16px; background: rgba(10, 24, 40, .45); }
+.diashop .shopcard { position: relative; width: min(440px, 100%); max-height: calc(100vh - 32px); overflow: auto; padding: 22px 20px 16px; border-radius: 16px; background: #fff8ea; color: #2b2117; box-shadow: 0 12px 40px rgba(0, 0, 0, .3); }
+.diashop .shopcard > .xb { position: absolute; top: 10px; right: 10px; }
+.diashop h2 { margin: 0 36px 10px 0; font-size: 22px; }
+.diashop .have { display: flex; flex-wrap: wrap; align-items: center; gap: 4px 6px; margin-bottom: 14px; }
+.diashop .have b { margin-right: 8px; font-variant-numeric: tabular-nums; }
+.diashop .have small { color: #7a6a58; }
+.diashop .packs { display: grid; gap: 10px; }
+.diashop .pack { display: flex; align-items: center; justify-content: space-between; gap: 12px; width: 100%; padding: 14px 16px; border: 2px solid #e3c98f; border-radius: 12px; background: #fff; color: inherit; font: inherit; text-align: left; cursor: pointer; }
+.diashop .pack:hover { background: #fff3d6; }
+.diashop .pack:focus-visible { outline: 3px solid #e3a72f; outline-offset: 2px; }
+.diashop .pack:disabled { opacity: .6; cursor: progress; }
+.diashop .pack.first { border-color: #e3a72f; background: #ffefc4; }
+.diashop .got { display: grid; gap: 4px; }
+.diashop .got > span { display: inline-flex; align-items: center; gap: 6px; font-size: 18px; }
+.diashop .price { display: grid; justify-items: end; }
+.diashop .price b { font-size: 18px; }
+.diashop .price small { color: #7a6a58; }
+.diashop .fine { margin: 12px 0 0; font-size: 12px; color: #7a6a58; }
+.diashop .got .total { font-size: 20px; }
+.diashop .got .parts { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 3px; color: #7a6a58; font-size: 14px; }
