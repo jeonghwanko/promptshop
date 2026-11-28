@@ -274,6 +274,11 @@ export function buildExterior(spec, section) {
   const main = Object.values(placed).find(m => m.at === 'main') ?? Object.values(placed)[0], [mw, md] = main.size;
   const skyTop = Math.max(...Object.values(placed).map(m => m.top ?? 0));
   const fz = main.z + md / 2, fx = main.x, gy = plinthH + GH;
+  // how the owner shows on the building (see animalForm): an animal with nothing on its roof for "ears" (a penguin, a duck, a seal) shows its face instead, or the building shows no animal at all
+  const ownerLook = (() => { const a = spec.owner && animalOf(spec.owner); if (!a) return null; const ex = new Set(a.extra);
+    if (spec.look === 'peek' && isDark(spec.owner)) return 'ears';
+    if ((spec.look ?? 'face') === 'ears' && a.ears === 'none' && !['spikes', 'shell', 'tentacles', 'eyestop', 'yuzu'].some(k => ex.has(k))) return 'face';
+    return spec.look ?? 'face'; })();
   enter('sign');
   {
     // the board carries only its colour: the picture is stamped on afterwards in crisp pixels (render.js stampSign), where root.userData.sign says
@@ -282,10 +287,16 @@ export function buildExterior(spec, section) {
     const SB = 1.85, frame = mat(shade(spec.sign.bg, 1.35)), board = (s) => { const g = new THREE.Group(), b = new THREE.Mesh(new THREE.BoxGeometry(s * SB, s * SB, .06), [edge, edge, edge, edge, im, edge]); g.add(b);
       const f = new THREE.Mesh(new THREE.BoxGeometry(s * SB + .1, s * SB + .1, .04), frame); f.position.z = -.02; g.add(f); return g; };
     const top = main.top ?? gy + 2;
-    if (spec.sign.place === 'front') { const b = board(.72); b.position.set(fx + (main.ground === 'shopfront' ? mw * .33 : 0), gy + (main.shown > 1 ? .22 : -.18) + .38, fz + .12); add(b); mark(b.position.x, b.position.y, fz + .16, 'front'); }
-    if (spec.sign.place === 'roof') { const b = board(.7); b.position.set(fx, top + .8, fz - .25); add(b); mark(fx, top + .8, fz - .21, 'front'); box(.05, .2, .05, trim, fx, top, fz - .25); }
-    if (spec.sign.place === 'blade') { const b = new THREE.Mesh(new THREE.BoxGeometry(.06, .72 * SB, .72 * SB), [im, edge, edge, edge, edge, edge]); b.position.set(fx + mw / 2 + .42, gy + .35, fz - .4); add(b); mark(fx + mw / 2 + .46, gy + .35, fz - .4, 'side'); box(.3, .04, .04, trim, fx + mw / 2 + .15, gy + .6, fz - .3); }
-    if (spec.sign.place === 'pole') { cyl(.06, .06, 2.6, mat('#9aa0a6'), fx + mw / 2 + .6, 0, fz + .5, 6); const b = board(.75); b.position.set(fx + mw / 2 + .6, 2.95, fz + .5); add(b); mark(fx + mw / 2 + .6, 2.95, fz + .54, 'front'); }
+    // a front board as high as the owner's face under the eaves would hide the face: it hangs from the side instead (2026-11-29: a sauna's face was behind its sign)
+    let place = spec.sign.place;
+    if (place === 'front' && ownerLook === 'face' && !animalOf(spec.owner)?.extra?.includes('eyestop')) {
+      const sy = gy + (main.shown > 1 ? .22 : -.18) + .38, ey = plinthH + levelY(main.shown) + (main.shownBase ? levelY(main.shownBase) : 0) - .55;
+      if (sy + .72 * SB / 2 > ey - .45 && sy - .72 * SB / 2 < ey + .35) place = 'blade';
+    }
+    if (place === 'front') { const b = board(.72); b.position.set(fx + (main.ground === 'shopfront' ? mw * .33 : 0), gy + (main.shown > 1 ? .22 : -.18) + .38, fz + .12); add(b); mark(b.position.x, b.position.y, fz + .16, 'front'); }
+    if (place === 'roof') { const b = board(.7); b.position.set(fx, top + .8, fz - .25); add(b); mark(fx, top + .8, fz - .21, 'front'); box(.05, .2, .05, trim, fx, top, fz - .25); }
+    if (place === 'blade') { const b = new THREE.Mesh(new THREE.BoxGeometry(.06, .72 * SB, .72 * SB), [im, edge, edge, edge, edge, edge]); b.position.set(fx + mw / 2 + .42, gy + .35, fz - .4); add(b); mark(fx + mw / 2 + .46, gy + .35, fz - .4, 'side'); box(.3, .04, .04, trim, fx + mw / 2 + .15, gy + .6, fz - .3); }
+    if (place === 'pole') { cyl(.06, .06, 2.6, mat('#9aa0a6'), fx + mw / 2 + .6, 0, fz + .5, 6); const b = board(.75); b.position.set(fx + mw / 2 + .6, 2.95, fz + .5); add(b); mark(fx + mw / 2 + .6, 2.95, fz + .54, 'front'); }
   }
 
   // ---------- hero prop ----------
@@ -298,7 +309,7 @@ export function buildExterior(spec, section) {
     const roofY = plinthH + levelY(main.shown) + (main.shownBase ? levelY(main.shownBase) : 0), top = main.top ?? roofY + .5, ex = new Set(a.extra);
     const bodyM = mat(a.body), inner = mat(a.inner ?? shade(a.body, .8)), earM0 = ex.has('darkears') ? mat('#2a2a30') : bodyM, ink = mat('#1f1a1c'), eh = Math.min(1.25, Math.max(.75, mw * .42));
     const earY = roofY + (top - roofY) * .55, sideX = fx + mw / 2;
-    const look = spec.look === 'peek' && isDark(spec.owner) ? 'ears' : spec.look ?? 'face';   // a dark animal behind a roof is a black blob
+    const look = ownerLook;   // a dark animal behind a roof is a black blob; an earless one shows its face
     if (look === 'plain') return;   // an ordinary building: the owner only greets at the door (drawn with the props)
     if (look === 'peek') { // a giant owner standing behind the shop: its head and paws rise over the roof
       const h = Math.min(6, Math.max(2.6, mw * 2.2)); const faceAt = String(spec.owner).startsWith('cat') ? .22 : .6;   // the round cat's face is low on its body: lift it until the face clears the roof
