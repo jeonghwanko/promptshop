@@ -671,11 +671,6 @@ body.hide-level.buildmode #who { display:none; }
 .toyfx { position: fixed; left: 0; top: 0; z-index: 13; pointer-events: none; }   /* sized in px by the toy */
 .toypop.loud { font: 900 36px var(--f-disp, var(--f-ui)); color: #fff; background: none; text-shadow: 0 2px 0 #2b1e15, 2px 0 0 #2b1e15, -2px 0 0 #2b1e15, 0 -2px 0 #2b1e15; animation: toyloud 1.1s ease-out forwards; }
 @keyframes toyloud { from { opacity: 0; scale: .6; } 15% { opacity: 1; scale: 1.25; } 30% { scale: 1; } to { opacity: 0; margin-top: -28px; } }
-.routetag { position: fixed; left: 0; top: 0; z-index: 16; display: flex; align-items: center; gap: 4px; padding: 2px 4px; border: 0; background: none; cursor: pointer; font: 400 20px var(--f-disp, var(--f-ui)); color: #fff; -webkit-text-stroke: 4px #2b2117; paint-order: stroke fill; }
-.routetag::before { content: ""; width: 10px; height: 10px; border: 2px solid #2b2117; border-radius: 3px; background: var(--rc); }
-.routetag .sec.late { color: #ff8a7a; }
-.routetag.on { font-size: 24px; z-index: 17; } .routetag:not(.on) { opacity: .8; }
-.routetag:focus-visible { outline: 2px dashed #fff; outline-offset: 2px; }
 .toysay { position: fixed; left: 0; top: 0; z-index: 16; max-width: 220px; pointer-events: none; text-align: center; font: 400 16px/1.3 var(--f-disp, var(--f-ui)); color: #fff; -webkit-text-stroke: 4px #2b2117; paint-order: stroke fill; animation: toysay 2.6s ease-out forwards; }
 @keyframes toysay { from { opacity: 0; scale: .7; } 10% { opacity: 1; scale: 1.06; } 16% { scale: 1; } 85% { opacity: 1; } to { opacity: 0; } }
 .toypop.loud.hot { color: #ffd23a; font-size: 44px; }
@@ -684,3 +679,7 @@ body.hide-level.buildmode #who { display:none; }
 /* the map's words at screen resolution (mapview labelLayer) */
 .maplabels { position: fixed; left: 0; top: 0; pointer-events: none; }   /* sized in px by labelLayer() */
 .ledger .ltog::after, .ledger .lfoot .rb:not([aria-pressed])::after { display: none; }   /* the small round button's on/off dot means something only on the sound toggle */
+/* the cut-back ledger (one order): warm time and pay beside the menu, one wide 배달 button or the two ways */
+.ledger .lwarm, .ledger .lpay { display: inline-flex; align-items: center; gap: 2px; font-size: 15px; white-space: nowrap; } .ledger .lwarm { color: #b4501c; } .ledger .lpay { color: #8a5a00; }
+.ledger .lwarm img, .ledger .lpay img { image-rendering: pixelated; }
+.ledger .lcard > .lgo { justify-content: center; width: 100%; font-size: 19px; }

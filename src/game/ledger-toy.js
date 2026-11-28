@@ -16,7 +16,7 @@ import { el } from './ui.js';
 import { iconEl } from '../ui/icons.js';
 import { faceEl } from '../ui/faces.js';
 
-const CAP = 5, ORDER = [15, 25], TTL = [90, 180], K = { near: .045, far: .075, neighbor: .12 }, VMAX = 3.6, STAY = 2.4;   // top speed in tiles a second; seconds at the door (the handoff)
+const CAP = 1, ORDER = [3, 6], TTL = [90, 180], K = { near: .045, far: .075, neighbor: .12 }, VMAX = 3.6, STAY = 2.4;   // top speed in tiles a second; seconds at the door (the handoff)
 const MENU = { food: ['국밥', '백반', '떡볶이', '김밥'], cafe: ['라떼', '쿠키', '케이크', '스무디'], shop: ['생필품', '꽃다발', '새 옷', '간식'], fun: ['간식 세트', '팝콘', '음료'], rest: ['수건 세트', '조식', '베개'] };
 const WHO = { food: '배고픈 단골', cafe: '커피 단골', shop: '장보는 단골', fun: '놀러 온 단골', rest: '쉬러 온 단골' };
 const rnd = (a, b) => a + Math.random() * (b - a), pick = (a) => a[Math.floor(Math.random() * a.length)];
@@ -24,8 +24,7 @@ const key = (x, z) => x * 1000 + z, DIRS = [[1, 0], [-1, 0], [0, 1], [0, -1]], D
 const GRASS = .65;   // speed off the road, across open land between the lots: bumpy, but no jams there
 const Q = new URLSearchParams(location.search);   // &wx=rain|snow &jam=1 &crash=1: force one thing to look at it
 
-let orders = [], couriers = [], ncour = 1, coins = 0, tips = 0, sent = 0, missed = 0, crashed = 0, redone = 0, hot = 0, nextIn = rnd(...ORDER) / 2, panel = null, collapsed = false;
-let choosing = null;   // { o, routes: [{ path, f, name }], hover }
+let orders = [], couriers = [], ncour = 1, coins = 0, tips = 0, sent = 0, missed = 0, crashed = 0, redone = 0, hot = 0, nextIn = 1.5, panel = null, collapsed = false;
 
 // ---------- roads ----------
 /** Road tiles reachable from a start, with their walking distance (the game's road grid, 4 neighbours). */
@@ -82,7 +81,14 @@ function newOrder() {
   const g = p.b.input.guests, who = (typeof g?.who === 'string' && g.who) || WHO[need] || '단골 손님';
   const reward = Math.max(5, Math.round(liveRate().coins * K[kind] * qty / 2));
   const path = w.path(to), fresh = Math.ceil(forecast(path, true).t * 1.6 + 1);   // a clear road gets it there hot, the grass on time, a jammed road late
-  return { id: Math.random(), need, shop: p.key, shopName: n.name || TYPE_KO[n.type] || '가게', color: shopColor(p), who, menu: pick(MENU[need] ?? MENU.food), qty, kind, path, fresh, reward, ...(() => { const t = Math.round(rnd(...TTL)); return { ttl: t, ttl0: t }; })() };
+  const o = { id: Math.random(), need, shop: p.key, shopName: n.name || TYPE_KO[n.type] || '가게', color: shopColor(p), who, menu: pick(MENU[need] ?? MENU.food), qty, kind, path, fresh, reward, ...(() => { const t = Math.round(rnd(...TTL)); return { ttl: t, ttl0: t }; })() };
+  // two ways only (the big road, the quickest grass way); half the orders get cars gathering on a stretch only the big road takes
+  const rs = routesFor(o), alt = rs.slice(1).sort((a, b) => a.f.t - b.f.t)[0]; o.routes = alt ? [rs[0], alt] : [rs[0]];
+  if (alt && (Q.get('jam') === 'soon' || Math.random() < .5)) {
+    const others = new Set(alt.path.map(t => key(...t))), own = o.path.filter(t => !others.has(key(...t)) && sim.A.isRoad(...t));
+    if (own.length >= 3) { const i = Math.floor(own.length / 2); jams.push(makeJam(own.slice(Math.max(0, i - 2), i + 2), rnd(25, 40), rnd(3, 7))); }
+  }
+  return o;
 }
 const ACCENTS = ['#e2432f', '#3d9ee0', '#2fa86a', '#a07ad0', '#ff6fa3', '#4ec3d8'];   // never the courier's orange jacket or yellow helmet
 const shopColor = (p) => ACCENTS[([...String(p.key)].reduce((h, ch) => (h * 31 + ch.charCodeAt(0)) | 0, 7) >>> 0) % ACCENTS.length];   // the delivery box wears its shop's colour
@@ -94,7 +100,7 @@ const shopColor = (p) => ACCENTS[([...String(p.key)].reduce((h, ch) => (h * 31 +
 const CLOUD_PUFFS = [[-.62, .25, .3], [-.3, -.05, .38], [.08, -.3, .42], [.45, -.05, .36], [.72, .28, .26], [0, .3, .5]];   // the cloud's silhouette: puffs in -1..1
 const WX = { rain: { crash: .35, say: '비가 와요', ko: '비' }, snow: { crash: .55, say: '눈이 와요', ko: '눈' } }, JAMV = .25, CORNER = .3;
 const HOT = .15;   // a share of the "식기 전" time still left at the door that counts as hot: a grass detour round a jam gets there with .16-.39 left (measured 2026-11-28), so dodging pays
-let clouds = [], jams = [], cloudIn = rnd(3, 6), jamIn = rnd(2, 5), home = null;
+let clouds = [], jams = [], home = null;   // clouds stay empty for now: weather is out until the core is fun (2026-11-28)
 const skyAt = (x, z, t = 0) => { for (const cl of clouds) { if (t > cl.life) continue; const cx = cl.x + cl.vx * t, cz = cl.z + cl.vz * t; if ((x - cx) ** 2 + (z - cz) ** 2 <= cl.r ** 2) return cl.kind; } return null; };
 const jamAt = (k, t = 0) => jams.some(j => j.ttl > t && t >= j.start && j.tiles.has(k));   // jammed at t seconds from now (a forming jam only once its cars are all in)
 function islandMid() { if (!home) { const ts = tilesOf(S.mySlot); home = [ts.reduce((s, t) => s + t[0], 0) / ts.length + .5, ts.reduce((s, t) => s + t[1], 0) / ts.length + .5]; } return home; }
@@ -105,6 +111,8 @@ function newCloud(kind, over = false) {
   return { kind, x: tx - Math.cos(a) * far, z: tz - Math.sin(a) * far, r, vx: Math.cos(a) * sp, vz: Math.sin(a) * sp, life: (far + 16 + r) / sp };
 }
 const CARS = ['#e2685a', '#5fb6e0', '#f2c12e', '#7bc47f', '#f4f0e6', '#a07ad0'];
+const makeJam = (seg, ttl, start) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl: ttl + start, start, start0: start, age: 0,   // start: seconds of cars gathering before the road jams (it can be seen coming)
+  cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
 /** A jam: three to five road tiles in a row, on my island (or in the middle of the given path). */
 function newJam(path, start = 0) {
   // never at a shop's door nor at a regular's door: every route leaves and arrives through them, so a jam there would leave no
@@ -112,8 +120,7 @@ function newJam(path, start = 0) {
   const ends = [...myPlots().filter(p => p.door).map(p => p.door), ...orders.map(o => o.path[o.path.length - 1]), ...couriers.filter(c => !c.back).map(c => c.path[c.path.length - 1])];
   const door = new Set(ends.flatMap(([x, z]) => [[0, 0], ...DIRS].map(([dx, dz]) => key(x + dx, z + dz))));
   const A = sim.A, roads = path ? path.slice(2, -2) : tilesOf(S.mySlot).filter(([x, z]) => A.isRoad(x, z) && !door.has(key(x, z))); if (!roads.length) return null;
-  const make = (seg, ttl, start = rnd(8, 12)) => ({ tiles: new Set(seg.map(t => key(...t))), list: seg, ttl: ttl + start, start, start0: start, age: 0,   // start: seconds of cars gathering before the road jams (it can be seen coming)
-    cars: seg.map((t, i) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + i) % CARS.length], ph: Math.random() * 6 })) });
+  const make = (seg, ttl, s0 = rnd(8, 12)) => makeJam(seg, ttl, s0);
   if (path) { const i = Math.floor(roads.length / 2); return make(roads.slice(Math.max(0, i - 2), i + 2), rnd(30, 45), start); }
   for (let tries = 0; tries < 20; tries++) { const [x, z] = pick(roads), [dx, dz] = pick(DIRS), seg = [];
     for (let i = 0; i < 5 && A.isRoad(x + dx * i, z + dz * i) && !door.has(key(x + dx * i, z + dz * i)); i++) seg.push([x + dx * i, z + dz * i]);
@@ -123,8 +130,6 @@ function newJam(path, start = 0) {
 function weatherTick(dt) {
   for (const cl of clouds) { cl.x += cl.vx * dt; cl.z += cl.vz * dt; cl.life -= dt; } clouds = clouds.filter(cl => cl.life > 0);
   for (const j of jams) { j.ttl -= dt; j.age += dt; j.start -= dt; } jams = jams.filter(j => j.ttl > 0);
-  if ((cloudIn -= dt) <= 0) { cloudIn = rnd(14, 26); if (clouds.length < 2) clouds.push(newCloud(Math.random() < .7 ? 'rain' : 'snow')); }
-  if ((jamIn -= dt) <= 0) { jamIn = rnd(8, 16); if (jams.length < 3) { const j = newJam(); if (j) jams.push(j); } }
 }
 const turnsOf = (path) => { const t = [], R = (q) => sim.A.isRoad(q[0], q[1]); for (let i = 1; i < path.length - 1; i++) { const a = path[i - 1], b = path[i], c = path[i + 1]; if ((b[0] - a[0] !== c[0] - b[0] || b[1] - a[1] !== c[1] - b[1]) && R(a) && R(b) && R(c)) t.push(i); } return t; };   // road corners only: on grass the bike just steers
 const segLen = (path, i) => { const a = path[Math.max(0, Math.min(path.length - 2, i))], b = path[Math.max(1, Math.min(path.length - 1, i + 1))]; return Math.hypot(b[0] - a[0], b[1] - a[1]) || 1; };
@@ -160,12 +165,7 @@ function camStep(dt) {
   if (S.watching || S.zoomShop) { cam.on = false; cam.back = false; for (const c of couriers) c.follow = false; return; }   // a shop opened: its own camera takes over
   const sr = safeRect(); let tx = cam.home.x, ty = cam.home.y, tz = cam.home.z, kp = 6, kz = 3.5;
   const c = couriers.find(q => q.follow);
-  if (choosing) {
-    const pts = choosing.routes.flatMap(r => r.path).map(([x, z]) => pr.P(x + .5, z + .5)), xs = pts.map(p => p[0]), ys = pts.map(p => p[1]);
-    const w = Math.max(...xs) - Math.min(...xs) + 120, h = Math.max(...ys) - Math.min(...ys) + 140;
-    tx = (Math.max(...xs) + Math.min(...xs)) / 2; ty = (Math.max(...ys) + Math.min(...ys)) / 2 - 10;
-    tz = snapZ(Math.max(cam.home.z * .8, Math.min(cam.home.z * 2.2, (sr.r - sr.l) / w, (sr.b - sr.t) / h))); kp = 4; kz = 3;
-  } else if (c) {
+  if (c) {
     const [bx, by] = pr.P(...tileAt(c.path, c.at)), lead = c.handoff != null ? 0 : .45;
     tx = bx + (c.vx ?? 0) * lead; ty = by - 14 + (c.vy ?? 0) * lead; tz = Math.min(maxZ(), rideZoom() + (c.handoff != null ? 1 / (window.devicePixelRatio || 1) : 0));   // one whole step closer at the door, never past the game's closest
     if (c.handoff != null) kp = 3;
@@ -180,37 +180,16 @@ function camStep(dt) {
 }
 
 // ---------- choosing a route ----------
-const ROUTE = ['#ffd23a', '#4ee0c1', '#ff8fa3'];
-let tags = [];
-function choose(o) {
-  if (couriers.length >= ncour) return;
-  if (Q.get('jam') === '1' && !jams.some(j => o.path.some(t => j.tiles.has(key(...t))))) { const j = newJam(o.path, Q.get('jam') === 'soon' ? 7 : 0); if (j) jams.push(j); }   // &jam=1: a jam on the short way, to look at it; &jam=soon: one starting to gather there
-  const routes = routesFor(o); if (routes.length === 1) return send(o, routes[0].path);
-  if (Q.get('jam') === 'soon') {   // &jam=soon: cars start gathering on the stretch only the big road takes (so the shortcut can dodge them)
-    const others = new Set(routes.slice(1).flatMap(r => r.path.map(t => key(...t)))), own = routes[0].path.filter(t => !others.has(key(...t)) && sim.A.isRoad(...t));
-    if (own.length >= 3) { const i = Math.floor(own.length / 2), seg = own.slice(Math.max(0, i - 2), i + 2); jams = jams.filter(j => !seg.some(t => j.tiles.has(key(...t)))); jams.push({ ...newJam(o.path, 6), tiles: new Set(seg.map(t => key(...t))), list: seg, cars: seg.map((t, k) => ({ col: CARS[(t[0] * 7 + t[1] * 3 + k) % CARS.length], ph: Math.random() * 6 })) }); }
-  }
-  choosing = { o, routes, hover: 0 }; camGrab(); cam.back = false;
-  tags = routes.map((r, i) => { const t = el('button', { class: 'routetag', style: `--rc:${ROUTE[i]}`, 'aria-label': r.name, on: { click: () => send(o, r.path), pointerenter: () => { choosing.hover = i; } } }, ...secs(r.f, o.fresh)); document.body.append(t); return t; });
-  draw();
-}
-/** While I choose, the clouds move and the cars gather: each route's forecast is read again, on its tag and in the ledger. */
+const ROUTE = ['#ffd23a', '#4ee0c1'];
+/** The waiting order's two ways are read again twice a second (the cars gather while I look); the card swaps to two buttons
+ *  the moment its big road is going to be jammed when the bike would get there. */
 let refreshIn = 0;
-function refreshChoice(dt) {
-  if (!choosing || (refreshIn -= dt) > 0) return; refreshIn = .5;
-  const setSec = (b, f) => { const sp = b?.querySelector('.sec'); if (sp) { sp.textContent = `${Math.ceil(f.t)}초`; sp.classList.toggle('late', f.t > choosing.o.fresh); } };
-  choosing.routes.forEach((r, i) => { r.f = forecast(r.path); setSec(tags[i], r.f); });
-  for (const b of panel?.querySelectorAll('.lroute') ?? []) { const i = [...b.parentNode.children].indexOf(b), r = choosing.routes[i]; if (r) setSec(b, r.f); }
-}
-function unchoose() { choosing = null; tags.forEach(t => t.remove()); tags = []; }
-/** Each route's tag sits on a stretch only it takes (the middle of it), so the tags never stack. */
-function placeTags() {
-  if (!choosing) return; const placed = [];
-  choosing.routes.forEach((r, i) => { const others = new Set(choosing.routes.filter((_, j) => j !== i).flatMap(q => q.path.map(t => key(...t))));
-    const own = r.path.filter(t => !others.has(key(...t))), list = own.length ? own : r.path, [x, z] = list[Math.floor(list.length / 2)], [sx, sy] = screenAt(x + .5, z + .5);
-    const t = tags[i]; if (!t) return; let X = Math.round(sx - t.offsetWidth / 2), Y = Math.round(sy - t.offsetHeight - 12);
-    for (const q of placed) if (X < q.x + q.w && X + t.offsetWidth > q.x && Y < q.y + q.h && Y + t.offsetHeight > q.y) Y = q.y - t.offsetHeight - 6;   // two tags on top of each other: this one steps up
-    placed.push({ x: X, y: Y, w: t.offsetWidth, h: t.offsetHeight }); t.style.transform = `translate(${X}px, ${Y}px)`; t.classList.toggle('on', choosing.hover === i); });
+const risky = (o) => o.routes.length > 1 && o.routes[0].f.jam > 0;
+function refreshOffer(dt) {
+  const o = orders[0]; if (!o || (refreshIn -= dt) > 0) return; refreshIn = .5;
+  for (const r of o.routes) r.f = forecast(r.path);
+  if (risky(o) !== !!o.risky) { o.risky = risky(o); draw(); return; }
+  for (const b of panel?.querySelectorAll('.lroute') ?? []) { const r = o.routes[+b.dataset.i], sp = b.querySelector('.sec'); if (r && sp) { sp.textContent = `${Math.ceil(r.f.t)}초`; sp.classList.toggle('late', r.f.t > o.fresh); } }
 }
 
 // ---------- the ride ----------
@@ -238,7 +217,7 @@ function makeSound() {
 
 function send(o, path) {
   if (couriers.length >= ncour) return;
-  unchoose(); orders = orders.filter(x => x !== o); sent++;
+  orders = orders.filter(x => x !== o); sent++;
   if (!sound) sound = makeSound();   // the press is the gesture that lets sound start
   for (const q of couriers) q.follow = false;
   const c = { o, path, at: 0, v: 0, back: false, turns: turnsOf(path), drifted: new Set(), drift: 0, dsign: 1, start: .7, puff: 0, lastSaid: 0, follow: true,
@@ -253,7 +232,7 @@ function handoff(c) {
   c.tier = f < 0 ? 'cold' : f >= HOT ? 'hot' : 'ok'; c.handoff = 0;
   if (c.tier === 'cold') { c.soggy = true; redone++; if (orders.length < CAP) orders.push({ ...c.o, id: Math.random(), ttl: 70, ttl0: 70, redo: true }); else missed++;
     setTimeout(() => popAt(x, z, '식었어요…', 'loud cold'), 350); }
-  else { const tip = Math.ceil(c.o.reward * (c.tier === 'hot' ? .6 : .15)); coins += c.o.reward + tip; tips += tip; if (c.tier === 'hot') hot++;
+  else { const tip = Math.ceil(c.o.reward * (c.tier === 'hot' ? .6 : .15)); coins += c.o.reward + tip; tips += tip; S.myDoc.wallet.coins += c.o.reward + tip; S.dirty = true;   // into my island's wallet (the HUD's coins) if (c.tier === 'hot') hot++;
     if (c.tier === 'hot') setTimeout(() => popAt(x, z, '따끈!', 'loud hot'), 350);
     setTimeout(() => { emit(x, z, 'coin', c.tier === 'hot' ? 14 : 6, 1.2); popAt(x, z, `+${c.o.reward + tip}`, 'gold'); sound?.coins(c.tier === 'hot' ? 4 : 2); }, 900);
     const line = c.tier === 'hot' ? reviewLine(c.o.shop) : null; if (line) setTimeout(() => bubble(c, line), 1200); }   // a hot one: the regular says a line of the shop's own reviews
@@ -266,9 +245,9 @@ function bubble(c, text) {
 
 function tick(dt) {
   // orders: new ones while there is room (faster with more couriers: more regulars), old ones run out
-  if (orders.length < CAP && (nextIn -= dt) <= 0) { const o = newOrder(); if (o) orders.push(o); nextIn = rnd(...ORDER) / ncour ** .9; }
+  if (!orders.length && !couriers.length && (nextIn -= dt) <= 0) { const o = newOrder(); if (o) { orders.push(o); draw(); } nextIn = rnd(...ORDER); }   // one order at a time
   for (const o of orders) o.ttl -= dt;
-  const gone = orders.filter(o => o.ttl <= 0); if (gone.length) { missed += gone.length; orders = orders.filter(o => o.ttl > 0); if (choosing && gone.includes(choosing.o)) { unchoose(); cam.back = true; } }
+  const gone = orders.filter(o => o.ttl <= 0); if (gone.length) { missed += gone.length; orders = orders.filter(o => o.ttl > 0); }
 }
 
 function moveCouriers(dt) {
@@ -426,13 +405,13 @@ function drawSprites(g, d) {
   const one = (mx, my, depth, draw) => { at(mx, my); GA = depth != null && hidden(mx, my, depth) ? .45 : 1; g.globalAlpha = GA; draw(); GA = 1; g.globalAlpha = 1; };
   // routes along the ground: true scale, the dashes a building stands in front of are left out
   g.setTransform(d * k, 0, 0, d * k, d * r.left, d * r.top);
-  if (choosing) { choosing.routes.forEach((q, i) => { if (i !== choosing.hover) drawRoute(g, q.path, ROUTE[i], false, 0, q.f.marks); }); const h = choosing.routes[choosing.hover]; drawRoute(g, h.path, ROUTE[choosing.hover], true, 0, h.f.marks); }
+  const wait = !couriers.length && orders[0]; if (wait?.risky) wait.routes.forEach((q, i) => drawRoute(g, q.path, ROUTE[i], true, 0, q.f.marks));
   for (const c of couriers) if (!c.back && c.handoff == null && c.crashT <= 0) drawRoute(g, c.path, 'rgba(255,248,234,.9)', false, c.at + 1);   // the way ahead, faint
   for (const j of jams) j.list.forEach(([x, z], i) => { const [px, py] = pr.P(x + .5, z + .5); one(px, py, x + z + 1, () => drawCar(g, j, i)); });
   for (const c of couriers) { const [x, z] = tileAt(c.path, c.at), [px, py] = pr.P(x, z); one(px, py, x + z + .3, () => drawBike(g, c));
     if (c.handoff != null) { const [ex, ez] = c.path[c.path.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, ex + ez + 1.4, () => drawRegular(g, c)); } }
   for (const c of couriers) if (!c.back && c.handoff == null) { const [ex, ez] = c.path[c.path.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, c.path, '#ffd23a')); }
-  if (choosing) { const p = choosing.o.path, [ex, ez] = p[p.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, p, ROUTE[choosing.hover])); }
+  if (wait) { const p = wait.path, [ex, ez] = p[p.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, p, '#ffd23a')); }   // where the waiting order goes
   g.setTransform(d, 0, 0, d, 0, 0);
 }
 
@@ -490,38 +469,31 @@ function placePops(dt) {
 // ---------- the ledger panel ----------
 /** A route's arrival in seconds, red when the food would be cold by then. */
 const secs = (f, fresh) => [el('span', { class: 'sec' + (f.t > fresh ? ' late' : '') }, `${Math.ceil(f.t)}초`)];
-const cancelChoose = () => { unchoose(); cam.back = true; draw(); };
-// The ledger (2026-11-28 "텍스트가 많아서 읽히지가 않고"): what and from where, how long it waits (a thin bar), the button. Why a
-// route is risky shows on the map (cars gathering, wet roads, the dashes going red or blue), not in words here.
 let held = false, dirty = false;
-// Game UI, not a web form (2026-11-28 "UI가 웹페이지 느낌이 나"): the game's own cream cards with a dark rim and a chunky
-// shadow, Jua lettering, the regular's face with a ring for the time left, a yellow coin button; the ledger itself opens
-// from a round button with a red count badge, like the dock's.
+// The ledger, cut back to the core (2026-11-28): one order: the regular's face with a ring for how long they wait, what they
+// ordered, how long it stays warm (clock) and the pay; one "배달" button, or, when cars are gathering on the big road, two:
+// the big road and the grass, each with its arrival in seconds (red: it would arrive cold).
 function draw() {
   if (!panel) return; if (held) { dirty = true; return; } dirty = false;
-  const free = ncour - couriers.length;
-  panel.classList.toggle('min', collapsed);
   const tog = el('button', { class: 'rb sm ltog' + (collapsed ? '' : ' on'), title: '단골 장부', 'aria-label': '단골 장부', 'aria-expanded': String(!collapsed), on: { click: () => { collapsed = !collapsed; draw(); } } },
     el('span', { class: 'ic' }, iconEl('receipt', 24, '')), orders.length ? el('span', { class: 'badge' }, String(orders.length)) : null, el('span', { class: 'lb' }, '장부'));
   if (collapsed) { panel.replaceChildren(tog); return; }
   const card = (o) => {
-    const picking = choosing?.o === o, left = Math.max(0, Math.min(1, o.ttl / (o.ttl0 || o.ttl)));
-    const face = el('span', { class: 'lface' + (left < .25 ? ' low' : ''), style: `--p:${left.toFixed(3)}`, title: o.shopName }, faceEl(o.need));
-    const head = el('div', { class: 'lrow' }, face, el('span', { class: 'lt' }, el('b', {}, o.menu), el('small', {}, `×${o.qty}`)), o.redo ? el('span', { class: 'lagain' }, '다시') : null,
-      picking ? el('button', { class: 'lx', title: '취소', 'aria-label': '취소', on: { click: cancelChoose } }, iconEl('close', 16, ''))
-        : (() => { const b = el('button', { class: 'lgo', 'aria-label': `배달 +${o.reward}`, on: { click: () => choose(o) } }, iconEl('coin', 18, ''), `+${o.reward}`); b.disabled = free <= 0 || !!choosing; return b; })());
-    return el('div', { class: 'lcard' + (picking ? ' on' : ''), style: `--sc:${o.color}` }, head,
-      picking ? el('div', { class: 'lroutes' }, ...choosing.routes.map((r, i) => el('button', { class: 'lroute' + (choosing.hover === i ? ' on' : ''), style: `--rc:${ROUTE[i]}`, on: { click: () => send(o, r.path), pointerenter: () => { choosing.hover = i; } } }, el('i'), el('b', {}, r.name), ...secs(r.f, o.fresh)))) : null);
+    const left = Math.max(0, Math.min(1, o.ttl / (o.ttl0 || o.ttl))), two = o.risky && !couriers.length;
+    const head = el('div', { class: 'lrow' }, el('span', { class: 'lface' + (left < .25 ? ' low' : ''), style: `--p:${left.toFixed(3)}`, title: o.shopName }, faceEl(o.need)),
+      el('span', { class: 'lt' }, el('b', {}, o.menu), el('small', {}, `×${o.qty}`)), o.redo ? el('span', { class: 'lagain' }, '다시') : null,
+      el('span', { class: 'lwarm', title: '식기 전' }, iconEl('clock', 16, ''), `${o.fresh}초`), el('span', { class: 'lpay' }, iconEl('coin', 16, ''), `+${o.reward}`));
+    const act = two
+      ? el('div', { class: 'lroutes' }, ...o.routes.map((r, i) => el('button', { class: 'lroute', 'data-i': String(i), style: `--rc:${ROUTE[i]}`, on: { click: () => send(o, r.path) } }, el('i'), el('b', {}, i ? '잔디로' : '큰길'), ...secs(r.f, o.fresh))))
+      : (() => { const b = el('button', { class: 'lgo', on: { click: () => send(o, o.path) } }, '배달'); b.disabled = !!couriers.length; return b; })();
+    return el('div', { class: 'lcard' + (two ? ' on' : '') }, head, act);
   };
   const going = couriers.map(c => el('div', { class: 'lcard going' + (c.failed || c.soggy ? ' bad' : c.tier === 'hot' && c.handoff != null ? ' hot' : '') },
     el('div', { class: 'lrow' }, el('span', { class: 'lface bike' }, iconEl('scooter', 26, '')), el('span', { class: 'lt' }, el('b', {}, c.o.menu), el('small', {}, `×${c.o.qty}`)),
-      el('span', { class: 'lstate' }, c.failed ? '꽈당' : c.handoff != null ? (c.tier === 'hot' ? '따끈!' : c.tier === 'cold' ? '식음' : '도착') : c.back ? '복귀' : '배달 중'))));
+      el('span', { class: 'lstate' }, c.handoff != null ? (c.tier === 'hot' ? '따끈!' : c.tier === 'cold' ? '식음' : '도착') : c.back ? '복귀' : '배달 중'))));
   const foot = el('div', { class: 'lfoot' },
-    el('span', { class: 'lcoins', title: `팁 ${tips} · 따끈 ${hot} · 보냄 ${sent} · 사고 ${crashed} · 식음 ${redone} · 놓침 ${missed}` }, iconEl('coin', 20, ''), coins.toLocaleString('ko-KR')),
-    el('button', { class: 'rb sm' + (soundOn ? ' on' : ''), title: '소리', 'aria-label': '소리', 'aria-pressed': String(soundOn), on: { click: () => { soundOn = !soundOn; draw(); } } }, el('span', { class: 'ic' }, iconEl('horn', 24, '')), el('span', { class: 'lb' }, '소리')),
-    el('button', { class: 'rb sm', title: '배달원 +1', 'aria-label': '배달원 +1', on: { click: () => { ncour = Math.min(4, ncour + 1); draw(); } } }, el('span', { class: 'ic' }, iconEl('scooter', 24, '')), el('span', { class: 'badge' }, `${ncour}`), el('span', { class: 'lb' }, '배달원')));
-  if (ncour >= 4) foot.lastChild.disabled = true;
-  panel.replaceChildren(tog, el('div', { class: 'lcards' }, ...going, ...orders.slice().sort((a, b) => a.ttl - b.ttl).map(card)), foot);
+    el('button', { class: 'rb sm' + (soundOn ? ' on' : ''), title: '소리', 'aria-label': '소리', 'aria-pressed': String(soundOn), on: { click: () => { soundOn = !soundOn; draw(); } } }, el('span', { class: 'ic' }, iconEl('horn', 24, '')), el('span', { class: 'lb' }, '소리')));
+  panel.replaceChildren(tog, el('div', { class: 'lcards' }, ...going, ...orders.map(card)), foot);
 }
 
 /** Start the toy once my island is there. */
@@ -534,11 +506,9 @@ export function startLedgerToy() {
     box()?.addEventListener('pointerdown', camLetGo, true); box()?.addEventListener('wheel', camLetGo, { capture: true, passive: true });   // a drag or the wheel on the map: the camera lets go
     for (const id of ['zin', 'zout']) document.getElementById(id)?.addEventListener('pointerdown', camLetGo, true);
     panel.addEventListener('pointerdown', () => { held = true; }); addEventListener('pointerup', () => { held = false; if (dirty) draw(); }, true); addEventListener('pointercancel', () => { held = false; if (dirty) draw(); }, true);
-    addEventListener('keydown', (e) => { if (e.key === 'Escape' && choosing) cancelChoose(); });
     let acc = 0;   // on the game's own frame (main.js), so the camera, the map, its labels and these sprites never drift a frame apart
-    S.preDraw = (dt) => { weatherTick(dt); moveCouriers(dt); camStep(dt); refreshChoice(dt); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } };
-    S.postDraw = (dt) => { drawOver(dt); placePops(dt); placeTags(); };
-    const wq = Q.get('wx'); if (WX[wq]) clouds.push(newCloud(wq, true));   // &wx=rain|snow: a slow cloud over my island now, to look at it
+    S.preDraw = (dt) => { weatherTick(dt); moveCouriers(dt); camStep(dt); refreshOffer(dt); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } };
+    S.postDraw = (dt) => { drawOver(dt); placePops(dt); };
     draw();
   }, 500);
 }
