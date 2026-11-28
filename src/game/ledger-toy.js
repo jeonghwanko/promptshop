@@ -307,8 +307,8 @@ function moveCouriers(dt) {
     const inJam = jamAt(key(...here)), grass = !sim.A.isRoad(...here); c.grass = grass;
     if (inJam && !c.jamSaid && !c.back) { c.jamSaid = true; draw(); }
     if (!c.back && !c.failed && c.handoff == null && c.crashT <= 0) c.took += dt;
-    if (c.crashT > 0) { c.crashT -= dt; c.v = 0; if (c.crashT <= 0) { c.back = true; c.failed = true; if (c.follow) { c.follow = false; cam.back = true; } draw(); } }
-    else if (c.handoff != null) { c.handoff += dt; c.v = 0; if (c.handoff >= STAY) { c.handoff = null; c.back = true; c.at = last; c.drifted.clear(); c.start = .6; if (c.follow) { c.follow = false; cam.back = true; } sound?.vroom(); draw(); } }
+    if (c.crashT > 0) { c.crashT -= dt; c.v = 0; if (c.crashT <= 0) { c.back = true; c.failed = true; draw(); } }   // limping home, the camera still on it
+    else if (c.handoff != null) { c.handoff += dt; c.v = 0; if (c.handoff >= STAY) { c.handoff = null; c.back = true; c.at = last; c.drifted.clear(); c.start = .6; sound?.vroom(); draw(); } }   // riding home, the camera still on it
     else {
       // speed: full on the straights, braking into the next corner, slower in a jam, in rain or snow, or limping home after a crash
       const fwd = !c.back, ahead = fwd ? c.turns.find(t => t > c.at) : [...c.turns].reverse().find(t => t < c.at), dist = ahead == null ? 99 : Math.abs(ahead - c.at);
@@ -328,7 +328,7 @@ function moveCouriers(dt) {
       if (c.slip) { c.slip = false; c.crashT = 1.6; crashed++; hitstop = .14; sound?.crash(); if (c.follow) { cam.shake = .5; cam.punch = .16; }
         const [x, z] = tileAt(path, c.at); emit(x, z, 'smoke', 14, 1.6); emit(x, z, 'spark', 10, 1.2); pop(c, '꽈당!', 'loud'); draw(); }
       else if (fwd && c.at >= last) { c.v = 0; handoff(c); }
-      else if (!fwd && c.at <= 0) { couriers = couriers.filter(x => x !== c); draw(); continue; }
+      else if (!fwd && c.at <= 0) { if (c.follow) { c.follow = false; cam.back = true; } couriers = couriers.filter(x => x !== c); draw(); continue; }   // home: only now the camera pulls back to the wide view
       moving = true; vmaxNow = Math.max(vmaxNow, c.v);
       // exhaust behind; skid marks while drifting
       const [x, z] = tileAt(path, c.at); c.puff -= dt; if (c.puff <= 0) { c.puff = c.v > 2.5 ? .06 : .12; emit(x, z, grass ? 'dust' : 'exhaust', grass ? 2 : 1, .5); if (grass && c.v > 1.5) emit(x, z, 'leaf', 2, .8); }   // grass bits kicked up off the road
@@ -527,7 +527,7 @@ const secs = (f, fresh) => [el('span', { class: 'sec' + (f.t > fresh ? ' late' :
  *  길과 장애물, 목표물이 잘 보여야 돼"), so the road, the cars in the way, the pin and the bike are all in sight. */
 const FADE = .3;
 function fadeStep(dt) {
-  const want = couriers.some(c => !c.back) || (!couriers.length && orders[0]?.risky) ? FADE : 1, now = S.fadeBuildings ?? 1;
+  const want = couriers.length > 0 || (!couriers.length && orders[0]?.risky) ? FADE : 1, now = S.fadeBuildings ?? 1;
   const next = now + (want - now) * (1 - Math.exp(-6 * dt)); S.fadeBuildings = Math.abs(next - want) < .01 ? want : next;
 }
 /** The riding card's track: the bike slides along it as the real one rides (every frame, not on the panel's redraw). */
