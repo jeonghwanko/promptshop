@@ -61,7 +61,7 @@ export async function createMine(doc) {
   doc.rev = 1; S.myDoc = doc; S.role = 'live'; lease = { role: 'live', term: 1 }; lastSave = now();
   S.docs.set(me, doc); rebuild();
   for (let i = 0; ; i++) {
-    try { await myRef().set({ ...doc, term: 1, by: WRITER, wb: WRITER, hb: Date.now() }); return true; }
+    try { await myRef().set({ ...doc, term: 1, by: WRITER, wb: WRITER, hb: Date.now() }); sessionStart(null); return true; }   // a new player's first session (the lease never passes through hooks.live here)
     catch (e) {
       if (e?.code === 'denied') { S.myDoc = null; S.role = 'new'; lease = { role: 'new', term: 0 }; S.docs.delete(me); rebuild(); return false; }   // refused (no invite, the island just taken): undo, and say why
       if (i === 2) { S.dirty = true; return true; }   // still unreachable: play on; the next save makes the island (save above)
