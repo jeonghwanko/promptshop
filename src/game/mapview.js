@@ -300,7 +300,8 @@ export function drawMap(dt) {
         g.restore(); }, key: p.key, s, px, py }); continue; }
     const gh = ghostMap.get(p.key);
     items.push({ gh, d: p.x + p.z + n, draw: () => { const x0 = Math.round(px - s.anchor.x), y0 = Math.round(py - s.anchor.y);
-      if (S.fadeBuildings < 1) { g.globalAlpha = S.fadeBuildings; g.drawImage(s.canvas, x0, y0); g.globalAlpha = 1; return; }   // a toy (the delivery) wants the roads seen: every building see-through
+      if (S.fadeBuildings < 1) {   // a toy (the delivery) wants the roads seen: the buildings cross-fade to faint grey silhouettes
+        const col = Math.max(0, (S.fadeBuildings - .3) / .7); if (col > 0) { g.globalAlpha = col; g.drawImage(s.canvas, x0, y0); } g.globalAlpha = .38 * (1 - col); g.drawImage(offOf(s), x0, y0); g.globalAlpha = 1; return; }
       if (gh) { g.drawImage(gh.solid, x0, y0); g.globalAlpha = GHOST_A; g.drawImage(gh.ghost, x0, y0); g.globalAlpha = 1; } else g.drawImage(s.canvas, x0, y0);
       if (isDark(p)) { g.drawImage(offOf(s), x0, y0); offMark(px, py - s.anchor.y + s.top); }   // no power: the colour drains out and a grey bolt shows why (not a dark blot)
       const u = connectU(p.key); if (u != null && u >= 1) { lightUp(p, px, py); const f = Math.max(0, 1 - (u - 1) / .3); if (f > 0) { g.globalCompositeOperation = 'lighter'; g.globalAlpha = .45 * f; g.drawImage(s.canvas, x0, y0); g.globalCompositeOperation = 'source-over'; g.globalAlpha = 1; } } }, key: p.key, s, px, py }); }

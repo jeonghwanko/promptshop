@@ -693,3 +693,16 @@ body.hide-level.buildmode #who { display:none; }
 .toystars { animation: starsout 2.2s linear forwards; } @keyframes starsout { 0%, 80% { opacity: 1; } to { opacity: 0; } }
 .coinb.gulp .cic { animation: gulp .22s cubic-bezier(.2,1.6,.4,1); } @keyframes gulp { 40% { transform: scale(1.35) rotate(-8deg); } to { transform: none; } }
 @media (prefers-reduced-motion: reduce) { .toystars .st.on, .toystars .st.off, .coinb.gulp .cic { animation: none; } }
+/* the ledger's moments (2026-11-28 polish): a new order drops in, the two-way switch shakes, the warm way glows, the 배달 button breathes */
+.ledger .lcard.enter { animation: cardin .5s cubic-bezier(.2,1.5,.35,1) both; } @keyframes cardin { from { opacity: 0; transform: translateY(-34px) scale(.85) rotate(-3deg); } 60% { opacity: 1; } to { transform: none; } }
+.ledger .lcard.swap { animation: cardshake .38s; } @keyframes cardshake { 20% { transform: translateX(-5px) rotate(-1.5deg); } 45% { transform: translateX(5px) rotate(1.5deg); } 70% { transform: translateX(-3px); } }
+.ledger .lgo { gap: 6px; } .ledger .lcard > .lgo:not(:disabled) { animation: breathe 1.6s ease-in-out infinite; }
+@keyframes breathe { 50% { background: #ffd166; box-shadow: inset 0 0 0 2.5px #2e241a, inset 0 -4px 0 #b47d14, 0 3px 0 rgba(20,30,40,.4), 0 0 0 4px rgba(255,209,102,.45); } }
+.ledger .lroute.pick { animation: pick 1s ease-in-out infinite; } @keyframes pick { 50% { box-shadow: inset 0 0 0 2.5px #2e241a, inset 0 -4px 0 #d9c49a, 0 3px 0 rgba(20,30,40,.35), 0 0 0 4px var(--rc); } }
+.spk { position: fixed; left: -4px; top: -4px; z-index: 18; width: 8px; height: 8px; background: #ffd23a; box-shadow: 0 0 0 2px #2e241a; pointer-events: none; }
+.ledger .ltrack { position: relative; display: block; height: 12px; margin: 4px 10px 2px 4px; border-radius: 6px; background: #a9cde4; box-shadow: inset 0 0 0 2px #2e241a; }
+.ledger .ltrack i { position: absolute; left: 2px; top: 2px; bottom: 2px; width: calc((100% - 4px) * var(--u, 0)); border-radius: 4px; background: linear-gradient(90deg, #ffd166, #f2a12e); }
+.ledger .ltrack.cold i { background: #8fb6d6; }
+.ledger .ltrack b { position: absolute; top: -12px; left: calc((100% - 22px) * var(--u, 0)); width: 22px; height: 22px; display: grid; place-items: center; }
+.ledger .ltrack b img { image-rendering: pixelated; }
+@media (prefers-reduced-motion: reduce) { .ledger .lcard.enter, .ledger .lcard.swap, .ledger .lgo, .ledger .lroute.pick { animation: none !important; } }

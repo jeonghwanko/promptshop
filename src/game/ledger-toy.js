@@ -192,7 +192,7 @@ const risky = (o) => o.routes.length > 1 && o.routes[0].f.jam > 0;
 function refreshOffer(dt) {
   const o = orders[0]; if (!o || (refreshIn -= dt) > 0) return; refreshIn = .5;
   for (const r of o.routes) r.f = forecast(r.path);
-  if (risky(o) !== !!o.risky) { o.risky = risky(o); draw(); return; }
+  if (risky(o) !== !!o.risky) { o.risky = risky(o); o.swapAt = performance.now(); if (o.risky) sound?.honk(); draw(); return; }
   for (const b of panel?.querySelectorAll('.lroute') ?? []) { const r = o.routes[+b.dataset.i], sp = b.querySelector('.sec'); if (r && sp) { sp.textContent = `${Math.ceil(r.f.t)}초`; sp.classList.toggle('late', r.f.t > o.fresh); } }
 }
 
@@ -201,7 +201,9 @@ const parts = [], pops = [];   // smoke, exhaust, skid marks, sparks, coins: kep
 let fxCanvas = null, sound = null, soundOn = true, hitstop = 0;
 const tileAt = (path, s) => { const last = path.length - 1, i = Math.max(0, Math.min(last, Math.floor(s))), f = Math.max(0, Math.min(1, s - i)), a = path[i], b = path[Math.min(last, i + 1)]; return [a[0] + (b[0] - a[0]) * f + .5, a[1] + (b[1] - a[1]) * f + .5]; };
 const screenAt = (x, z) => { const [px, py] = pr.P(x, z); return toScreen(px, py); };
-const emit = (x, z, kind, n, spread = 1) => { for (let k = 0; k < n; k++) parts.push({ x, z, kind, ox: (Math.random() - .5) * 10 * spread, oy: (Math.random() - .5) * 6 * spread, vx: (Math.random() - .5) * 40 * spread * (kind === 'coin' ? 3 : 1), vy: kind === 'coin' ? -160 - Math.random() * 90 : -10 - Math.random() * 30, life: 0, max: kind === 'skid' ? 3 : kind === 'spark' ? .4 : kind === 'coin' ? .9 : .5 + Math.random() * .5 }); };
+const emit = (x, z, kind, n, spread = 1) => { for (let k = 0; k < n; k++) parts.push({ x, z, kind, ox: (Math.random() - .5) * 10 * spread, oy: (Math.random() - .5) * 6 * spread, vx: (Math.random() - .5) * 40 * spread * (kind === 'coin' ? 3 : 1), vy: kind === 'coin' ? -160 - Math.random() * 90 : kind === 'leaf' ? -60 - Math.random() * 50 : -10 - Math.random() * 30, life: 0, max: kind === 'skid' ? 3 : kind === 'spark' ? .4 : kind === 'coin' ? .9 : .5 + Math.random() * .5, ph: Math.random() }); };
+/** A ring of dust bursting out flat along the ground (a pull-away, a pin landing). */
+const ring = (x, z, n = 14, speed = 70) => { for (let k = 0; k < n; k++) { const a = k / n * Math.PI * 2; parts.push({ x, z, kind: 'dust', ox: 0, oy: 0, vx: Math.cos(a) * speed, vy: Math.sin(a) * speed * .45, life: 0, max: .45 + Math.random() * .2, ph: 0 }); } };
 
 /** Engine, tyres, a crash and a till, made in code (the game has no sound files). */
 function makeSound() {
@@ -216,6 +218,8 @@ function makeSound() {
       skid() { if (soundOn) burst(2200, 3, .22, .45); }, crash() { if (soundOn) { burst(300, .7, .5, .5, 'lowpass'); burst(3000, 2, .15, .3); } },
       vroom() { if (soundOn) { const t = ctx.currentTime; osc.frequency.cancelScheduledValues(t); osc.frequency.setValueAtTime(60, t); osc.frequency.linearRampToValueAtTime(170, t + .35); osc.frequency.linearRampToValueAtTime(110, t + .7); } },
       coins(n) { if (soundOn) for (let i = 0; i < n; i++) ding(1320 + i * 220, i * .07); },
+      bell() { if (soundOn) { ding(1568, 0); ding(1319, .12); } },   // 띵동
+      honk() { if (soundOn) { const o = ctx.createOscillator(), gg = ctx.createGain(), t = ctx.currentTime; o.type = 'square'; o.frequency.value = 330; gg.gain.setValueAtTime(0, t); for (const [a, b] of [[0, .12], [.18, .32]]) { gg.gain.setValueAtTime(.06, t + a); gg.gain.setValueAtTime(0, t + b); } o.connect(gg).connect(master); o.start(t); o.stop(t + .35); } },   // 빵빵
       tick(i) { if (soundOn) ding(988 * 2 ** (Math.min(i, 14) / 12), 0); },   // a coin lands: each a semitone up
       stamp(i) { if (soundOn) { burst(160, .8, .55, .22, 'lowpass'); ding(784 * 2 ** (i * 4 / 12), .02); } } };   // a star slams: a thud and a ding a third higher each
   } catch { return null; }
@@ -230,7 +234,7 @@ function send(o, path) {
     wx: null, wxSaid: false, jamSaid: false, took: 0, soggy: false, flip: 1, up: false, wheel: 0, crashT: 0, handoff: null };
   c.marks = forecast(path).marks; couriers.push(c); camGrab();   // marks: where the way ahead meets the jam (red dashes)
    cam.back = false; sound?.vroom();
-  const [x, z] = tileAt(path, 0); emit(x, z, 'exhaust', 10, 1.4); popAt(x, z, '부릉!', 'loud'); draw();
+  const [x, z] = tileAt(path, 0); emit(x, z, 'exhaust', 10, 1.4); ring(x, z, 16, 90); popAt(x, z, '부릉!', 'loud'); cam.punch = .06; draw();
 }
 
 /** Paid at the door: the reward, and a tip for food that is still hot; the regular says a line of the shop's own reviews. */
@@ -249,6 +253,13 @@ function handoff(c) {
     setTimeout(() => { popAt(x, z, `+${pay.toLocaleString('ko-KR')}`, 'gold'); payout(pay, dx + .5, dz + .5, c.tier === 'hot' ? 10 : 6); }, 1250);
     const line = c.tier === 'hot' ? reviewLine(c.o.shop) : null; if (line) setTimeout(() => bubble(c, line), 2300); }   // a hot one: the regular says a line of the shop's own reviews
   draw();
+}
+/** Gold sparks fly off a pressed button (screen space, a moment long). */
+function sparkle(btn) {
+  const b = btn?.getBoundingClientRect?.(); if (!b) return;
+  for (let i = 0; i < 12; i++) { const a = i / 12 * Math.PI * 2 + Math.random() * .3, d = 28 + Math.random() * 26, sp = el('i', { class: 'spk' }); document.body.append(sp);
+    const x = b.left + b.width / 2, y = b.top + b.height / 2;
+    sp.animate([{ transform: `translate(${x}px, ${y}px) scale(1)`, opacity: 1 }, { transform: `translate(${x + Math.cos(a) * d}px, ${y + Math.sin(a) * d}px) scale(.3)`, opacity: 0 }], { duration: 420, easing: 'cubic-bezier(.2,.8,.3,1)' }).onfinish = () => sp.remove(); }
 }
 const buzz = (pattern) => { try { navigator.vibrate?.(pattern); } catch { /* no vibration here */ } };
 /** Stars stamped over the regular's door one by one: each slams down with a thud and a higher ding; the rest stay grey. */
@@ -280,7 +291,7 @@ function bubble(c, text) {
 
 function tick(dt) {
   // orders: new ones while there is room (faster with more couriers: more regulars), old ones run out
-  if (!orders.length && !couriers.length && (nextIn -= dt) <= 0) { const o = newOrder(); if (o) { orders.push(o); draw(); } nextIn = rnd(...ORDER); }   // one order at a time
+  if (!orders.length && !couriers.length && (nextIn -= dt) <= 0) { const o = newOrder(); if (o) { o.born = performance.now(); orders.push(o); sound?.bell(); const [ex, ez] = o.path[o.path.length - 1]; setTimeout(() => { ring(ex + .5, ez + .5, 12, 60); sound?.stamp(0); }, 420); draw(); } nextIn = rnd(...ORDER); }   // one order at a time
   for (const o of orders) o.ttl -= dt;
   const gone = orders.filter(o => o.ttl <= 0); if (gone.length) { missed += gone.length; orders = orders.filter(o => o.ttl > 0); }
 }
@@ -320,7 +331,7 @@ function moveCouriers(dt) {
       else if (!fwd && c.at <= 0) { couriers = couriers.filter(x => x !== c); draw(); continue; }
       moving = true; vmaxNow = Math.max(vmaxNow, c.v);
       // exhaust behind; skid marks while drifting
-      const [x, z] = tileAt(path, c.at); c.puff -= dt; if (c.puff <= 0) { c.puff = c.v > 2.5 ? .06 : .12; emit(x, z, grass ? 'dust' : 'exhaust', grass ? 2 : 1, .5); }
+      const [x, z] = tileAt(path, c.at); c.puff -= dt; if (c.puff <= 0) { c.puff = c.v > 2.5 ? .06 : .12; emit(x, z, grass ? 'dust' : 'exhaust', grass ? 2 : 1, .5); if (grass && c.v > 1.5) emit(x, z, 'leaf', 2, .8); }   // grass bits kicked up off the road
       if (c.drift > 0) emit(x, z, 'skid', 1, .3);
     }
     // which way it faces, how fast it moves on the map (the camera leads by it)
@@ -401,17 +412,23 @@ function drawCar(g, j, i) {
   g.globalAlpha = GA;
 }
 /** Where the bike is going: a bouncing pin over the door. */
-function drawPin(g, path, col) {
-  const [x, z] = path[path.length - 1], [px, py] = pr.P(x + .5, z + .5), b = -Math.round(Math.abs(Math.sin(performance.now() / 260)) * 5), X = Math.round(px), Y = Math.round(py - 30 + b);
-  outlined(g, [[X - 5, Y - 8, 10, 8, col], [X - 3, Y, 6, 2, col], [X - 1, Y + 2, 2, 2, col], [X - 2, Y - 6, 4, 4, '#fff8ea']]);
+const bounceOut = (u) => { const n = 7.5625, d = 2.75; return u < 1 / d ? n * u * u : u < 2 / d ? n * (u -= 1.5 / d) * u + .75 : u < 2.5 / d ? n * (u -= 2.25 / d) * u + .9375 : n * (u -= 2.625 / d) * u + .984375; };
+/** Where the bike is going: a big pin over the door, bobbing; it drops in from the sky when the order arrives. */
+function drawPin(g, path, col, born = 0) {
+  const [x, z] = path[path.length - 1], [px, py] = pr.P(x + .5, z + .5), u = Math.min(1, (performance.now() - born) / 700), drop = (1 - bounceOut(u)) * 140;
+  const b = u < 1 ? 0 : -Math.round(Math.abs(Math.sin(performance.now() / 260)) * 5), X = Math.round(px), Y = Math.round(py - 40 + b - drop);
+  rect(g, X - 6, Math.round(py) - 2, 12, 3, `rgba(23,40,70,${.15 + .2 * u})`);   // its shadow on the ground, darker as it lands
+  outlined(g, [[X - 8, Y - 13, 16, 13, col], [X - 5, Y, 10, 3, col], [X - 2, Y + 3, 4, 3, col], [X - 1, Y + 6, 2, 2, col], [X - 4, Y - 10, 8, 7, '#fff8ea'], [X - 6, Y - 12, 3, 2, 'rgba(255,255,255,.6)']]);
 }
 const diamond = (g, x, z) => { const a = pr.P(x, z), b = pr.P(x + 1, z), c2 = pr.P(x + 1, z + 1), d2 = pr.P(x, z + 1); g.beginPath(); g.moveTo(...a); g.lineTo(...b); g.lineTo(...c2); g.lineTo(...d2); g.closePath(); g.fill(); };
 /** A route as marching pixel dashes along the road (the picked one bright and thick). */
 function drawRoute(g, path, col, strong, from = 0, marks = null) {
-  const t = performance.now() / 1000, s = strong ? 6 : 4, gap = strong ? 10 : 9;
+  const t = performance.now() / 1000, s = strong ? 6 : 4, gap = strong ? 14 : 12;
   let along = -((t * 36) % gap); g.globalAlpha = strong ? 1 : .6;
   for (let i = Math.max(0, Math.floor(from)); i < path.length - 1; i++) { const [ax, ay] = pr.P(path[i][0] + .5, path[i][1] + .5), [bx, by] = pr.P(path[i + 1][0] + .5, path[i + 1][1] + .5), L = Math.hypot(bx - ax, by - ay);
-    for (; along < L; along += gap) { if (along < 0) continue; const u = along / L, X = Math.round(ax + (bx - ax) * u - s / 2), Y = Math.round(ay + (by - ay) * u - s / 2); if (hidden(X + s / 2, Y + s / 2, path[i][0] + path[i][1] + 1.5)) continue; const m = marks?.get(i + 1); rect(g, X - 1, Y - 1, s + 2, s + 2, OUT); rect(g, X, Y, s, s, m === 'jam' ? '#e2432f' : m === 'wet' ? '#9fd8ff' : col); }
+    for (; along < L; along += gap) { if (along < 0) continue; const u = along / L, X = Math.round(ax + (bx - ax) * u - s / 2), Y = Math.round(ay + (by - ay) * u - s / 2); if (hidden(X + s / 2, Y + s / 2, path[i][0] + path[i][1] + 1.5)) continue; const m = marks?.get(i + 1), ux = (bx - ax) / L, uy = (by - ay) / L, cx = X + s / 2, cy = Y + s / 2, a = s * .9, w = s * 1.1;   // a chevron pointing the way
+      g.beginPath(); g.moveTo(cx + ux * a, cy + uy * a); g.lineTo(cx - ux * a - uy * w, cy - uy * a + ux * w); g.lineTo(cx - ux * a * .2, cy - uy * a * .2); g.lineTo(cx - ux * a + uy * w, cy - uy * a - ux * w); g.closePath();
+      g.lineJoin = 'round'; g.lineWidth = 2.5; g.strokeStyle = OUT; g.stroke(); g.fillStyle = m === 'jam' ? '#e2432f' : m === 'wet' ? '#9fd8ff' : col; g.fill(); }
     along -= L; }
   g.globalAlpha = 1;
 }
@@ -447,7 +464,7 @@ function drawSprites(g, d) {
   for (const c of couriers) { const [x, z] = tileAt(c.path, c.at), [px, py] = pr.P(x, z); one(px, py, x + z + .3, () => drawBike(g, c));
     if (c.handoff != null) { const [ex, ez] = c.path[c.path.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, ex + ez + 1.4, () => drawRegular(g, c)); } }
   for (const c of couriers) if (!c.back && c.handoff == null) { const [ex, ez] = c.path[c.path.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, c.path, '#ffd23a')); }
-  if (wait) { const p = wait.path, [ex, ez] = p[p.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, p, '#ffd23a')); }   // where the waiting order goes
+  if (wait) { const p = wait.path, [ex, ez] = p[p.length - 1], [qx, qy] = pr.P(ex + .5, ez + .5); one(qx, qy, null, () => drawPin(g, p, '#ffd23a', wait.born)); }   // where the waiting order goes
   g.setTransform(d, 0, 0, d, 0, 0);
 }
 
@@ -461,10 +478,11 @@ function drawOver(dt) {
   drawSky(g, px);
   for (let i = parts.length - 1; i >= 0; i--) { const p = parts[i]; p.life += dt; if (p.life >= p.max) { parts.splice(i, 1); continue; }
     const t = p.life / p.max, [sx, sy] = screenAt(p.x, p.z);
-    if (p.kind !== 'skid') { p.ox += p.vx * dt; p.oy += p.vy * dt; p.vx *= .96; if (p.kind === 'coin') p.vy += 520 * dt; }
+    if (p.kind !== 'skid') { p.ox += p.vx * dt; p.oy += p.vy * dt; p.vx *= .96; if (p.kind === 'coin') p.vy += 520 * dt; if (p.kind === 'leaf') p.vy += 240 * dt; if (p.kind === 'dust' && !p.ph) { p.vy *= .9; } }
     const x = Math.round(sx + p.ox), y = Math.round(sy + p.oy - (p.kind === 'coin' ? 30 : 0));
     if (p.kind === 'skid') { g.fillStyle = `rgba(40,32,28,${.55 * (1 - t)})`; g.fillRect(x - px * 1.5, y - px / 2, px * 3, px * 1.5); }
     else if (p.kind === 'spark') { g.fillStyle = t < .5 ? '#fff3a0' : '#f2a12e'; g.fillRect(x, y, px, px); }
+    else if (p.kind === 'leaf') { g.fillStyle = p.ph < .5 ? '#4f9e3e' : '#9ad46e'; g.globalAlpha = 1 - t; g.fillRect(x, y, Math.round(px * 1.5), px); g.globalAlpha = 1; }
     else if (p.kind === 'coin') { const w = Math.round(Math.abs(Math.cos(p.life * 14)) * px * 3 + px); g.fillStyle = OUT; g.fillRect(x - w / 2 - 1, y - px * 2 - 1, w + 2, px * 4 + 2); g.fillStyle = '#ffd23a'; g.fillRect(x - w / 2, y - px * 2, w, px * 4); g.fillStyle = '#fff3a0'; g.fillRect(x - w / 2, y - px * 2, Math.max(1, w / 3), px); }
     else { const n = p.kind === 'smoke' ? 4 + Math.round(t * 5) : 2 + Math.round(t * 3), a = (p.kind === 'smoke' ? .85 : .6) * (1 - t); if (p.kind === 'smoke') { g.fillStyle = `rgba(120,118,128,${a})`; g.fillRect(x - (n + 1) * px / 2, y - (n - 1) * px / 2, (n + 1) * px, (n + 1) * px); }   // a grey shadow under each puff, so the smoke reads as chunks, not a white smudge
       g.fillStyle = p.kind === 'smoke' ? `rgba(250,250,250,${a})` : p.kind === 'dust' ? `rgba(196,160,104,${a * 1.3})` : `rgba(150,150,160,${a})`; g.fillRect(x - n * px / 2, y - n * px / 2, n * px, n * px); }
@@ -512,6 +530,12 @@ function fadeStep(dt) {
   const want = couriers.some(c => !c.back) || (!couriers.length && orders[0]?.risky) ? FADE : 1, now = S.fadeBuildings ?? 1;
   const next = now + (want - now) * (1 - Math.exp(-6 * dt)); S.fadeBuildings = Math.abs(next - want) < .01 ? want : next;
 }
+/** The riding card's track: the bike slides along it as the real one rides (every frame, not on the panel's redraw). */
+function trackStep() {
+  const c = couriers[0], t = panel?.querySelector('.ltrack'); if (!c || !t) return;
+  const u = Math.max(0, Math.min(1, c.at / Math.max(1, c.path.length - 1))), warm = Math.max(0, 1 - c.took / c.o.fresh);
+  t.style.setProperty('--u', u.toFixed(3)); t.style.setProperty('--w', warm.toFixed(3)); t.classList.toggle('cold', warm <= 0);
+}
 let held = false, dirty = false;
 // The ledger, cut back to the core (2026-11-28): one order: the regular's face with a ring for how long they wait, what they
 // ordered, how long it stays warm (clock) and the pay; one "배달" button, or, when cars are gathering on the big road, two:
@@ -526,14 +550,17 @@ function draw() {
     const head = el('div', { class: 'lrow' }, el('span', { class: 'lface' + (left < .25 ? ' low' : ''), style: `--p:${left.toFixed(3)}`, title: o.shopName }, faceEl(o.need)),
       el('span', { class: 'lt' }, el('b', {}, o.menu), el('small', {}, `×${o.qty}`)), o.redo ? el('span', { class: 'lagain' }, '다시') : null,
       el('span', { class: 'lwarm', title: '식기 전' }, iconEl('clock', 16, ''), `${o.fresh}초`), el('span', { class: 'lpay' }, iconEl('coin', 16, ''), `+${o.reward}`));
+    const go = (path) => (e) => { sparkle(e.currentTarget); send(o, path); }, best = two && o.routes[0].f.t > o.fresh ? 1 : -1;   // the way that gets there warm glows
     const act = two
-      ? el('div', { class: 'lroutes' }, ...o.routes.map((r, i) => el('button', { class: 'lroute', 'data-i': String(i), style: `--rc:${ROUTE[i]}`, on: { click: () => send(o, r.path) } }, el('i'), el('b', {}, i ? '잔디로' : '큰길'), ...secs(r.f, o.fresh))))
-      : (() => { const b = el('button', { class: 'lgo', on: { click: () => send(o, o.path) } }, '배달'); b.disabled = !!couriers.length; return b; })();
-    return el('div', { class: 'lcard' + (two ? ' on' : '') }, head, act);
+      ? el('div', { class: 'lroutes' }, ...o.routes.map((r, i) => el('button', { class: 'lroute' + (i === best ? ' pick' : ''), 'data-i': String(i), style: `--rc:${ROUTE[i]}`, on: { click: go(r.path) } }, el('i'), el('b', {}, i ? '잔디로' : '큰길'), ...secs(r.f, o.fresh))))
+      : (() => { const b = el('button', { class: 'lgo', on: { click: go(o.path) } }, iconEl('scooter', 24, ''), '배달'); b.disabled = !!couriers.length; return b; })();
+    const fresh = !o.shown, swapped = performance.now() - (o.swapAt ?? -1e9) < 400; o.shown = true;   // the drop-in and the shake play once, not on every redraw
+    return el('div', { class: 'lcard' + (two ? ' on' : '') + (fresh ? ' enter' : '') + (swapped ? ' swap' : '') }, head, act);
   };
   const going = couriers.map(c => el('div', { class: 'lcard going' + (c.failed || c.soggy ? ' bad' : c.tier === 'hot' && c.handoff != null ? ' hot' : '') },
     el('div', { class: 'lrow' }, el('span', { class: 'lface bike' }, iconEl('scooter', 26, '')), el('span', { class: 'lt' }, el('b', {}, c.o.menu), el('small', {}, `×${c.o.qty}`)),
-      el('span', { class: 'lstate' }, c.handoff != null ? (c.tier === 'hot' ? '따끈!' : c.tier === 'cold' ? '식음' : '도착') : c.back ? '복귀' : '배달 중'))));
+      el('span', { class: 'lstate' }, c.handoff != null ? (c.tier === 'hot' ? '따끈!' : c.tier === 'cold' ? '식음' : '도착') : c.back ? '복귀' : '배달 중')),
+    c.back || c.handoff != null ? null : el('span', { class: 'ltrack' }, el('i'), el('b', {}, iconEl('scooter', 18, '')))));   // how far along the way the bike is (moved every frame)
   const foot = el('div', { class: 'lfoot' },
     el('button', { class: 'rb sm' + (soundOn ? ' on' : ''), title: '소리', 'aria-label': '소리', 'aria-pressed': String(soundOn), on: { click: () => { soundOn = !soundOn; draw(); } } }, el('span', { class: 'ic' }, iconEl('horn', 24, '')), el('span', { class: 'lb' }, '소리')));
   panel.replaceChildren(tog, el('div', { class: 'lcards' }, ...going, ...orders.map(card)), foot);
@@ -551,7 +578,7 @@ export function startLedgerToy() {
     panel.addEventListener('pointerdown', () => { held = true; }); addEventListener('pointerup', () => { held = false; if (dirty) draw(); }, true); addEventListener('pointercancel', () => { held = false; if (dirty) draw(); }, true);
     let acc = 0;   // on the game's own frame (main.js), so the camera, the map, its labels and these sprites never drift a frame apart
     S.preDraw = (dt) => { weatherTick(dt); moveCouriers(dt); camStep(dt); refreshOffer(dt); fadeStep(dt); acc += dt; if (acc >= 1) { tick(acc); acc = 0; draw(); } };
-    S.postDraw = (dt) => { drawOver(dt); placePops(dt); };
+    S.postDraw = (dt) => { drawOver(dt); placePops(dt); trackStep(); };
     draw();
   }, 500);
 }
