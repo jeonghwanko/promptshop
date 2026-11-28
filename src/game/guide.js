@@ -9,7 +9,7 @@ import { allPlots, nameOf, plantTiles } from './model.js';
 import { save, track } from './persist.js';
 import { INVITE_AT, levelOf } from './rules.js';
 import { toScreen, scrollToSlot, applyZoom, chooseZoom } from './camera.js';
-import { emptyNeighbours, newBoard } from './invite.js';
+import { emptyNeighbours, newBoard, myBoards, goBoard } from './invite.js';
 
 // The guide only talks: every step moves on when the thing it points at is done (no buttons in the bubble), so there is
 // one place to press at a time — the faces and the bar at the bottom, or the map when it points there.
@@ -75,6 +75,25 @@ function plantRect() { if (!S.mySlot) return null; const pts = plantTiles(S.mySl
   const l = Math.min(...pts.map(p => p[0])) - 26, r = Math.max(...pts.map(p => p[0])) + 26, t = Math.min(...pts.map(p => p[1])) - 80, b = Math.max(...pts.map(p => p[1])) + 8;
   return r < 0 || b < 0 || l > innerWidth || t > innerHeight ? null : { left: l, top: t, right: r, bottom: b, width: r - l, height: b - t }; }
 
+// On a board that is not mine: 끼룩이 sends me to my own (made or moved into before), or has me make one.
+// One button; with several boards it opens the list of them in the same place.
+let mine = null, listMine = false;
+function showcaseTalk() {
+  const here = SHOWCASE ? '끼룩! 여기는 구경하는 팝업섬이야.' : '끼룩! 여긴 초대받은 친구들의 팝업섬이야.';
+  if (!mine) { myBoards().then(l => { mine = l; if (l.length) guide(); }); }
+  const make = () => el('button', { class: 'gold', on: { click: async (e) => { const b = e.currentTarget; b.disabled = true; if (await newBoard()) return; b.disabled = false; if (mine?.length) { listMine = true; guide(); } } } }, '내 팝업섬 세우기');
+  if (!mine?.length) { speak(here + '\n내 팝업섬을 세우고 친구들을 불러 봐!'); $('gbtns').replaceChildren(make()); return; }
+  if (!listMine) {
+    speak(here + (mine.length === 1 ? `\n네 팝업섬은 ‘${mine[0].name}’이야. 가서 키워 봐!` : `\n네 팝업섬이 ${mine.length}개 있어. 가서 키워 봐!`));
+    $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: () => { if (mine.length === 1) goBoard(mine[0].id); else { listMine = true; guide(); } } } }, '내 팝업섬으로'));
+    return;
+  }
+  speak('어느 팝업섬으로 갈까?');
+  const when = (t) => { const d = new Date(t ?? 0); return `${d.getMonth() + 1}/${d.getDate()}`; };
+  const label = (b) => `${b.name} · ${b.users?.includes(me) ? `가게 ${b.bld ?? 0}` : `빈 섬 ${when(b.at)}`}`;
+  $('gbtns').replaceChildren(el('div', { class: 'gmine' }, ...mine.map(b => el('button', { class: 'gold', on: { click: () => goBoard(b.id) } }, label(b)))));
+}
+
 let panned = -1, inAutoT = 0, inAutoK = -1, waitT = 0, waitK = -1;
 /** Show the current step. */
 export function guide() {
@@ -87,8 +106,7 @@ export function guide() {
     return;
   }
   if (SHOWCASE || (!S.mySlot && !MAY_JOIN && S.scrolled)) {   // the showcase, or a private board I was not invited to: look around, then make my own
-    g.hidden = false; speak(SHOWCASE ? '끼룩! 여기는 구경하는 팝업섬이야.\n내 팝업섬을 세우고 친구들을 불러 봐!' : '끼룩! 여긴 초대받은 친구들의 팝업섬이야.\n내 팝업섬을 세우고 친구들을 불러 봐!');
-    $('gbtns').replaceChildren(el('button', { class: 'gold', on: { click: (e) => { e.currentTarget.disabled = true; newBoard(); } } }, '내 팝업섬 세우기'));
+    g.hidden = false; showcaseTalk();
     return;
   }
   if (picking()) {

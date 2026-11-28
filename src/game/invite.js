@@ -63,7 +63,22 @@ export async function newBoard() {
   if (!db || !me) return;
   const who = site ? (await site.me()).name : '나', id = 'b' + Date.now().toString(36) + Math.floor(Math.random() * 36 ** 2).toString(36);
   try { await db.doc('boards/' + id).set({ name: `${who}의 팝업섬`.slice(0, 24), lat: 34.5 + Math.random() * 3.5, lng: 126.3 + Math.random() * 3, owner: me, at: Date.now(), n: 0, bld: 0, users: [] }); }
-  catch (e) { return toast(e?.message?.startsWith('too many boards') ? '팝업섬은 다섯 개까지, 하루에 몇 개만 만들 수 있어요' : '팝업섬을 만들지 못했어요. 다시 눌러 주세요', 2400); }
+  catch (e) { const m = e?.message ?? ''; toast(m.startsWith('too many boards today') ? '오늘은 팝업섬을 더 만들 수 없어요 · 내 팝업섬으로 가 보세요' : m.startsWith('too many boards') ? '팝업섬은 열 개까지 만들 수 있어요 · 내 팝업섬으로 가 보세요' : '팝업섬을 만들지 못했어요. 다시 눌러 주세요', 2600); return false; }
   track('board_new', { id });
-  const u = new URL(location.href); u.searchParams.set('board', id); for (const k of ['from', 'k', 'world']) u.searchParams.delete(k); location.href = u.toString();
+  goBoard(id); return true;
+}
+/** Open a board of mine. */
+export function goBoard(id) { const u = new URL(location.href); u.searchParams.set('board', id); for (const k of ['from', 'k', 'world']) u.searchParams.delete(k); location.href = u.toString(); }
+/** The boards I made or live on: the ones I live on first (most buildings), then the empty ones I made (newest). Read once a page. */
+let mineP = null;
+export function myBoards() {
+  return mineP ??= (async () => {
+    if (!db || !me) return [];
+    try {
+      const lives = (b) => Array.isArray(b.users) && b.users.includes(me);
+      return (await db.collection('boards').get()).docs.map(d => ({ id: d.id, ...d.data() }))
+        .filter(b => b.id !== 'main' && (b.owner === me || lives(b)))
+        .sort((a, b) => (+lives(b) - +lives(a)) || (b.bld ?? 0) - (a.bld ?? 0) || (b.at ?? 0) - (a.at ?? 0));
+    } catch { return []; }
+  })();
 }

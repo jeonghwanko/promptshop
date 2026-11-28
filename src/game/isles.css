@@ -266,6 +266,7 @@
 #gtext img.tw { vertical-align:-3px; }
 .grow2 { margin-top:10px; gap:8px; transition:opacity .2s, transform .3s cubic-bezier(.2,1.6,.4,1); }
 .grow2.wait { opacity:0; transform:translateY(6px) scale(.9); pointer-events:none; }
+.gmine { display:flex; flex-direction:column; gap:6px; max-height:46vh; overflow-y:auto; } .gmine button { text-align:left; }
 .grow2 button.gold { padding:7px 18px; font:400 16px var(--f-disp); box-shadow:inset 0 0 0 3px #2e241a, inset 0 -4px 0 #c98a12, 0 3px 0 rgba(20,30,40,.35); }
 @media (max-width:600px) { .gbub { max-width:calc(100vw - 130px); min-width:0; font-size:15px; } }
   /* two saves in a row did not land: a small red dot on the coins until one does */
