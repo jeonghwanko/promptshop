@@ -4,7 +4,7 @@ import * as THREE from 'three';
 import { surface, mat, glow, shade, texMat, tex } from './materials.js';
 import { buildRoof } from './roofs.js';
 import { MAX_SHOWN_LEVELS } from './spec.js';
-import { animalModel, ANIMALS } from './animals.js';
+import { animalModel, animalOf, isDark } from './animals.js';
 
 const GH = 1.45, FH = 1.25, PL = 0.12;                    // ground floor, upper floor, default plinth height
 const levelY = (n) => (n <= 0 ? 0 : GH + (n - 1) * FH);
@@ -291,18 +291,18 @@ export function buildExterior(spec, section) {
   // ---------- hero prop ----------
   enter('hero');
   hero(spec.hero);
-  if (spec.owner) { enter('animal'); animalForm(ANIMALS[spec.owner]); }
+  if (spec.owner) { enter('animal'); animalForm(animalOf(spec.owner)); }
   // the building itself takes the owner's shape: ears on the roof, a tail down the side, spikes, a shell, tentacles, a beak over the door
   function animalForm(a) {
     if (!a) return;
     const roofY = plinthH + levelY(main.shown) + (main.shownBase ? levelY(main.shownBase) : 0), top = main.top ?? roofY + .5, ex = new Set(a.extra);
-    const bodyM = mat(a.body), inner = mat(a.inner ?? shade(a.body, .8)), earM = ex.has('darkears') ? mat('#2a2a30') : bodyM, ink = mat('#1f1a1c'), eh = Math.min(1.25, Math.max(.75, mw * .42));
+    const bodyM = mat(a.body), inner = mat(a.inner ?? shade(a.body, .8)), earM0 = ex.has('darkears') ? mat('#2a2a30') : bodyM, ink = mat('#1f1a1c'), eh = Math.min(1.25, Math.max(.75, mw * .42));
     const earY = roofY + (top - roofY) * .55, sideX = fx + mw / 2;
-    const look = spec.look ?? 'face';
+    const look = spec.look === 'peek' && isDark(spec.owner) ? 'ears' : spec.look ?? 'face';   // a dark animal behind a roof is a black blob
     if (look === 'peek') { // a giant owner standing behind the shop: its head and paws rise over the roof
       const h = Math.min(6, Math.max(2.6, mw * 2.2)); figure(animalModel(spec.owner), h, fx, Math.max(0, top - h * .6 + .15), main.z - md / 2 - .2); return; }
     for (const k of [-1, 1]) {
-      const x = fx + k * mw * .3, z = main.z + md * .12;
+      const x = fx + k * mw * .3, z = main.z + md * .12, earM = a.pattern === 'calico' ? mat(k < 0 ? '#f0a050' : '#3a3238') : a.points ? mat(a.points) : earM0;
       if (a.ears === 'point') { const g = new THREE.Group(), c = new THREE.Mesh(new THREE.ConeGeometry(eh * .5, eh, 14), earM), n = new THREE.Mesh(new THREE.ConeGeometry(eh * .3, eh * .66, 12), inner);
         c.scale.z = .55; c.position.y = eh / 2; n.scale.z = .3; n.position.set(0, eh * .38, eh * .14); g.add(c, n); g.position.set(x, earY, z); g.rotation.z = -k * .2; add(g); }   // soft round cones, tipped outward
       if (a.ears === 'round') { const d = new THREE.Mesh(new THREE.CylinderGeometry(eh * .45, eh * .45, .16, 14), earM); d.rotation.x = Math.PI / 2; d.position.set(x, earY + eh * .45, z); add(d);
@@ -338,8 +338,9 @@ export function buildExterior(spec, section) {
     if (ex.has('wool')) { for (let i = 0; i < 7; i++) ball(.26, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw / 2 + (i + .5) * mw / 7, roofY + .08, fz + .12); for (let i = 0; i < 5; i++) ball(.34, mat(i % 2 ? '#fbf7ef' : '#ece4d4'), fx - mw * .36 + i * mw * .18, top + .05, main.z + md * .1); }
     if (ex.has('tuft')) for (const d of [-.12, 0, .12]) { const c = new THREE.Mesh(new THREE.ConeGeometry(.08, .4, 5), bodyM); c.position.set(fx + d, top + .2, main.z); c.rotation.z = d * 2; add(c); }
     // the tail down the sunny side wall
+    const tailM = a.points ? mat(a.points) : a.pattern === 'calico' ? mat('#f0a050') : null;
     const tz = main.z - md * .15, tm = ex.has('rings') ? (j) => (j % 2 ? mat(shade(a.body, .5)) : bodyM) : () => bodyM;
-    if (a.tail === 'thin') for (let j = 0; j < 9; j++) { const t = j / 8; ball(.11, j > 6 ? mat(shade(a.body, .8)) : bodyM, sideX + .1 + Math.sin(t * 2.2) * .35, .5 + t * 1.3, tz - Math.cos(t * 2.2) * .1); }
+    if (a.tail === 'thin') for (let j = 0; j < 9; j++) { const t = j / 8; ball(.11, tailM ?? (j > 6 ? mat(shade(a.body, .8)) : bodyM), sideX + .1 + Math.sin(t * 2.2) * .35, .5 + t * 1.3, tz - Math.cos(t * 2.2) * .1); }
     if (a.tail === 'fluffy' || a.tail === 'big') for (let j = 0; j < 6; j++) { const t = j / 5; ball(.22 + Math.sin(t * Math.PI) * .14, a.tail === 'fluffy' && j === 5 && a.en === 'fox' ? mat('#ffffff') : tm(j), sideX + .25 + Math.sin(t * 1.8) * .3, .45 + t * (a.tail === 'big' ? 1.6 : 1.0), tz); }
     if (a.tail === 'curl') { const t = new THREE.Mesh(new THREE.TorusGeometry(.2, .08, 6, 12, 5), bodyM); t.position.set(sideX + .12, .9, tz); t.rotation.y = Math.PI / 2; add(t); }
     if (a.tail === 'puff') ball(.2, mat(a.en === 'panda' ? '#ffffff' : a.belly === a.body ? shade(a.body, .95) : a.belly), sideX + .14, .6, tz);

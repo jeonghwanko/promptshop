@@ -17,7 +17,7 @@ import { guestOf } from './special.mjs';
 import { createShop, shopConfig } from './shop.mjs';
 import { bad } from '../src/game/rules.js';
 import { BRAND, brandPage } from '../src/brand.js';
-import { ANIMALS, ANIMAL_IDS } from '../src/v2/animals.js';
+import { ANIMALS, ANIMAL_IDS, ANIMAL_KEYS, animalOf as animalDef, pickAnimal } from '../src/v2/animals.js';
 
 const root = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 const PORT = +(process.env.PORT ?? 5310), DATA = path.resolve(process.env.DATA_DIR ?? path.join(root, 'server-data'));
@@ -38,7 +38,7 @@ if (!store.sql.prepare(`SELECT 1 FROM pragma_table_info('users') WHERE name = 'a
 /** My animal; a player from before animals gets one now (the one their name names, if any) and keeps it. */
 function animalOf(uid) {
   const row = store.sql.prepare(`SELECT name, animal FROM users WHERE uid = ?`).get(uid); if (!row) return null;
-  if (ANIMAL_IDS.includes(row.animal)) return row.animal;
+  if (ANIMAL_KEYS.includes(row.animal)) return row.animal;
   const a = ANIMAL_IDS.find(id => row.name?.includes(ANIMALS[id].ko)) ?? pick(ANIMAL_IDS);
   store.sql.prepare(`UPDATE users SET animal = ? WHERE uid = ?`).run(a, uid); return a;
 }
@@ -49,7 +49,7 @@ function session(req, res, { make = true } = {}) {
   const c = /(?:^|;\s*)sid=([\w-]+)\.([\w-]+)/.exec(req.headers.cookie ?? '');
   const uid = c && sign(c[1]) === c[2] ? c[1] : crypto.randomBytes(12).toString('base64url').replace(/[-_]/g, 'x');
   // the row comes with the first API call that brings back the cookie the page was given (a request with no cookie makes nothing)
-  if (make && c && uid === c[1]) { const a = pick(ANIMAL_IDS); store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at, animal) VALUES (?, ?, ?, ?)`).run(uid, `${pick(ADJ)} ${ANIMALS[a].ko}`, Date.now(), a); }
+  if (make && c && uid === c[1]) { const a = pickAnimal(() => crypto.randomInt(1e9) / 1e9); store.sql.prepare(`INSERT OR IGNORE INTO users (uid, name, at, animal) VALUES (?, ?, ?, ?)`).run(uid, `${pick(ADJ)} ${animalDef(a).ko}`, Date.now(), a); }
   if (c && uid === c[1]) return uid;
   setSession(req, res, uid);
   return uid;

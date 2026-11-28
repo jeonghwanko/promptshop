@@ -5,7 +5,7 @@ import { TYPES, STYLES, SCALE, FAMILY_LOOK, TYPE_LOOK } from './catalog.js';
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
 import { ZONE_NAMES, FIXTURE_NAMES, defaultFloors } from './interior.js';
-import { ANIMAL_IDS } from './animals.js';
+import { ANIMAL_KEYS } from './animals.js';
 
 const HEX = /^#[0-9a-fA-F]{6}$/;
 const color = (v, d) => (typeof v === 'string' && HEX.test(v) ? v : d);
@@ -108,7 +108,7 @@ export function normalize(input = {}) {
     props: (Array.isArray(input.props) ? input.props : [{ type: 'plant', x: -0.4 }, { type: 'plant', x: 0.4 }]).slice(0, 8)
       .filter(p => PROPS.includes(p?.type)).map(p => ({ type: p.type, x: num(p.x, -4, 4, 0), color: color(p.color, accent) })),
     night: !!input.night,
-    owner: oneOf(input.owner, ANIMAL_IDS, null),
+    owner: oneOf(input.owner, ANIMAL_KEYS, null),
     look: oneOf(input.look, ['face', 'ears', 'peek'], 'face'),   // how the owner shows on the building: the building is the animal / ears and tail only / a giant owner peeking over the roof   // the animal who runs it (the builder's animal): at the door, behind the counters
   });
 }

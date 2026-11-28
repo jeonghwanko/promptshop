@@ -3,7 +3,7 @@
 // Claude streaming the building part by part, and extending a shop by one floor.
 import { lineReader } from '../steps.js';
 import { Stage2 } from '../v2/stage.js';
-import { emptyBuilding, applyStep, buildPrompt, extendPrompt, applyExtension, neighbourOf } from '../v2/steps.js';
+import { emptyBuilding, applyStep, buildPrompt, extendPrompt, applyExtension, neighbourOf, lookAllowed } from '../v2/steps.js';
 import { check, missingParts, revisePrompt } from '../v2/check.js';
 import { normalize } from '../v2/spec.js';
 import { TYPE_KO } from '../v2/catalog.js';
@@ -229,16 +229,16 @@ async function build() {
   $('bsub').replaceChildren(stamps); logOpen(x, z, n, line, need);
   const note = (tag, t) => logNote(tag, t);
   const done = (msg) => { if (msg) logFail(msg); S.building = null; input.value = msg === undefined ? '' : line; S.current?.kind === 'build' && (S.current = null); if (msg) say(msg); stakeSite(null); setBuildMode(msg !== undefined); };
-  const seen = []; let raw = '', broken = 0;
+  const seen = []; let raw = '', broken = 0; const nbs = Object.values(S.myDoc?.plots ?? {}).map(q => neighbourOf(q.b?.input)).filter(Boolean);
   const apply = (s) => { if (s.step === 'floor' && s.replace && b.input) b.input.floors = []; const ch = applyStep(b, s); if (!ch) return; seen.push(s);
-    if (s.step === 'building') b.input.owner = myAnimal;   // my animal runs it: at the door from the first line
+    if (s.step === 'building') { b.input.owner = myAnimal; if (!lookAllowed(b.input.look, myAnimal, nbs)) b.input.look = 'ears'; }   // my animal runs it: at the door from the first line; a peek only when it is still a surprise
     if (ch.view === 'ext') { fitToLot(b.input, n); stage.show(b.input, ch.key); } logStep(s);
     const st = stamps.querySelector(`[data-k="${s.step}"]:not(.on)`); if (st) st.classList.add('on');
     if (ch.view === 'ext' || st) { thud(x, z, n); if (S.building) { S.building.parts++; S.building.bumpAt = performance.now(); } }
   };
   try {
     const rd = lineReader(apply, () => broken++);
-    await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null, owner: myAnimal, neighbours: Object.values(S.myDoc?.plots ?? {}).map(q => neighbourOf(q.b?.input)).filter(Boolean) }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
+    await sample(buildPrompt(line, { lot: { size: sz, w: n, d: n }, place: `an island village of friends (island ${S.mySlot})`, request: need ? { en: req.en, types: typesFor(need) } : null, owner: myAnimal, neighbours: nbs }), { purpose: 'build', modelTier: 'quick', cache: false, onText: ({ delta }) => { raw += delta; rd.push(delta); } }); rd.end();
     const c = check(b.input, { broken, line });
     const problems = [...c.ask, ...missingParts(seen).filter(q => q === 'building').map(q => `The "${q}" line is missing.`)];
     if (problems.length && !seen.some(x => x.step === 'guests')) problems.push('The "guests" line is missing: {"step":"guests","who":"<who loves this place, max 14 chars>","reviews":["<3 short guest reviews, each under 26 characters, reacting to the specific things in the description, same language>"]}');   // asked only along with a fix that is going out anyway

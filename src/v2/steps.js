@@ -6,7 +6,7 @@ import { GROUNDS, RHYTHMS, ICONS, HEROES, PROPS, MASS_SHAPES, normalize } from '
 import { ROOF_SHAPES } from './roofs.js';
 import { WALL_MATERIALS, ROOF_MATERIALS } from './materials.js';
 import { ZONE_NAMES, FIXTURE_NAMES, zoneFixtures } from './interior.js';
-import { ANIMALS } from './animals.js';
+import { animalOf, isDark } from './animals.js';
 
 export function emptyBuilding() { return { input: null }; }
 
@@ -73,6 +73,13 @@ const list = (a) => a.join('|');
 const TYPE_LIST = Object.keys(TYPES).map(t => `${t}(${TYPE_KO[t] ?? t})`).join(' ');
 const STYLE_LIST = Object.keys(STYLES).map(t => `${t}(${STYLE_KO[t] ?? t})`).join(' ');
 
+/** May this building use `look`? A giant peeking over the roof is a rare surprise: not on the first buildings, at most one in five, never a dark animal. */
+export function lookAllowed(look, owner, neighbours = []) {
+  if (look !== 'peek') return true;
+  if (isDark(owner)) return false;
+  const peeks = neighbours.filter(n => n?.look === 'peek').length;
+  return (peeks + 1) * 5 <= neighbours.length + 2;
+}
 /** One of my buildings, as the prompt describes a neighbour: what it is and how it looks. */
 export function neighbourOf(i) {
   if (!i) return null;
@@ -85,7 +92,7 @@ export function buildPrompt(line, { lot, place, request, owner, neighbours = [] 
   const placeRule = place ? `\nThe building stands in ${place}. When the description does not say otherwise, let the local architecture, materials and climate of that place shape it.` : '';
   const lotRule = lot ? `\nThe building stands on a lot of size ${lot.size} (${lot.w} x ${lot.d} tiles). Use "scale":"${lot.size}" and keep the footprint, wings included, within ${(lot.w - .6).toFixed(1)} x ${(lot.d - .8).toFixed(1)} tiles; leave the front edge for props.` : '';
   // the owner: the builder's animal runs every shop they build (2026-11-28); the engine draws it, the model makes the building its own
-  const an = ANIMALS[owner], ownerRule = an ? `\nThis shop is run by its owner, a ${an.en} (${an.ko}). The engine draws the ${an.en} at the door and behind every counter, and adds the ${an.en} to the building in the way your "look" says: "face" = the building itself is the ${an.en} (ears on the roof, a cute face under the eaves, paws on the eave), "ears" = only its ears and tail, "peek" = a giant ${an.en} peeking over the roof from behind. You may borrow one or two touches from this ${an.en} mood: ${an.kit} — never all of them, and do not paint every shop of this owner in the same colours. The hero must show WHAT the business is (the type's own hero is usually right: a 찜질방 has steam vents, a 꽃집 a flower stand), since the ${an.en} already shows WHO runs it; use hero "owner_statue" only when the place has no business cue at all. Let the name, the notes and the guests' reviews play with the ${an.en} running it.` : '';
+  const an = animalOf(owner), peekOk = an && lookAllowed('peek', owner, neighbours), ownerRule = an ? `\nThis shop is run by its owner, a ${an.en} (${an.ko}). The engine draws the ${an.en} at the door and behind every counter, and adds the ${an.en} to the building in the way your "look" says: "face" = the building itself is the ${an.en} (ears on the roof, a cute face under the eaves, paws on the eave), "ears" = only its ears and tail, "peek" = a giant ${an.en} peeking over the roof from behind${peekOk ? ' (rare: a surprise, at most one building in five)' : ' (not allowed for this building: choose face or ears)'}. You may borrow one or two touches from this ${an.en} mood: ${an.kit} — never all of them, and do not paint every shop of this owner in the same colours. The hero must show WHAT the business is (the type's own hero is usually right: a 찜질방 has steam vents, a 꽃집 a flower stand), since the ${an.en} already shows WHO runs it; use hero "owner_statue" only when the place has no business cue at all. Let the name, the notes and the guests' reviews play with the ${an.en} running it.` : '';
   // the owner's other buildings on the island: this one must not look like a copy of them (2026-11-29: nine shops of one owner came out alike)
   const nb = neighbours.slice(-12), nbRule = nb.length ? `\nThe owner already has these buildings on the island:\n${nb.map(n => `- ${n.name || n.type}: type ${n.type}, style ${n.style ?? 'default'}, ${n.levels ?? 1} floors, wall ${n.wall ?? '?'}, roof ${n.roof ?? '?'}, look ${n.look ?? 'face'}`).join('\n')}\nMake this one clearly different from all of them: another style, another roof shape and roof colour, another wall colour or material, a different height or silhouette (wings, a tower, a canopy, a round block), and preferably another "look" than the most used one. Together they should read as a lively, varied street, not a row of copies.` : '';
   return `You design one building for an isometric pixel-art town, outside and inside, from this one-line description:

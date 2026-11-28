@@ -56,6 +56,37 @@ export const ANIMALS = {
     kit: 'fluffy and soft: white and cream, a rounded roof, knitted-warm colours, a farm look' },
 };
 export const ANIMAL_IDS = Object.keys(ANIMALS);
+// coats: the same animal in many looks, so two cat players are two different cats (2026-11-29). A player's animal is "cat" or "cat:calico".
+//   pattern: calico (orange and black patches on white) | points (siamese: dark ears, face, paws and tail); eye: a colour for dark faces
+export const COATS = {
+  cat: {
+    cheese:   { ko: '치즈 고양이', en: 'orange tabby cat' },
+    mackerel: { ko: '고등어 고양이', en: 'grey tabby cat', body: '#9aa0a8', belly: '#f6f6f3', face: '#f6f6f3', inner: '#f2b0b4' },
+    calico:   { ko: '삼색 고양이', en: 'calico cat', body: '#fbf7ef', belly: '#ffffff', face: '#ffffff', pattern: 'calico', extra: [] },
+    tuxedo:   { ko: '턱시도 고양이', en: 'tuxedo cat', body: '#2e2a32', belly: '#ffffff', face: '#ffffff', inner: '#f2a0b0', eye: '#f2c94a', extra: [] },
+    white:    { ko: '흰 고양이', en: 'white cat', body: '#fbfbf7', belly: '#ffffff', face: null, inner: '#f7a8b8', eye: '#4a8fd8', extra: [] },
+    black:    { ko: '까만 고양이', en: 'black cat', body: '#2a2630', belly: '#3a3440', face: null, inner: '#8a6a78', eye: '#f2c94a', nose: '#8a6a78', extra: [] },
+    siamese:  { ko: '샴 고양이', en: 'siamese cat', body: '#f3e6cf', belly: '#fbf3e4', face: '#5a4034', inner: '#5a4034', points: '#5a4034', pattern: 'points', eye: '#4a8fd8', extra: [] },
+  },
+};
+/** The animal behind a key ("cat" or "cat:calico"): its shape with the coat's colours over it, and its id. */
+export function animalOf(key) {
+  const [id, coat] = String(key ?? '').split(':'), base = ANIMALS[id];
+  if (!base) return null;
+  const c = COATS[id]?.[coat];
+  return { ...base, ...(c ?? {}), id, coat: c ? coat : null };
+}
+export const ANIMAL_KEYS = [...ANIMAL_IDS, ...Object.entries(COATS).flatMap(([id, cs]) => Object.keys(cs).map(c => `${id}:${c}`))];
+/** A new player's animal: an animal, and one of its coats if it has any. */
+export function pickAnimal(rnd) {
+  const id = ANIMAL_IDS[Math.floor(rnd() * ANIMAL_IDS.length)], cs = COATS[id] ? Object.keys(COATS[id]) : null;
+  return cs ? `${id}:${cs[Math.floor(rnd() * cs.length)]}` : id;
+}
+/** Too dark to peek over a roof (it reads as a black blob behind the building). */
+export function isDark(key) {
+  const a = animalOf(key); if (!a) return false; const n = parseInt(a.body.slice(1), 16);
+  return ((n >> 16) * .3 + (n >> 8 & 255) * .55 + (n & 255) * .15) / 255 < .3;
+}
 export const animalKo = (id) => ANIMALS[id]?.ko ?? '';
 /** An animal for an id that has none (a player from before animals, a dev account): the same one every time. */
 export function animalFor(seed) {
@@ -79,9 +110,9 @@ const INK = '#1f1a1c', GLINT = '#ffffff', CHEEK = '#ffa8a0';
  * One animal, standing, facing the viewer (+z): a chibi figure about 20 wide and 28-34 tall in voxels, feet at y = 0.
  * opts.apron: a colour → it wears a shop apron (staff inside); opts.statue: a colour → the whole figure in one stone tone, eyes kept.
  */
-export function animalModel(id, { apron = null, statue = null } = {}) {
-  const a = ANIMALS[id] ?? ANIMALS.cat, v = grid(), ex = new Set(a.extra);
-  const body = a.body, belly = a.belly, limb = ex.has('darklegs') || a.arms === 'dark' ? (id === 'panda' ? '#2a2a30' : dark(body, .45)) : dark(body, .85);
+export function animalModel(key, { apron = null, statue = null } = {}) {
+  const a = animalOf(key) ?? animalOf('cat'), id = a.id, v = grid(), ex = new Set(a.extra), EYE = a.eye ?? INK;
+  const body = a.body, belly = a.belly, limb = a.points ?? (ex.has('darklegs') || a.arms === 'dark' ? (id === 'panda' ? '#2a2a30' : dark(body, .45)) : dark(body, .85));
   // ---- feet / legs ----
   if (ex.has('tentacles')) {   // six curling tentacles in a ring
     for (let k = 0; k < 6; k++) { const ang = k / 6 * Math.PI * 2 + .3, cx = 10 + Math.cos(ang) * 4.6, cz = 9 + Math.sin(ang) * 3.6, ox = Math.cos(ang), oz = Math.sin(ang);
@@ -142,7 +173,7 @@ export function animalModel(id, { apron = null, statue = null } = {}) {
   if (ex.has('band')) for (let x = 4; x <= 16; x++) for (const dy of [0, 1]) onFace(x, ey + dy, '#3a3a42');
   if (ex.has('tearmarks')) for (const e of [7, 13]) for (const dy of [-1, -2, -3]) onFace(e, ey + dy, '#a8401c');
   if (ex.has('eyestop')) for (const e of [6, 14]) { v.ball(e, hy + 5.5, hz + 2, 2.2, 2.2, 2.2, body); v.box(e - 1, hy + 5, hz + 4, e, hy + 6, hz + 4, INK); v.put(e - 1, hy + 6, hz + 4, GLINT); }
-  else for (const e of [7, 13]) { for (const [dx, dy] of [[-1, 0], [0, 0], [-1, 1], [0, 1]]) onFace(e + dx, ey + dy, INK, ex.has('mask') ? 1 : 0); onFace(e - 1, ey + 1, GLINT, ex.has('mask') ? 1 : 0); }
+  else for (const e of [7, 13]) { for (const [dx, dy] of [[-1, 0], [0, 0], [-1, 1], [0, 1]]) onFace(e + dx, ey + dy, EYE, ex.has('mask') ? 1 : 0); onFace(e - 1, ey + 1, GLINT, ex.has('mask') ? 1 : 0); }
   if (!ex.has('mask') && !ex.has('tentacles')) for (const cx of [4, 16]) onFace(cx, hy - 2, ex.has('cheeks') ? CHEEK : CHEEK);
   if (ex.has('cheeks')) for (const s of [-1, 1]) v.ball(s < 0 ? 4.5 : 15.5, hy - 2, hz + 3, 2.2, 1.8, 1.8, a.face);
   if (ex.has('tentacles')) for (const cx of [5, 15]) onFace(cx, hy - 2, '#ff9aa8');
@@ -155,6 +186,11 @@ export function animalModel(id, { apron = null, statue = null } = {}) {
   if (ex.has('tentacles')) { for (let x = 9; x <= 11; x++) onFace(x, hy - 3, '#b84a50'); onFace(10, hy - 4, '#b84a50'); }
   if (ex.has('whiskers')) for (const s of [-1, 1]) for (const dy of [0, -2]) v.put(s < 0 ? 6 : 14, hy - 2 + dy, sz + 1, INK);
   let out = v.list();
+  if (a.pattern === 'calico') { // patches of orange and black over the white, in big soft blocks
+    const hash = (x, y, z) => { let h = (x * 73856093) ^ (y * 19349663) ^ (z * 83492791); h = Math.imul(h ^ (h >>> 13), 1274126177); return (h >>> 0) % 7; };
+    out = out.map(([x, y, z, c]) => { if (c !== body) return [x, y, z, c]; const k = hash(Math.floor(x / 6), Math.floor(y / 5), Math.floor(z / 6)); return [x, y, z, k < 2 ? '#f0a050' : k === 2 ? '#3a3238' : c]; }); }
+  if (a.pattern === 'points') { // siamese: the ears, the tail and the face's middle go dark
+    const hy0 = 19; out = out.map(([x, y, z, c]) => [x, y, z, c === body && (y > hy0 + 4 || z <= 3 || (y < hy0 + 1 && y > hy0 - 5 && z > 13 && Math.abs(x + .5 - 10) < 4)) ? a.points : c]); }
   if (statue) out = out.map(([x, y, z, c]) => [x, y, z, c === INK || c === GLINT ? c : tone(statue, c)]);
   return out;
 }
